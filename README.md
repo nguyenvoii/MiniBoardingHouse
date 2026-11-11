@@ -3,7 +3,7 @@
 Website quan ly nha tro mini. Java 17, Spring Boot 3, Spring Data JPA, SQL Server.
 
 ## Cau truc package (com.group7.minihouse)
-- entity      : 48 class = 48 bang trong db/group-7.sql (+ UserRoleId la khoa phuc hop, khong phai entity)
+- entity      : 56 class = 56 bang trong db/group-7.sql (+ UserRoleId la khoa phuc hop, khong phai entity)
 - repository  : Spring Data JPA repository
 - service     : nghiep vu
 - controller  : REST / web controller

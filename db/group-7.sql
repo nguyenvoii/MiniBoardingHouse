@@ -1,5 +1,5 @@
 -- ============================================================================
--- DATABASE CREATION: WEBSITE QUẢN LÝ NHÀ TRỌ MINI FOR RENT (48 TABLES)
+-- DATABASE CREATION: WEBSITE QUẢN LÝ NHÀ TRỌ MINI FOR RENT (56 TABLES)
 -- Target RDBMS: SQL Server 2016+ / Azure SQL Database
 -- ============================================================================
 
@@ -592,6 +592,111 @@ CREATE TABLE [maintenance_logs] (
     [tenant_rating] INT NULL CHECK ([tenant_rating] BETWEEN 1 AND 5),
     [resolution_notes] NVARCHAR(MAX) NULL,
     [completed_at] DATETIME2 NULL
+);
+
+-- ============================================================================
+-- PHÂN HỆ 11: BỔ SUNG CHO CÁC USECASE CHƯA CÓ BẢNG (EXTENSIONS) - 8 BẢNG
+-- ============================================================================
+
+-- 49. Phương tiện của khách thuê (Usecase 34)
+CREATE TABLE [tenant_vehicles] (
+    [vehicle_id] INT IDENTITY(1,1) PRIMARY KEY,
+    [tenant_id] INT NOT NULL FOREIGN KEY REFERENCES [tenants]([tenant_id]) ON DELETE CASCADE,
+    [license_plate] VARCHAR(20) NOT NULL,
+    [vehicle_type] NVARCHAR(20) NOT NULL CHECK ([vehicle_type] IN ('MOTORBIKE', 'BICYCLE', 'ELECTRIC_BIKE', 'CAR', 'OTHER')),
+    [brand] NVARCHAR(50) NULL,
+    [color] NVARCHAR(30) NULL,
+    [is_active] BIT NOT NULL DEFAULT 1,
+    [created_at] DATETIME2 NOT NULL DEFAULT GETDATE(),
+    CONSTRAINT [UQ_vehicle_plate] UNIQUE([license_plate])
+);
+
+-- 50. Danh mục nhóm sự cố & nhóm thiết bị (Usecase 113)
+CREATE TABLE [incident_categories] (
+    [category_id] INT IDENTITY(1,1) PRIMARY KEY,
+    [category_code] VARCHAR(50) NOT NULL UNIQUE, -- ELECTRIC_ISSUE, WATER_ISSUE, AIR_CONDITIONER...
+    [category_name] NVARCHAR(100) NOT NULL,
+    [category_type] VARCHAR(20) NOT NULL CHECK ([category_type] IN ('INCIDENT', 'EQUIPMENT')),
+    [description] NVARCHAR(255) NULL,
+    [is_active] BIT NOT NULL DEFAULT 1
+);
+
+-- 51. Yêu cầu sử dụng thêm / lắp đặt thiết bị trong phòng (Usecase 108)
+CREATE TABLE [room_equipment_requests] (
+    [equipment_request_id] INT IDENTITY(1,1) PRIMARY KEY,
+    [room_id] INT NOT NULL FOREIGN KEY REFERENCES [rooms]([room_id]),
+    [tenant_id] INT NOT NULL FOREIGN KEY REFERENCES [tenants]([tenant_id]),
+    [category_id] INT NULL FOREIGN KEY REFERENCES [incident_categories]([category_id]),
+    [equipment_name] NVARCHAR(100) NOT NULL, -- Máy lạnh, Máy giặt, Bếp từ...
+    [request_type] VARCHAR(20) NOT NULL CHECK ([request_type] IN ('INSTALL', 'EXTRA_USAGE')),
+    [estimated_monthly_fee] DECIMAL(18,2) DEFAULT 0,
+    [status] NVARCHAR(20) NOT NULL DEFAULT 'PENDING'
+        CHECK ([status] IN ('PENDING', 'APPROVED', 'REJECTED', 'INSTALLED', 'REMOVED')),
+    [reviewed_by] INT NULL FOREIGN KEY REFERENCES [users]([user_id]),
+    [note] NVARCHAR(255) NULL,
+    [created_at] DATETIME2 NOT NULL DEFAULT GETDATE()
+);
+
+-- 52. Phí tiện ích bổ sung theo phòng (thiết bị điện, dịch vụ theo kỳ) (Usecase 109)
+CREATE TABLE [room_addon_fees] (
+    [addon_fee_id] INT IDENTITY(1,1) PRIMARY KEY,
+    [room_id] INT NOT NULL FOREIGN KEY REFERENCES [rooms]([room_id]) ON DELETE CASCADE,
+    [equipment_request_id] INT NULL FOREIGN KEY REFERENCES [room_equipment_requests]([equipment_request_id]),
+    [fee_name] NVARCHAR(100) NOT NULL,
+    [amount] DECIMAL(18,2) NOT NULL,
+    [billing_cycle_months] INT NOT NULL DEFAULT 1,
+    [start_date] DATE NOT NULL,
+    [end_date] DATE NULL,
+    [is_active] BIT NOT NULL DEFAULT 1
+);
+
+-- 53. Chi phí vận hành khu trọ (bảo trì, vệ sinh, thuế...) (Usecase 117, 118)
+CREATE TABLE [operating_expenses] (
+    [expense_id] INT IDENTITY(1,1) PRIMARY KEY,
+    [property_id] INT NOT NULL FOREIGN KEY REFERENCES [properties]([property_id]),
+    [expense_category] NVARCHAR(50) NOT NULL, -- Bảo trì, Vệ sinh, Thuế, Điện nước chung...
+    [description] NVARCHAR(255) NULL,
+    [amount] DECIMAL(18,2) NOT NULL,
+    [expense_date] DATE NOT NULL,
+    [receipt_url] NVARCHAR(500) NULL,
+    [recorded_by] INT NOT NULL FOREIGN KEY REFERENCES [users]([user_id]),
+    [created_at] DATETIME2 NOT NULL DEFAULT GETDATE()
+);
+
+-- 54. Tài khoản ngân hàng & mã QR nhận tiền (Usecase 119)
+CREATE TABLE [bank_accounts] (
+    [bank_account_id] INT IDENTITY(1,1) PRIMARY KEY,
+    [property_id] INT NOT NULL FOREIGN KEY REFERENCES [properties]([property_id]) ON DELETE CASCADE,
+    [bank_name] NVARCHAR(100) NOT NULL,
+    [account_number] VARCHAR(30) NOT NULL,
+    [account_holder] NVARCHAR(100) NOT NULL,
+    [qr_image_url] NVARCHAR(500) NULL,
+    [is_default] BIT NOT NULL DEFAULT 0,
+    [is_active] BIT NOT NULL DEFAULT 1
+);
+
+-- 55. Mẫu thông báo & kênh gửi (email, website) (Usecase 121)
+CREATE TABLE [notification_templates] (
+    [notif_template_id] INT IDENTITY(1,1) PRIMARY KEY,
+    [template_code] VARCHAR(50) NOT NULL, -- INVOICE_ISSUED, DEBT_REMINDER_1, CONTRACT_EXPIRING...
+    [channel] VARCHAR(20) NOT NULL CHECK ([channel] IN ('EMAIL', 'SMS', 'SYSTEM_APP')),
+    [subject] NVARCHAR(200) NULL,
+    [content] NVARCHAR(MAX) NOT NULL,
+    [is_active] BIT NOT NULL DEFAULT 1,
+    CONSTRAINT [UQ_notif_template_channel] UNIQUE([template_code], [channel])
+);
+
+-- 56. Trung tâm thông báo của người dùng (xem, đánh dấu đã đọc, xóa) (Usecase 123)
+CREATE TABLE [user_notifications] (
+    [user_notification_id] INT IDENTITY(1,1) PRIMARY KEY,
+    [user_id] INT NOT NULL FOREIGN KEY REFERENCES [users]([user_id]) ON DELETE CASCADE,
+    [notif_template_id] INT NULL FOREIGN KEY REFERENCES [notification_templates]([notif_template_id]),
+    [title] NVARCHAR(200) NOT NULL,
+    [content] NVARCHAR(MAX) NOT NULL,
+    [reference_type] VARCHAR(30) NULL, -- INVOICE, CONTRACT, DEBT, MAINTENANCE...
+    [reference_id] INT NULL,
+    [is_read] BIT NOT NULL DEFAULT 0,
+    [created_at] DATETIME2 NOT NULL DEFAULT GETDATE()
 );
 GO
 
