@@ -101,10 +101,14 @@ Trạng thái giai đoạn 0: ĐÃ XONG (Phi). Các class dùng chung đã có t
 - `shared/dto/PageResponse`: dùng cho API phân trang
 - `shared/exception/BusinessException`: ném từ service khi vi phạm nghiệp vụ, ví dụ `throw BusinessException.notFound("Phong")`
 - `shared/exception/GlobalExceptionHandler`: tự đổi exception thành response chuẩn
-- `shared/config/SecurityConfig`: tạm cho phép mọi request (permitAll), chưa cần đăng nhập
+- `shared/config/SecurityConfig`: ĐĂNG NHẬP JWT, mọi API đều phải đăng nhập (trừ `/api/auth/login`, `/api/ping`, Swagger)
+- `shared/security/AuthUser`: người đang đăng nhập, lấy trong controller bằng `@AuthenticationPrincipal AuthUser user`
 - `shared/controller/PingController`: ví dụ controller mẫu, thử bằng `GET /api/ping`
 
-- Giai đoạn 0 (Phi làm trước, càng sớm càng tốt, chỉ vài chục dòng): đẩy lên `main` các class dùng chung `ApiResponse`, `BusinessException`, `GlobalExceptionHandler`. Trong lúc chờ, `SecurityConfig` cho phép mọi request (permitAll) để mọi người test API mà chưa cần đăng nhập. Phi siết phân quyền lại sau khi mọi người đã có API.
+Cách test API có đăng nhập: mở Swagger `http://localhost:8080/swagger-ui.html`, gọi `POST /api/auth/login` với `admin@minihouse.local` / `Admin@123`, copy `accessToken`, bấm nút Authorize và dán token. Ngoài Swagger thì gửi header `Authorization: Bearer <token>`.
+Phân quyền theo vai trò (`LANDLORD`, `MANAGER`, `CASHIER`, `METER_READER`): gắn `@PreAuthorize("hasAnyRole('LANDLORD','MANAGER')")` lên hàm controller. Thiết kế chi tiết: `docs/superpowers/specs/2026-11-14-jwt-login-design.md`.
+
+- Giai đoạn 0 (ĐÃ XONG): các class dùng chung `ApiResponse`, `BusinessException`, `GlobalExceptionHandler`, và đăng nhập JWT do Phi làm. Chi, Toàn, Việt cứ làm API của mình, gắn `@PreAuthorize` theo vai trò phù hợp.
 - Trong lúc Phi làm khung, Chi, Toàn, Việt bắt đầu ngay với các bảng của mình, không cần đợi.
 - Mỗi người chỉ tạo repository, service, controller trong phần bảng của mình. Cần dữ liệu của bảng người khác thì gọi qua `Service` của người đó, hoặc dùng quan hệ JPA có sẵn trong entity. Không tự viết repository cho bảng người khác.
 - Các service nền tảng nhiều người cần (`RoomService`, `TenantService`, `UserService`) chủ sở hữu nên làm các hàm đọc cơ bản (`findById`, `findAll`) trước, rồi mới làm nghiệp vụ phức tạp.
