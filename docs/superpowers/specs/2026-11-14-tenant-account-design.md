@@ -1,6 +1,9 @@
 # Thiet ke: Tai khoan dang nhap cho nguoi thue (UC10, UC11, UC36, UC37, UC94)
 
-Ngay: 2026-11-14. Trang thai: CHO PHI DUYET (chua code).
+Ngay: 2026-11-14. Trang thai: DA DUYET va DA LAM (nhanh phi/tenant-account, chua push). Ke hoach: `docs/superpowers/plans/2026-11-14-tenant-account.md`.
+Da kiem chung chay that tren DB tam (bat bao mat): cap tai khoan 200, cap lan 2 -> 409, tenant khong ton tai -> 404, email trung -> 409,
+nguoi thue dang nhap bang SDT + mat khau tam -> tenantId dung, token nguoi thue goi API nhan vien -> 403, khong token -> 401,
+xoa ho so khach thue roi dang nhap -> 409 (khong 500). 17 unit test xanh.
 
 ## Muc dich
 Excel yeu cau 3 vai tro: Chu tro, Nhan vien, Nguoi thue. Nguoi thue dang nhap va chi xem du lieu cua chinh minh
