@@ -4,8 +4,10 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import jakarta.persistence.*;
+import org.hibernate.annotations.DynamicInsert;
 
 /** Bang `operating_expenses`. */
+@DynamicInsert
 @Entity
 @Table(name = "operating_expenses")
 public class OperatingExpense {

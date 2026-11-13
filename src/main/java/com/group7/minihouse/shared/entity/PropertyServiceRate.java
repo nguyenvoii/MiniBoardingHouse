@@ -2,8 +2,10 @@ package com.group7.minihouse.shared.entity;
 
 import java.math.BigDecimal;
 import jakarta.persistence.*;
+import org.hibernate.annotations.DynamicInsert;
 
 /** Bang `property_service_rates`. */
+@DynamicInsert
 @Entity
 @Table(name = "property_service_rates")
 public class PropertyServiceRate {

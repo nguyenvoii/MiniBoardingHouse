@@ -2,8 +2,10 @@ package com.group7.minihouse.shared.entity;
 
 import java.time.LocalDateTime;
 import jakarta.persistence.*;
+import org.hibernate.annotations.DynamicInsert;
 
 /** Bang `contract_notifications`. */
+@DynamicInsert
 @Entity
 @Table(name = "contract_notifications")
 public class ContractNotification {

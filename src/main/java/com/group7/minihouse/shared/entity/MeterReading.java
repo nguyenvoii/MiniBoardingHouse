@@ -2,8 +2,10 @@ package com.group7.minihouse.shared.entity;
 
 import java.time.LocalDateTime;
 import jakarta.persistence.*;
+import org.hibernate.annotations.DynamicInsert;
 
 /** Bang `meter_readings`. */
+@DynamicInsert
 @Entity
 @Table(name = "meter_readings")
 public class MeterReading {

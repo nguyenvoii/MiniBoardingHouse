@@ -62,9 +62,18 @@ BUOC 5: CHAY APP TRONG VS CODE
 3. Mo file src/main/java/com/group7/minihouse/MiniBoardingHouseApplication.java.
 4. Bam chu "Run" nho hien ngay tren ham main. Hoac dung nut play trong tab Spring Boot Dashboard.
 5. Thanh cong khi log cuoi cung co dong: Started MiniBoardingHouseApplication
-6. Mo trinh duyet vao http://localhost:8080
 
-Hien tai project chua co controller nen trang se bao 404 (Whitelabel Error Page). Day la binh thuong, khong phai loi.
+6. Kiem tra app song: mo http://localhost:8080/api/ping se thay {"success":true,"message":"OK","data":"pong"}
+7. Xem va thu API: mo http://localhost:8080/swagger-ui.html (Swagger tu liet ke moi controller, khong can Postman).
+   Trang goc http://localhost:8080 bao 404 la binh thuong.
+
+
+BUOC 6: NAP DU LIEU MAU
+
+Trong SSMS mo file db/seed.sql va bam Execute. File chay lai nhieu lan van an toan. No tao:
+- 4 vai tro: LANDLORD, MANAGER, CASHIER, METER_READER
+- 22 quyen chi tiet
+- Tai khoan chu nha: admin@minihouse.local / Admin@123 (chi dung cho dev, demo)
 
 
 CAC LOI THUONG GAP

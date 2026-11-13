@@ -2,8 +2,10 @@ package com.group7.minihouse.shared.entity;
 
 import java.time.LocalDateTime;
 import jakarta.persistence.*;
+import org.hibernate.annotations.DynamicInsert;
 
 /** Bang `maintenance_requests`. */
+@DynamicInsert
 @Entity
 @Table(name = "maintenance_requests")
 public class MaintenanceRequest {

@@ -1,8 +1,10 @@
 package com.group7.minihouse.shared.entity;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.DynamicInsert;
 
 /** Bang `contract_templates`. */
+@DynamicInsert
 @Entity
 @Table(name = "contract_templates")
 public class ContractTemplate {

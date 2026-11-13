@@ -1,8 +1,10 @@
 package com.group7.minihouse.shared.entity;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.DynamicInsert;
 
 /** Bang `property_floors`. */
+@DynamicInsert
 @Entity
 @Table(name = "property_floors")
 public class PropertyFloor {

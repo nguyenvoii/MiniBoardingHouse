@@ -4,8 +4,10 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import jakarta.persistence.*;
+import org.hibernate.annotations.DynamicInsert;
 
 /** Bang `booking_requests`. */
+@DynamicInsert
 @Entity
 @Table(name = "booking_requests")
 public class BookingRequest {

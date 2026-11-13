@@ -2,8 +2,10 @@ package com.group7.minihouse.shared.entity;
 
 import java.time.LocalDateTime;
 import jakarta.persistence.*;
+import org.hibernate.annotations.DynamicInsert;
 
 /** Bang `user_verifications`. */
+@DynamicInsert
 @Entity
 @Table(name = "user_verifications")
 public class UserVerification {
