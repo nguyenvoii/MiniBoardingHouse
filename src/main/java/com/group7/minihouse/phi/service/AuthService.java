@@ -71,8 +71,14 @@ public class AuthService {
         if (phone == null || phone.isEmpty()) {
             throw noTenantProfile();
         }
-        return tenantReadRepository.findByPhone(phone).map(Tenant::getTenantId)
-                .orElseThrow(AuthService::noTenantProfile);
+        Tenant tenant = tenantReadRepository.findByPhone(phone).orElseThrow(AuthService::noTenantProfile);
+        // Tai khoan phai duoc tao SAU ho so khach thue. Neu cu hon thi SDT da bi tai su dung cho nguoi khac:
+        // khong cho tai khoan cu nhan du lieu cua nguoi moi.
+        if (user.getCreatedAt() != null && tenant.getCreatedAt() != null
+                && user.getCreatedAt().isBefore(tenant.getCreatedAt())) {
+            throw noTenantProfile();
+        }
+        return tenant.getTenantId();
     }
 
     private static BusinessException noTenantProfile() {

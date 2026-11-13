@@ -48,6 +48,9 @@ public class TenantAccountService {
                 .orElseThrow(() -> BusinessException.notFound("Khach thue"));
 
         String phone = tenant.getPhoneNumber().trim();
+        if (phone.isEmpty()) {
+            throw new BusinessException(HttpStatus.CONFLICT, "Ho so khach thue thieu so dien thoai");
+        }
         String email = tenant.getEmail() == null || tenant.getEmail().isBlank() ? null : tenant.getEmail().trim();
 
         if (userRepository.existsByPhoneNumber(phone)) {
