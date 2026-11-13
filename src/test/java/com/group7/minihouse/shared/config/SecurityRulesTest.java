@@ -130,4 +130,20 @@ class SecurityRulesTest {
     void noTokenGets401() throws Exception {
         mvc.perform(get("/api/probe/staff")).andExpect(status().isUnauthorized());
     }
+
+    /** Go URL API tren trinh duyet (Accept: text/html) khi chua dang nhap => chuyen ve trang dang nhap, khong hien JSON tho. */
+    @Test
+    void browserNavigationWithoutLoginIsRedirectedToLoginPage() throws Exception {
+        mvc.perform(get("/api/probe/staff").accept(org.springframework.http.MediaType.TEXT_HTML))
+                .andExpect(status().isFound())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .header().string("Location", org.hamcrest.Matchers.endsWith("/ui/index.html")));
+    }
+
+    /** Swagger/Postman/fetch (Accept json hoac mac dinh) van nhan 401 JSON nhu cu. */
+    @Test
+    void apiClientsStillGet401Json() throws Exception {
+        mvc.perform(get("/api/probe/staff").accept(org.springframework.http.MediaType.APPLICATION_JSON))
+                .andExpect(status().isUnauthorized());
+    }
 }
