@@ -40,6 +40,7 @@ class TenantAccountServiceTest {
     @Mock UserRepository userRepository;
     @Mock UserRoleRepository userRoleRepository;
     @Mock RoleRepository roleRepository;
+    @Mock ActivityLogService activityLogService;
 
     final PasswordEncoder encoder = new BCryptPasswordEncoder();
     TenantAccountService service;
@@ -47,7 +48,7 @@ class TenantAccountServiceTest {
     @BeforeEach
     void setUp() {
         service = new TenantAccountService(tenantRepository, userRepository, userRoleRepository,
-                roleRepository, encoder);
+                roleRepository, encoder, activityLogService);
     }
 
     private Tenant tenant(String phone, String email) {
@@ -80,7 +81,7 @@ class TenantAccountServiceTest {
         when(roleRepository.findByRoleCode("TENANT")).thenReturn(Optional.of(tenantRole()));
         saveAssignsId();
 
-        TenantAccountResponse res = service.createAccount(42);
+        TenantAccountResponse res = service.createAccount(42, 1, "127.0.0.1");
 
         ArgumentCaptor<User> u = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(u.capture());
@@ -111,6 +112,30 @@ class TenantAccountServiceTest {
     }
 
     @Test
+    void logsWhoCreatedTheTenantAccount() {
+        when(tenantRepository.findById(42)).thenReturn(Optional.of(tenant("0901234567", null)));
+        when(roleRepository.findByRoleCode("TENANT")).thenReturn(Optional.of(tenantRole()));
+        saveAssignsId();
+
+        service.createAccount(42, 1, "10.0.0.1");
+
+        verify(activityLogService).log(org.mockito.ArgumentMatchers.eq(1),
+                org.mockito.ArgumentMatchers.eq("CREATE_TENANT_ACCOUNT"), any(String.class),
+                org.mockito.ArgumentMatchers.eq("10.0.0.1"));
+    }
+
+    @Test
+    void doesNotLogWhenThereIsNoActor() {
+        when(tenantRepository.findById(42)).thenReturn(Optional.of(tenant("0901234567", null)));
+        when(roleRepository.findByRoleCode("TENANT")).thenReturn(Optional.of(tenantRole()));
+        saveAssignsId();
+
+        service.createAccount(42, null, "10.0.0.1");
+
+        org.mockito.Mockito.verifyNoInteractions(activityLogService);
+    }
+
+    @Test
     void rejectsSecondAccountForSamePhone() {
         Tenant t = tenant("0901234567", null);
         t.setCreatedAt(LocalDateTime.of(2026, 1, 1, 0, 0));
@@ -119,7 +144,7 @@ class TenantAccountServiceTest {
                 Optional.of(existingUser(7, "0901234567", null, LocalDateTime.of(2026, 2, 1, 0, 0))));
         when(userRoleRepository.findRoleCodesByUserId(7)).thenReturn(List.of("TENANT"));
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.createAccount(42));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.createAccount(42, 1, "127.0.0.1"));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatus());
         assertTrue(ex.getMessage().contains("da co tai khoan"));
@@ -133,7 +158,7 @@ class TenantAccountServiceTest {
                 Optional.of(existingUser(3, "0901234567", "m@x.vn", LocalDateTime.of(2025, 1, 1, 0, 0))));
         when(userRoleRepository.findRoleCodesByUserId(3)).thenReturn(List.of("MANAGER"));
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.createAccount(42));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.createAccount(42, 1, "127.0.0.1"));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatus());
         assertTrue(ex.getMessage().contains("nhan vien"));
@@ -152,7 +177,7 @@ class TenantAccountServiceTest {
         when(roleRepository.findByRoleCode("TENANT")).thenReturn(Optional.of(tenantRole()));
         saveAssignsId();
 
-        TenantAccountResponse res = service.createAccount(42);
+        TenantAccountResponse res = service.createAccount(42, 1, "127.0.0.1");
 
         // tai khoan cu phai duoc ghi xuong DB NGAY (flush) de nha cho unique index truoc khi them tai khoan moi
         ArgumentCaptor<User> flushed = ArgumentCaptor.forClass(User.class);
@@ -168,7 +193,7 @@ class TenantAccountServiceTest {
         when(tenantRepository.findById(42)).thenReturn(Optional.of(tenant("0901234567", "t@x.vn")));
         when(userRepository.existsByEmail("t@x.vn")).thenReturn(true);
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.createAccount(42));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.createAccount(42, 1, "127.0.0.1"));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatus());
         verify(userRepository, never()).save(any(User.class));
@@ -178,7 +203,7 @@ class TenantAccountServiceTest {
     void rejectsTenantProfileWithBlankPhone() {
         when(tenantRepository.findById(42)).thenReturn(Optional.of(tenant("   ", null)));
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.createAccount(42));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.createAccount(42, 1, "127.0.0.1"));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatus());
         assertTrue(ex.getMessage().contains("so dien thoai"));
@@ -189,7 +214,7 @@ class TenantAccountServiceTest {
     void tenantNotFound() {
         when(tenantRepository.findById(99)).thenReturn(Optional.empty());
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.createAccount(99));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.createAccount(99, 1, "127.0.0.1"));
 
         assertEquals(HttpStatus.NOT_FOUND, ex.getStatus());
     }
@@ -199,7 +224,7 @@ class TenantAccountServiceTest {
         when(tenantRepository.findById(42)).thenReturn(Optional.of(tenant("0901234567", null)));
         when(roleRepository.findByRoleCode("TENANT")).thenReturn(Optional.empty());
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.createAccount(42));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.createAccount(42, 1, "127.0.0.1"));
 
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, ex.getStatus());
         assertTrue(ex.getMessage().contains("seed.sql"));
@@ -211,7 +236,7 @@ class TenantAccountServiceTest {
         when(roleRepository.findByRoleCode("TENANT")).thenReturn(Optional.of(tenantRole()));
         saveAssignsId();
 
-        service.createAccount(42);
+        service.createAccount(42, 1, "127.0.0.1");
 
         ArgumentCaptor<User> u = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(u.capture());

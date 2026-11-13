@@ -11,7 +11,7 @@ import com.group7.minihouse.shared.entity.User;
 import com.group7.minihouse.shared.entity.UserRole;
 import com.group7.minihouse.shared.entity.UserRoleId;
 import com.group7.minihouse.shared.exception.BusinessException;
-import java.security.SecureRandom;
+import com.group7.minihouse.shared.util.PasswordGenerator;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -21,29 +21,27 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class TenantAccountService {
 
-    /** Bo cac ky tu de nham (0 O 1 l I) vi mat khau tam duoc doc/gui cho nguoi thue. */
-    private static final String PASSWORD_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
-    private static final int PASSWORD_LENGTH = 10;
-
-    private final SecureRandom random = new SecureRandom();
     private final TenantReadRepository tenantRepository;
     private final UserRepository userRepository;
     private final UserRoleRepository userRoleRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
+    private final ActivityLogService activityLogService;
 
     public TenantAccountService(TenantReadRepository tenantRepository, UserRepository userRepository,
                                 UserRoleRepository userRoleRepository, RoleRepository roleRepository,
-                                PasswordEncoder passwordEncoder) {
+                                PasswordEncoder passwordEncoder, ActivityLogService activityLogService) {
         this.tenantRepository = tenantRepository;
         this.userRepository = userRepository;
         this.userRoleRepository = userRoleRepository;
         this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
+        this.activityLogService = activityLogService;
     }
 
+    /** actorUserId la nguoi cap tai khoan (null khi che do dev khong co token: khi do khong ghi nhat ky). */
     @Transactional
-    public TenantAccountResponse createAccount(Integer tenantId) {
+    public TenantAccountResponse createAccount(Integer tenantId, Integer actorUserId, String ip) {
         Tenant tenant = tenantRepository.findById(tenantId)
                 .orElseThrow(() -> BusinessException.notFound("Khach thue"));
 
@@ -60,7 +58,7 @@ public class TenantAccountService {
         Role role = roleRepository.findByRoleCode("TENANT").orElseThrow(() ->
                 new BusinessException(HttpStatus.INTERNAL_SERVER_ERROR, "Chua nap role TENANT, chay db/seed.sql"));
 
-        String tempPassword = generatePassword();
+        String tempPassword = PasswordGenerator.generate();
         User user = new User();
         user.setPhoneNumber(phone);
         user.setEmail(email);
@@ -75,6 +73,10 @@ public class TenantAccountService {
         userRole.setRole(role);
         userRoleRepository.save(userRole);
 
+        if (actorUserId != null) {
+            activityLogService.log(actorUserId, "CREATE_TENANT_ACCOUNT",
+                    "Cap tai khoan nguoi thue cho khach thue " + tenantId + " (user " + saved.getUserId() + ")", ip);
+        }
         return new TenantAccountResponse(saved.getUserId(), phone, tempPassword);
     }
 
@@ -96,13 +98,5 @@ public class TenantAccountService {
         existing.setPhoneNumber(null);
         existing.setEmail(null);
         userRepository.saveAndFlush(existing);
-    }
-
-    private String generatePassword() {
-        StringBuilder sb = new StringBuilder(PASSWORD_LENGTH);
-        for (int i = 0; i < PASSWORD_LENGTH; i++) {
-            sb.append(PASSWORD_CHARS.charAt(random.nextInt(PASSWORD_CHARS.length())));
-        }
-        return sb.toString();
     }
 }
