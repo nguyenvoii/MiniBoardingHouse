@@ -60,8 +60,15 @@ public class SecurityConfig {
                 }
             })
             .exceptionHandling(e -> e
-                .authenticationEntryPoint((req, res, ex) ->
-                        writeError(res, mapper, HttpStatus.UNAUTHORIZED, "Chua dang nhap hoac token het han"))
+                .authenticationEntryPoint((req, res, ex) -> {
+                    // Nguoi dung go thang URL API tren trinh duyet (Accept co text/html): dua ve trang dang nhap
+                    String accept = req.getHeader("Accept");
+                    if ("GET".equals(req.getMethod()) && accept != null && accept.contains("text/html")) {
+                        res.sendRedirect(req.getContextPath() + "/ui/index.html");
+                        return;
+                    }
+                    writeError(res, mapper, HttpStatus.UNAUTHORIZED, "Chua dang nhap hoac token het han");
+                })
                 .accessDeniedHandler((req, res, ex) ->
                         writeError(res, mapper, HttpStatus.FORBIDDEN, "Khong co quyen thuc hien")))
             .addFilterBefore(new JwtAuthFilter(jwtService, statusChecker), UsernamePasswordAuthenticationFilter.class);
