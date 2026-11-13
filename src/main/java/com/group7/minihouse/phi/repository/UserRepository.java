@@ -20,6 +20,9 @@ public interface UserRepository extends JpaRepository<User, Integer> {
 
     boolean existsByPhoneNumber(String phoneNumber);
 
+    @Query("select u.status from User u where u.userId = :id")
+    Optional<String> findStatusById(@Param("id") Integer id);
+
     boolean existsByEmailAndUserIdNot(String email, Integer userId);
 
     boolean existsByPhoneNumberAndUserIdNot(String phoneNumber, Integer userId);
