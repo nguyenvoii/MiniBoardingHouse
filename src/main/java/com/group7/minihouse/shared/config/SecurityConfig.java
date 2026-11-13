@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.group7.minihouse.shared.dto.ApiResponse;
 import com.group7.minihouse.shared.security.JwtAuthFilter;
 import com.group7.minihouse.shared.security.JwtService;
+import com.group7.minihouse.shared.security.UserStatusChecker;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.List;
@@ -38,7 +39,8 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 public class SecurityConfig {
 
     @Bean
-    SecurityFilterChain filterChain(HttpSecurity http, JwtService jwtService, ObjectMapper mapper,
+    SecurityFilterChain filterChain(HttpSecurity http, JwtService jwtService, UserStatusChecker statusChecker,
+                                    ObjectMapper mapper,
                                     @Value("${app.security.enabled:false}") boolean enabled) throws Exception {
         http.csrf(AbstractHttpConfigurer::disable)
             .cors(Customizer.withDefaults())
@@ -61,7 +63,7 @@ public class SecurityConfig {
                         writeError(res, mapper, HttpStatus.UNAUTHORIZED, "Chua dang nhap hoac token het han"))
                 .accessDeniedHandler((req, res, ex) ->
                         writeError(res, mapper, HttpStatus.FORBIDDEN, "Khong co quyen thuc hien")))
-            .addFilterBefore(new JwtAuthFilter(jwtService), UsernamePasswordAuthenticationFilter.class);
+            .addFilterBefore(new JwtAuthFilter(jwtService, statusChecker), UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 

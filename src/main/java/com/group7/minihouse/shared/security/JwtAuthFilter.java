@@ -18,9 +18,11 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
+    private final UserStatusChecker statusChecker;
 
-    public JwtAuthFilter(JwtService jwtService) {
+    public JwtAuthFilter(JwtService jwtService, UserStatusChecker statusChecker) {
         this.jwtService = jwtService;
+        this.statusChecker = statusChecker;
     }
 
     @Override
@@ -29,7 +31,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         String header = request.getHeader("Authorization");
         if (header != null && header.startsWith("Bearer ")) {
             AuthUser user = jwtService.parse(header.substring(7).trim());
-            if (user != null) {
+            // Token hop le nhung tai khoan da bi khoa/vo hieu hoa/xoa thi coi nhu chua dang nhap (401)
+            if (user != null && statusChecker.isActive(user.userId())) {
                 var authorities = user.roles().stream()
                         .map(r -> new SimpleGrantedAuthority("ROLE_" + r)).toList();
                 SecurityContextHolder.getContext().setAuthentication(
