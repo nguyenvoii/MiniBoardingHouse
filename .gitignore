@@ -8,3 +8,6 @@ nbproject/private/
 .settings/
 application-local.properties
 *.log
+
+# Giao dien xem thu chi tren may Phi (khong dua len GitHub)
+demo-ui/

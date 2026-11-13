@@ -114,6 +114,13 @@ class SecurityRulesTest {
                 .andExpect(status().isOk());
     }
 
+    /** Giao dien demo (file tinh /ui/**) phai mo duoc khi chua dang nhap; API van phai bi chan. */
+    @Test
+    void staticUiIsPublicButApiIsNot() throws Exception {
+        mvc.perform(get("/ui/index.html")).andExpect(status().isNotFound());
+        mvc.perform(get("/api/probe/staff")).andExpect(status().isUnauthorized());
+    }
+
     @Test
     void noTokenGets401() throws Exception {
         mvc.perform(get("/api/probe/staff")).andExpect(status().isUnauthorized());
