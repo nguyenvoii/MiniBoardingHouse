@@ -47,7 +47,7 @@ public class AuthService {
         }
 
         AuthUser authUser = new AuthUser(user.getUserId(), user.getEmail(), user.getFullName(),
-                userRoleRepository.findRoleCodesByUserId(user.getUserId()));
+                userRoleRepository.findRoleCodesByUserId(user.getUserId()), null);
 
         UserActivityLog log = new UserActivityLog();
         log.setUser(user);

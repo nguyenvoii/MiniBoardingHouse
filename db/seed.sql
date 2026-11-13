@@ -14,7 +14,8 @@ FROM (VALUES
     ('LANDLORD',     N'Chủ nhà',            N'Toàn quyền hệ thống'),
     ('MANAGER',      N'Quản lý',            N'Quản lý phòng, khách thuê, hợp đồng, sự cố'),
     ('CASHIER',      N'Thu ngân',           N'Lập hóa đơn, thu tiền, theo dõi công nợ'),
-    ('METER_READER', N'Nhân viên ghi số',   N'Ghi chỉ số điện nước')
+    ('METER_READER', N'Nhân viên ghi số',   N'Ghi chỉ số điện nước'),
+    ('TENANT',       N'Người thuê',         N'Xem phòng, hợp đồng, hóa đơn, công nợ của chính mình')
 ) AS v(code, name, descr)
 WHERE NOT EXISTS (SELECT 1 FROM [roles] r WHERE r.[role_code] = v.code);
 GO
