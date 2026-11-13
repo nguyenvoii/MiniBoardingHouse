@@ -35,6 +35,12 @@ bang/cot moi (khong sua DB), tao/xoa chu tro tu API.
    UNLOCK_USER, CREATE_TENANT_ACCOUNT (bo sung phan hoan lai cua UC10), LOGOUT, LOGIN.
 9. Thong bao loi tieng Viet khong dau; moi API tra `ApiResponse`; trung email/SDT -> 409.
 
+## Trang thai
+DA LAM tren nhanh phi/account-management. 85 unit test xanh + 53 kiem tra chay that tren DB tam (tat ca PASS): them/sua/khoa nhan vien,
+khoa co hieu luc ngay (token cu 401), doi mat khau, ho so, nguoi thue khong doi SDT, tim kiem (ky tu `%` `_` khong thanh wildcard,
+size bi cat 100), nhat ky, dang xuat, 403 dung nguoi, 405 khi goi sai phuong thuc.
+Phat hien khi kiem chung: `GlobalExceptionHandler` tra 500 cho loi cua nguoi goi API (sai phuong thuc HTTP) -> da sua thanh 405/415/400.
+
 ## Rui ro / chap nhan
 Doi mat khau khong thu hoi token cu (toi da 8 gio); khong co gioi han so lan dang nhap sai.
 `@PreAuthorize` chi co tac dung khi `app.security.enabled=true` (mac dinh mo de dong doi test).

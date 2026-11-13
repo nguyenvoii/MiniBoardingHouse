@@ -37,7 +37,7 @@ Quy tắc:
    spring.datasource.username=...
    spring.datasource.password=...
    ```
-3. Chạy `db/seed.sql` để nạp 4 vai trò, 22 quyền và tài khoản `admin@minihouse.local` / `Admin@123` (chỉ dùng dev/demo).
+3. Chạy `db/seed.sql` để nạp 5 vai trò (LANDLORD, MANAGER, CASHIER, METER_READER, TENANT), 22 quyền và tài khoản `admin@minihouse.local` / `Admin@123` (chỉ dùng dev/demo).
 4. Chạy `mvn spring-boot:run` (`ddl-auto=validate` sẽ báo lỗi nếu entity lệch với DB).
 5. Thử API: `http://localhost:8080/api/ping`, xem toàn bộ API tại Swagger: `http://localhost:8080/swagger-ui.html`.
 
@@ -110,6 +110,14 @@ Phân quyền theo vai trò (`LANDLORD`, `MANAGER`, `CASHIER`, `METER_READER`, `
 
 Tài khoản người thuê (role `TENANT`): KHÔNG sửa cấu trúc DB. Tài khoản người thuê là 1 dòng `users` có `phone_number` TRÙNG với `tenants.phone_number` của khách thuê đó. Chủ trọ/quản lý cấp tài khoản bằng `POST /api/tenants/{tenantId}/account` (trả mật khẩu tạm 1 lần). Khi người thuê đăng nhập, token có thêm `tenantId`.
 Quy ước cho API của người thuê (UC36, UC37, UC94...): đặt đường dẫn dưới `/api/me/**` (ví dụ `/api/me/invoices`), lấy mã khách thuê bằng `Integer tenantId = CurrentUser.requireTenantId(user)` với `user` là `@AuthenticationPrincipal AuthUser user`, TUYỆT ĐỐI không nhận `tenantId` từ client (nếu không người này xem được dữ liệu người khác). Khi bật `app.security.enabled=true`: `/api/me/**` chỉ người thuê vào được, MỌI đường dẫn khác chỉ nhân viên vào được (người thuê bị chặn mặc định, không cần gắn gì). Khi để mặc định (mở) thì không có token nên `user` là null: hãy test API người thuê bằng token người thuê (bật `app.security.enabled=true`), nếu không sẽ nhận 401. API của nhân viên thì gắn `@PreAuthorize` như trên để thu hẹp thêm trong nhóm nhân viên. Khi Chi viết xong `TenantService`, đổi `TenantReadRepository` (package `phi`) sang gọi service đó. Nếu đổi số điện thoại khách thuê phải cập nhật luôn tài khoản `users` tương ứng. Chi tiết: `docs/superpowers/specs/2026-11-14-tenant-account-design.md`.
+
+Quản lý tài khoản (UC3, 5, 6, 8, 9, 13), mọi API đều có trong Swagger:
+- `POST /api/auth/password` đổi mật khẩu (mật khẩu mới từ 8 ký tự, có cả chữ và số); `GET/PUT /api/auth/profile` xem/sửa họ tên và số điện thoại (NGƯỜI THUÊ không tự đổi được số điện thoại vì tài khoản nối với hồ sơ khách thuê bằng số này); `POST /api/auth/logout` ghi nhật ký đăng xuất. Cả nhóm này dùng được cho mọi người đã đăng nhập, kể cả người thuê.
+- `/api/staff`: thêm nhân viên (chỉ LANDLORD, trả mật khẩu tạm 1 lần), tìm kiếm có phân trang `GET /api/staff?keyword=&status=&page=&size=` (LANDLORD, MANAGER), sửa thông tin và thay vai trò `PUT /api/staff/{id}`, khóa/mở khóa `PATCH /api/staff/{id}/status` với `{"status":"LOCKED"}` hoặc `{"status":"ACTIVE"}`. Vai trò nhân viên hợp lệ: `MANAGER`, `CASHIER`, `METER_READER`. Không thao tác được trên tài khoản chủ trọ/người thuê (trả 404) và không tự khóa chính mình.
+- Khóa tài khoản có hiệu lực NGAY: mỗi request có token đều kiểm tra `users.status` trong DB (1 truy vấn theo khóa chính), nên token đã cấp của tài khoản bị khóa nhận 401 liền, không phải đợi hết hạn.
+- Nhật ký: `GET /api/activity-logs?userId=&actionType=&from=&to=&page=&size=` (chỉ LANDLORD), `GET /api/auth/activity` (nhật ký của chính mình). Các hành động được ghi: LOGIN, LOGOUT, CHANGE_PASSWORD, UPDATE_PROFILE, CREATE_STAFF, UPDATE_STAFF, LOCK_USER, UNLOCK_USER, CREATE_TENANT_ACCOUNT. Muốn ghi nhật ký từ chức năng của mình thì gọi `ActivityLogService.log(userId, "TEN_HANH_DONG", "mo ta", ip)`.
+- Lỗi do người gọi API (sai phương thức HTTP, sai kiểu dữ liệu, thiếu tham số) trả 405/415/400 chứ không còn 500.
+Chi tiết: `docs/superpowers/specs/2026-11-14-account-management-design.md`.
 
 - Giai đoạn 0 (ĐÃ XONG): các class dùng chung `ApiResponse`, `BusinessException`, `GlobalExceptionHandler`, và đăng nhập JWT do Phi làm. Chi, Toàn, Việt cứ làm API của mình, gắn `@PreAuthorize` theo vai trò phù hợp.
 - Trong lúc Phi làm khung, Chi, Toàn, Việt bắt đầu ngay với các bảng của mình, không cần đợi.
