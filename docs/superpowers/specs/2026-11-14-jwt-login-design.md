@@ -27,11 +27,14 @@ bang `role_permissions`, thu hoi token truoc han.
 ## Quyet dinh
 - Token HS256, song 8 gio (`app.jwt.expiration-minutes`), bi mat `app.jwt.secret` (co mac dinh dev, doi trong application-local.properties).
 - Dang nhap thanh cong ghi `user_activity_logs` (action LOGIN). Sai tai khoan/mat khau dung chung mot thong bao.
-- Mac dinh BAT BUOC dang nhap cho moi API tru `/api/auth/login`, `/api/ping`, Swagger (Phi dong y).
+- Cong tac `app.security.enabled`: MAC DINH `false` (che do dev, Phi chot sau khi xem xet): moi API mo, khong can token,
+  `@PreAuthorize` bi bo qua (MethodSecurityConfig chi bat khi enabled=true). Dat `true` (trong application-local.properties
+  hoac khi demo/bao ve) thi bat buoc dang nhap cho moi API tru `/api/auth/login`, `/api/ping`, Swagger.
 - CORS cho `http://localhost:*` va `http://127.0.0.1:*`.
 - Mat khau BCrypt. Tat tai khoan mac dinh cua Spring (khong con "generated security password").
 
 ## Cach dung cho dong nghiep
+Mac dinh khong can token. Chi khi bat `app.security.enabled=true`:
 1. Swagger (`/swagger-ui.html`) -> `POST /api/auth/login` voi `admin@minihouse.local` / `Admin@123` -> copy `accessToken`.
 2. Bam Authorize, dan token. Hoac gui header `Authorization: Bearer <token>`.
 3. Gan quyen: `@PreAuthorize("hasAnyRole('LANDLORD','MANAGER')")`. Lay nguoi dang nhap: `@AuthenticationPrincipal AuthUser user`.
@@ -44,4 +47,6 @@ test: JwtServiceTest.
 ## Da kiem chung
 3 unit test JwtServiceTest. Chay app that: login dung -> 200 + token; sai mat khau -> 401; thieu truong -> 400;
 khong token/token sai -> 401; co token -> /api/auth/me 200; Swagger 200; log LOGIN ghi vao DB.
+Cong tac: che do mo (mac dinh) API la khong token -> 404 (khong phai 401), /me khong token -> 401, login van chay;
+che do bat (APP_SECURITY_ENABLED=true) API khong token -> 401, co token -> 200/404.
 Chua kiem chung: nhanh 403 cua `@PreAuthorize` (chua co endpoint nao gan quyen).
