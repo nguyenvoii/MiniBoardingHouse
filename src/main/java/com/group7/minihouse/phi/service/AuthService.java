@@ -58,7 +58,7 @@ public class AuthService {
         return new LoginResponse(jwtService.generate(authUser), "Bearer", jwtService.getExpirationSeconds(), authUser);
     }
 
-    /** Tai khoan nguoi thue noi voi ho so khach thue qua so dien thoai (xem docs/superpowers/specs/...tenant-account). */
+    /** Tai khoan nguoi thue noi voi ho so khach thue qua so dien thoai (xem docs/thiet-ke/tai-khoan-nguoi-thue.md). */
     private Integer findTenantId(User user) {
         String phone = user.getPhoneNumber() == null ? null : user.getPhoneNumber().trim();
         if (phone == null || phone.isEmpty()) {

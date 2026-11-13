@@ -114,10 +114,15 @@ class SecurityRulesTest {
                 .andExpect(status().isOk());
     }
 
-    /** Giao dien demo (file tinh /ui/**) phai mo duoc khi chua dang nhap; API van phai bi chan. */
+    /**
+     * Giao dien demo (file tinh /ui/**) khong duoc bi chan khi chua dang nhap; API van phai bi chan.
+     * Khong ep 404: may nao co thu muc demo-ui (cau hinh local) thi /ui/index.html tra 200, may khong co thi 404;
+     * dieu quan trong la KHONG phai 401/403.
+     */
     @Test
     void staticUiIsPublicButApiIsNot() throws Exception {
-        mvc.perform(get("/ui/index.html")).andExpect(status().isNotFound());
+        int ui = mvc.perform(get("/ui/index.html")).andReturn().getResponse().getStatus();
+        org.junit.jupiter.api.Assertions.assertTrue(ui != 401 && ui != 403, "ui bi chan, status = " + ui);
         mvc.perform(get("/api/probe/staff")).andExpect(status().isUnauthorized());
     }
 
