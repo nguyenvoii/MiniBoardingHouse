@@ -18,6 +18,13 @@ class CurrentUserTest {
     }
 
     @Test
+    void requireUserIdReturnsIdOrFails401() {
+        assertEquals(3, CurrentUser.requireUserId(new AuthUser(3, null, "M", List.of("MANAGER"), null)));
+        BusinessException ex = assertThrows(BusinessException.class, () -> CurrentUser.requireUserId(null));
+        assertEquals(HttpStatus.UNAUTHORIZED, ex.getStatus());
+    }
+
+    @Test
     void notLoggedInGets401InsteadOfNullPointer() {
         BusinessException ex = assertThrows(BusinessException.class, () -> CurrentUser.requireTenantId(null));
         assertEquals(HttpStatus.UNAUTHORIZED, ex.getStatus());

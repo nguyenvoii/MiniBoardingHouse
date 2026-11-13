@@ -14,6 +14,14 @@ public final class CurrentUser {
     private CurrentUser() {
     }
 
+    /** Cho API dung chung moi nguoi da dang nhap (/api/auth/**): lay id nguoi dung hoac 401 neu chua dang nhap. */
+    public static Integer requireUserId(AuthUser user) {
+        if (user == null) {
+            throw new BusinessException(HttpStatus.UNAUTHORIZED, "Chua dang nhap hoac token het han");
+        }
+        return user.userId();
+    }
+
     public static Integer requireTenantId(AuthUser user) {
         if (user == null) {
             throw new BusinessException(HttpStatus.UNAUTHORIZED, "Chua dang nhap hoac token het han");
