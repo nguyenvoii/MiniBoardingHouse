@@ -1,5 +1,6 @@
 package com.group7.minihouse.shared.security;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.util.List;
 
 /**
@@ -13,6 +14,7 @@ public record AuthUser(Integer userId, String email, String fullName, List<Strin
         return roles.contains(roleCode);
     }
 
+    @JsonIgnore
     public boolean isTenant() {
         return hasRole("TENANT");
     }

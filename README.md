@@ -106,7 +106,10 @@ Trạng thái giai đoạn 0: ĐÃ XONG (Phi). Các class dùng chung đã có t
 - `shared/controller/PingController`: ví dụ controller mẫu, thử bằng `GET /api/ping`
 
 Cách test API khi đã bật `app.security.enabled=true`: mở Swagger `http://localhost:8080/swagger-ui.html`, gọi `POST /api/auth/login` với `admin@minihouse.local` / `Admin@123`, copy `accessToken`, bấm nút Authorize và dán token. Ngoài Swagger thì gửi header `Authorization: Bearer <token>`.
-Phân quyền theo vai trò (`LANDLORD`, `MANAGER`, `CASHIER`, `METER_READER`): gắn `@PreAuthorize("hasAnyRole('LANDLORD','MANAGER')")` lên hàm controller. Thiết kế chi tiết: `docs/superpowers/specs/2026-11-14-jwt-login-design.md`.
+Phân quyền theo vai trò (`LANDLORD`, `MANAGER`, `CASHIER`, `METER_READER`, `TENANT`): gắn `@PreAuthorize("hasAnyRole('LANDLORD','MANAGER')")` lên hàm controller. Thiết kế chi tiết: `docs/superpowers/specs/2026-11-14-jwt-login-design.md`.
+
+Tài khoản người thuê (role `TENANT`): KHÔNG sửa cấu trúc DB. Tài khoản người thuê là 1 dòng `users` có `phone_number` TRÙNG với `tenants.phone_number` của khách thuê đó. Chủ trọ/quản lý cấp tài khoản bằng `POST /api/tenants/{tenantId}/account` (trả mật khẩu tạm 1 lần). Khi người thuê đăng nhập, token có thêm `tenantId`.
+Quy ước cho API của người thuê (UC36, UC37, UC94...): lấy mã khách thuê từ `@AuthenticationPrincipal AuthUser user` rồi dùng `user.tenantId()`, TUYỆT ĐỐI không nhận `tenantId` từ client (nếu không người này xem được dữ liệu người khác). API của nhân viên thì gắn `@PreAuthorize` như trên. Khi Chi viết xong `TenantService`, đổi `TenantReadRepository` (package `phi`) sang gọi service đó. Nếu đổi số điện thoại khách thuê phải cập nhật luôn tài khoản `users` tương ứng. Chi tiết: `docs/superpowers/specs/2026-11-14-tenant-account-design.md`.
 
 - Giai đoạn 0 (ĐÃ XONG): các class dùng chung `ApiResponse`, `BusinessException`, `GlobalExceptionHandler`, và đăng nhập JWT do Phi làm. Chi, Toàn, Việt cứ làm API của mình, gắn `@PreAuthorize` theo vai trò phù hợp.
 - Trong lúc Phi làm khung, Chi, Toàn, Việt bắt đầu ngay với các bảng của mình, không cần đợi.
