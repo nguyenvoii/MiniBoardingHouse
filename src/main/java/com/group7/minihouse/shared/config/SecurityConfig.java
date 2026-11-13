@@ -48,7 +48,8 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> {
                 if (enabled) {
                     auth.requestMatchers("/api/auth/login", "/api/ping",
-                            "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                            "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html",
+                            "/ui/**").permitAll() // /ui/**: giao dien tinh xem thu (chi co tren may nao dat thu muc demo-ui)
                         .requestMatchers("/api/auth/**").authenticated()
                         // Khu vuc nguoi thue: API cua nguoi thue DAT DUOI /api/me/** (vd /api/me/invoices)
                         .requestMatchers("/api/me/**").hasRole("TENANT")
