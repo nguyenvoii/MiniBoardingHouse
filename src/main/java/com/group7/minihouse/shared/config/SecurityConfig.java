@@ -7,12 +7,12 @@ import com.group7.minihouse.shared.security.JwtService;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.List;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.Customizer;
-import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -25,25 +25,31 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 /**
- * Bao mat: dang nhap JWT, khong luu session.
- * - Cong khai: POST /api/auth/login, GET /api/ping, Swagger.
- * - Con lai: phai gui header "Authorization: Bearer <token>".
+ * Bao mat: dang nhap JWT, khong luu session. Cong tac: app.security.enabled
+ * - false (MAC DINH, che do dev): moi API mo, khong can token; @PreAuthorize bi bo qua (xem MethodSecurityConfig).
+ * - true (demo/bao ve): chi cong khai POST /api/auth/login, GET /api/ping, Swagger; con lai phai gui header
+ *   "Authorization: Bearer <token>". Bat bang app.security.enabled=true trong application-local.properties.
  * - Phan quyen theo vai tro: gan @PreAuthorize("hasRole('MANAGER')") hoac hasAnyRole('LANDLORD','MANAGER')
  *   tren ham controller/service (role_code: LANDLORD, MANAGER, CASHIER, METER_READER).
  */
 @Configuration
-@EnableMethodSecurity
 public class SecurityConfig {
 
     @Bean
-    SecurityFilterChain filterChain(HttpSecurity http, JwtService jwtService, ObjectMapper mapper) throws Exception {
+    SecurityFilterChain filterChain(HttpSecurity http, JwtService jwtService, ObjectMapper mapper,
+                                    @Value("${app.security.enabled:false}") boolean enabled) throws Exception {
         http.csrf(AbstractHttpConfigurer::disable)
             .cors(Customizer.withDefaults())
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/login", "/api/ping",
-                        "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                .anyRequest().authenticated())
+            .authorizeHttpRequests(auth -> {
+                if (enabled) {
+                    auth.requestMatchers("/api/auth/login", "/api/ping",
+                            "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                        .anyRequest().authenticated();
+                } else {
+                    auth.anyRequest().permitAll(); // che do dev: mo, khong can token
+                }
+            })
             .exceptionHandling(e -> e
                 .authenticationEntryPoint((req, res, ex) ->
                         writeError(res, mapper, HttpStatus.UNAUTHORIZED, "Chua dang nhap hoac token het han"))

@@ -101,11 +101,11 @@ Trạng thái giai đoạn 0: ĐÃ XONG (Phi). Các class dùng chung đã có t
 - `shared/dto/PageResponse`: dùng cho API phân trang
 - `shared/exception/BusinessException`: ném từ service khi vi phạm nghiệp vụ, ví dụ `throw BusinessException.notFound("Phong")`
 - `shared/exception/GlobalExceptionHandler`: tự đổi exception thành response chuẩn
-- `shared/config/SecurityConfig`: ĐĂNG NHẬP JWT, mọi API đều phải đăng nhập (trừ `/api/auth/login`, `/api/ping`, Swagger)
+- `shared/config/SecurityConfig`: đăng nhập JWT. MẶC ĐỊNH ĐANG MỞ (`app.security.enabled=false`): test API KHÔNG cần token, `@PreAuthorize` tạm bị bỏ qua. Bật `app.security.enabled=true` (trong `application-local.properties`) để bắt buộc đăng nhập, dùng khi demo/bảo vệ
 - `shared/security/AuthUser`: người đang đăng nhập, lấy trong controller bằng `@AuthenticationPrincipal AuthUser user`
 - `shared/controller/PingController`: ví dụ controller mẫu, thử bằng `GET /api/ping`
 
-Cách test API có đăng nhập: mở Swagger `http://localhost:8080/swagger-ui.html`, gọi `POST /api/auth/login` với `admin@minihouse.local` / `Admin@123`, copy `accessToken`, bấm nút Authorize và dán token. Ngoài Swagger thì gửi header `Authorization: Bearer <token>`.
+Cách test API khi đã bật `app.security.enabled=true`: mở Swagger `http://localhost:8080/swagger-ui.html`, gọi `POST /api/auth/login` với `admin@minihouse.local` / `Admin@123`, copy `accessToken`, bấm nút Authorize và dán token. Ngoài Swagger thì gửi header `Authorization: Bearer <token>`.
 Phân quyền theo vai trò (`LANDLORD`, `MANAGER`, `CASHIER`, `METER_READER`): gắn `@PreAuthorize("hasAnyRole('LANDLORD','MANAGER')")` lên hàm controller. Thiết kế chi tiết: `docs/superpowers/specs/2026-11-14-jwt-login-design.md`.
 
 - Giai đoạn 0 (ĐÃ XONG): các class dùng chung `ApiResponse`, `BusinessException`, `GlobalExceptionHandler`, và đăng nhập JWT do Phi làm. Chi, Toàn, Việt cứ làm API của mình, gắn `@PreAuthorize` theo vai trò phù hợp.
