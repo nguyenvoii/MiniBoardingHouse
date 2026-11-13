@@ -23,54 +23,64 @@ Website quản lý nhà trọ mini. Công nghệ: Java 17, Spring Boot 3, Spring
    ```
 3. Chạy `mvn spring-boot:run` (`ddl-auto=validate` sẽ báo lỗi nếu entity lệch với DB).
 
-## Phân công theo nhóm bảng
+## Phân công theo nhóm bảng (phân công lại)
 
-Mỗi người phụ trách một nhóm bảng (phân hệ DB): viết entity, repository, service, controller, dto cho các bảng đó.
-Đặt tên file theo tên entity để không đụng nhau, ví dụ `RoomRepository`, `RoomService`, `RoomController`.
-Nhóm bảng được gán theo người làm nhiều usecase nhất của phân hệ đó trong file Excel usecase.
+Nguyên tắc: Nguyễn Anh Phi giữ toàn bộ khung xương của dự án và các phần khó nhất (tính tiền tháng, hợp đồng, thanh toán, phân quyền). 3 người còn lại chia đều số bảng, mỗi người một cụm nghiệp vụ độc lập để làm đồng thời được.
 
-| Thành viên | Mã SV | Số bảng | Số usecase | Package chung phụ trách |
-|---|---|---|---|---|
-| Nguyễn Anh Phi | TH08326 | 13 | 41 | `config` (bảo mật, đăng nhập, phân quyền) |
-| Nguyễn Trần Bảo Chi | TH08666 | 15 | 32 | `util` (upload ảnh, gửi email, OTP SMS) |
-| Phạm Khánh Toàn | TH08433 | 16 | 25 | job/scheduler (tự động chốt chỉ số, tính tiền, nhắc nợ) |
-| Vũ Văn Quốc Việt | TH08548 | 12 | 25 | `exception`, xuất Excel/PDF, dashboard - báo cáo |
+Mỗi người viết repository, service, controller, dto cho các bảng của mình (entity đã sinh sẵn, chỉ cần rà soát lại). Đặt tên file theo tên entity, ví dụ `RoomRepository`, `RoomService`, `RoomController`.
 
-### 1. Nguyễn Anh Phi (13 bảng)
-- Người dùng - phân quyền: `User`, `Role`, `Permission`, `UserRole` (+ `UserRoleId`)
-- Khu trọ - phòng: `Property`, `PropertyFloor`, `Room`
+| Thành viên | Mã SV | Số bảng | Vai trò |
+|---|---|---|---|
+| Nguyễn Anh Phi | TH08326 | 12 | Khung xương + phần khó: `config`, `exception`, `util`, dto chung, scheduler, xuất Excel/PDF, đăng nhập - phân quyền, tính tiền tháng, hợp đồng, thanh toán |
+| Nguyễn Trần Bảo Chi | TH08666 | 15 | Phòng - khách thuê - yêu cầu thuê |
+| Phạm Khánh Toàn | TH08433 | 15 | Điện nước - đơn giá - hóa đơn - thu tiền |
+| Vũ Văn Quốc Việt | TH08548 | 14 | Công nợ - trả phòng - sửa chữa - thông báo - chi phí |
+
+### 1. Nguyễn Anh Phi (12 bảng + toàn bộ khung xương)
+Khung xương (không gắn với bảng nào):
+- `config`: Spring Security, đăng nhập, JWT/session, phân quyền theo Role/Permission, CORS
+- `exception`: `BusinessException`, `GlobalExceptionHandler`, mã lỗi thống nhất
+- `dto` chung: `ApiResponse<T>`, `PageResponse<T>`, base DTO
+- `util`: upload ảnh, gửi email, OTP SMS, tiện ích ngày giờ - tiền tệ
+- Scheduler: tự động chốt chỉ số, tính tiền, nhắc nợ (khung chạy job, Toàn và Việt viết logic bên trong)
+- Xuất Excel/PDF (khung dùng chung), dashboard - báo cáo
+- Sao lưu phục hồi dữ liệu (usecase 122)
+
+Các bảng:
+- Người dùng - phân quyền: `User`, `Role`, `Permission`, `UserRole` (+ `UserRoleId`), `UserVerification`, `UserActivityLog`
 - Hợp đồng: `RentalContract`
 - Tính tiền tháng: `MonthlyBillingPeriod`, `CalculatedMonthlyFee`, `FeeItemDetail`
-- Thanh toán: `PaymentTransaction`
-- Bổ sung: `BankAccount`
+- Thanh toán: `PaymentTransaction`, `BankAccount`
 
 ### 2. Nguyễn Trần Bảo Chi (15 bảng)
-- Người dùng: `UserVerification`, `UserActivityLog`
-- Phòng: `RoomMedia`, `RoomFurnishing`
-- Khách thuê - cư dân: `Tenant`, `TenantIdCard`, `RoomResident`, `ResidentStayHistory`
-- Yêu cầu thuê - hợp đồng: `BookingRequest`, `ContractTemplate`, `ContractAdjustment`, `ContractNotification`
-- Bổ sung: `TenantVehicle`, `NotificationTemplate`, `UserNotification`
-- Usecase 1-2 (OTP email, SMS) cần API bên thứ ba, do Chi làm.
+- Khu trọ - phòng: `Property`, `PropertyFloor`, `Room`, `RoomMedia`, `RoomFurnishing`, `RoomEquipmentRequest`, `RoomAddonFee`
+- Khách thuê - cư dân: `Tenant`, `TenantIdCard`, `RoomResident`, `ResidentStayHistory`, `TenantVehicle`
+- Yêu cầu thuê - mẫu hợp đồng: `BookingRequest`, `ContractTemplate`, `ContractAdjustment`
 
-### 3. Phạm Khánh Toàn (16 bảng)
+### 3. Phạm Khánh Toàn (15 bảng)
 - Chỉ số điện nước: `UtilityReadingPeriod`, `MeterReading`, `MeterPhoto`, `MeterAdjustmentLog`, `MeterAnomalyAlert`
 - Đơn giá - phí dịch vụ: `ServiceRatePlan`, `PropertyServiceRate`, `RoomCustomRate`, `RateChangeHistory`
 - Hóa đơn: `Invoice`, `InvoiceNotification`
 - Thu tiền - cấn trừ: `ReceiptVoucher`, `PartialPaymentLog`, `TenantPrepayment`, `PrepaymentDeduction`
-- Bổ sung: `OperatingExpense`
 
-### 4. Vũ Văn Quốc Việt (12 bảng)
+### 4. Vũ Văn Quốc Việt (14 bảng)
 - Công nợ: `TenantDebt`, `DebtPenaltyLog`, `DebtReminder`, `DebtProcessingLog`
-- Trả phòng - hoàn cọc - sự cố sửa chữa: `CheckoutRequest`, `CheckoutInspection`, `DepositRefundVoucher`, `MaintenanceRequest`, `MaintenanceLog`
-- Bổ sung: `RoomEquipmentRequest`, `RoomAddonFee`, `IncidentCategory`
+- Trả phòng - hoàn cọc: `CheckoutRequest`, `CheckoutInspection`, `DepositRefundVoucher`
+- Sự cố sửa chữa: `MaintenanceRequest`, `MaintenanceLog`, `IncidentCategory`
+- Thông báo: `ContractNotification`, `NotificationTemplate`, `UserNotification`
+- Chi phí vận hành: `OperatingExpense`
 
 ### Tổng kết
 
-Phi 13 + Chi 15 + Toàn 16 + Việt 12 = 56 bảng, bằng số entity trong package `entity`.
+Phi 12 + Chi 15 + Toàn 15 + Việt 14 = 56 bảng, bằng số entity trong package `entity`.
 
-8 bảng bổ sung (phân hệ 11 trong `group-7.sql`): `TenantVehicle` (Chi), `IncidentCategory` (Việt), `RoomEquipmentRequest` (Việt), `RoomAddonFee` (Việt), `OperatingExpense` (Toàn), `BankAccount` (Phi), `NotificationTemplate` (Chi), `UserNotification` (Chi).
+### Cách làm đồng thời, không chờ nhau
 
-Lưu ý: usecase 122 (sao lưu phục hồi dữ liệu) không cần bảng, Phi làm bằng chức năng của hệ quản trị/CSDL.
+- Giai đoạn 0 (Phi làm trước, càng sớm càng tốt, chỉ vài chục dòng): đẩy lên `main` các class dùng chung `ApiResponse`, `BusinessException`, `GlobalExceptionHandler`. Trong lúc chờ, `SecurityConfig` cho phép mọi request (permitAll) để mọi người test API mà chưa cần đăng nhập. Phi siết phân quyền lại sau khi mọi người đã có API.
+- Trong lúc Phi làm khung, Chi, Toàn, Việt bắt đầu ngay với các bảng của mình, không cần đợi.
+- Mỗi người chỉ tạo repository, service, controller trong phần bảng của mình. Cần dữ liệu của bảng người khác thì gọi qua `Service` của người đó, hoặc dùng quan hệ JPA có sẵn trong entity. Không tự viết repository cho bảng người khác.
+- Các service nền tảng nhiều người cần (`RoomService`, `TenantService`, `UserService`) chủ sở hữu nên làm các hàm đọc cơ bản (`findById`, `findAll`) trước, rồi mới làm nghiệp vụ phức tạp.
+- Logic trong job tự động: Toàn viết phần chốt chỉ số - tính hóa đơn, Việt viết phần nhắc nợ - phạt trễ hạn, Phi chỉ viết khung scheduler.
 
 ## Quy ước làm chung
 
