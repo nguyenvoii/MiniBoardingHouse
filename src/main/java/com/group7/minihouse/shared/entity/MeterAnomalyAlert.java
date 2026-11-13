@@ -2,8 +2,10 @@ package com.group7.minihouse.shared.entity;
 
 import java.math.BigDecimal;
 import jakarta.persistence.*;
+import org.hibernate.annotations.DynamicInsert;
 
 /** Bang `meter_anomaly_alerts`. */
+@DynamicInsert
 @Entity
 @Table(name = "meter_anomaly_alerts")
 public class MeterAnomalyAlert {

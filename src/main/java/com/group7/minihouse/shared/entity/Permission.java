@@ -1,8 +1,10 @@
 package com.group7.minihouse.shared.entity;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.DynamicInsert;
 
 /** Bang `permissions`. */
+@DynamicInsert
 @Entity
 @Table(name = "permissions")
 public class Permission {

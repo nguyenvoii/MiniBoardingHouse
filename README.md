@@ -37,7 +37,11 @@ Quy tắc:
    spring.datasource.username=...
    spring.datasource.password=...
    ```
-3. Chạy `mvn spring-boot:run` (`ddl-auto=validate` sẽ báo lỗi nếu entity lệch với DB).
+3. Chạy `db/seed.sql` để nạp 4 vai trò, 22 quyền và tài khoản `admin@minihouse.local` / `Admin@123` (chỉ dùng dev/demo).
+4. Chạy `mvn spring-boot:run` (`ddl-auto=validate` sẽ báo lỗi nếu entity lệch với DB).
+5. Thử API: `http://localhost:8080/api/ping`, xem toàn bộ API tại Swagger: `http://localhost:8080/swagger-ui.html`.
+
+Tài liệu yêu cầu (use case, phân công) nằm trong thư mục `docs/`.
 
 ## Phân công theo nhóm bảng (phân công lại)
 
@@ -114,3 +118,6 @@ Trạng thái giai đoạn 0: ĐÃ XONG (Phi). Các class dùng chung đã có t
 - Pull `main` trước khi bắt đầu làm và trước khi push.
 - Làm xong thì tạo Pull Request vào `main`, không push thẳng lên `main`.
 - Không sửa file entity của người khác; cần sửa thì nhắn người đó hoặc tạo PR.
+- Phụ thuộc giữa các package đi MỘT CHIỀU, không gọi vòng. Thứ tự: `chi` (phòng, khách thuê) → `toan` (chỉ số, đơn giá, hóa đơn, phiếu thu) → `phi` (hợp đồng, tính tiền, thanh toán) → `viet` (công nợ, trả phòng, sửa chữa). Package đứng sau được gọi Service của package đứng trước, KHÔNG được ngược lại. Ví dụ: khi tính tiền tháng, Phi gọi `MeterReadingService`/`RateService` của Toàn; khi chốt tiền, Phi gọi `InvoiceService` của Toàn để tạo hóa đơn (Toàn không gọi ngược `phi`). Nếu bắt buộc phải gọi ngược thì chuyển phần dùng chung xuống `shared` hoặc truyền dữ liệu qua tham số/ID.
+- Mọi entity đã có `@DynamicInsert`: cột nào để `null` khi tạo mới thì Hibernate bỏ qua, DB tự điền giá trị `DEFAULT` (ví dụ `created_at`, `status`). Entity mới phải thêm `@DynamicInsert`.
+- Mọi API trả về `ApiResponse`, dùng `BusinessException` cho lỗi nghiệp vụ, dùng `@Valid` + annotation của `spring-boot-starter-validation` để kiểm tra đầu vào.

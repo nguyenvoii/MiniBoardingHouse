@@ -3,8 +3,10 @@ package com.group7.minihouse.shared.entity;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import jakarta.persistence.*;
+import org.hibernate.annotations.DynamicInsert;
 
 /** Bang `partial_payment_logs`. */
+@DynamicInsert
 @Entity
 @Table(name = "partial_payment_logs")
 public class PartialPaymentLog {

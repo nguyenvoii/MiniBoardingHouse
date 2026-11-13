@@ -1,8 +1,10 @@
 package com.group7.minihouse.shared.entity;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.DynamicInsert;
 
 /** Bang `incident_categories`. */
+@DynamicInsert
 @Entity
 @Table(name = "incident_categories")
 public class IncidentCategory {

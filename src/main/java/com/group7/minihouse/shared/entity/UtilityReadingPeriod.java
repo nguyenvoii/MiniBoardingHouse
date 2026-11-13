@@ -2,8 +2,10 @@ package com.group7.minihouse.shared.entity;
 
 import java.time.LocalDate;
 import jakarta.persistence.*;
+import org.hibernate.annotations.DynamicInsert;
 
 /** Bang `utility_reading_periods`. */
+@DynamicInsert
 @Entity
 @Table(name = "utility_reading_periods")
 public class UtilityReadingPeriod {

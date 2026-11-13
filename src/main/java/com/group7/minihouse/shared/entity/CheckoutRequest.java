@@ -3,8 +3,10 @@ package com.group7.minihouse.shared.entity;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import jakarta.persistence.*;
+import org.hibernate.annotations.DynamicInsert;
 
 /** Bang `checkout_requests`. */
+@DynamicInsert
 @Entity
 @Table(name = "checkout_requests")
 public class CheckoutRequest {

@@ -1,8 +1,10 @@
 package com.group7.minihouse.shared.entity;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.DynamicInsert;
 
 /** Bang `notification_templates`. */
+@DynamicInsert
 @Entity
 @Table(name = "notification_templates")
 public class NotificationTemplate {

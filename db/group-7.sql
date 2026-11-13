@@ -3,10 +3,20 @@
 -- Target RDBMS: SQL Server 2016+ / Azure SQL Database
 -- ============================================================================
 
-CREATE DATABASE [MiniBoardingHouseDB];
+IF DB_ID(N'MiniBoardingHouseDB') IS NULL
+    CREATE DATABASE [MiniBoardingHouseDB];
 GO
 
 USE [MiniBoardingHouseDB];
+GO
+
+-- Chạy lại an toàn: nếu schema đã có (bảng users tồn tại) thì bỏ qua toàn bộ phần tạo bảng bên dưới.
+-- Muốn tạo lại từ đầu: DROP DATABASE [MiniBoardingHouseDB] rồi chạy lại file này.
+IF OBJECT_ID(N'dbo.users', N'U') IS NOT NULL
+BEGIN
+    PRINT N'Schema da ton tai - bo qua group-7.sql.';
+    SET NOEXEC ON;
+END
 GO
 
 -- ============================================================================
@@ -16,8 +26,8 @@ GO
 -- 1. Bảng người dùng (Chủ nhà & Nhân viên)
 CREATE TABLE [users] (
     [user_id] INT IDENTITY(1,1) PRIMARY KEY,
-    [email] NVARCHAR(255) NULL UNIQUE,
-    [phone_number] VARCHAR(20) NULL UNIQUE,
+    [email] NVARCHAR(255) NULL, -- duy nhất khi có giá trị (xem UX_users_email cuối file)
+    [phone_number] VARCHAR(20) NULL, -- duy nhất khi có giá trị (xem UX_users_phone cuối file)
     [password_hash] NVARCHAR(255) NOT NULL,
     [full_name] NVARCHAR(100) NOT NULL,
     [avatar_url] NVARCHAR(500) NULL,
@@ -718,4 +728,15 @@ CREATE INDEX IX_rental_contracts_room_status ON [rental_contracts] ([room_id], [
 
 -- Index phục vụ lọc và tra cứu phòng trọ nhanh
 CREATE INDEX IX_rooms_property_status ON [rooms] ([property_id], [status]);
+GO
+
+-- SQL Server coi nhiều NULL là trùng nhau trong UNIQUE thường => chỉ 1 user được để trống email/SĐT.
+-- Dùng filtered unique index: chỉ ép duy nhất với giá trị khác NULL.
+SET QUOTED_IDENTIFIER ON;
+GO
+CREATE UNIQUE INDEX UX_users_email ON [users] ([email]) WHERE [email] IS NOT NULL;
+CREATE UNIQUE INDEX UX_users_phone ON [users] ([phone_number]) WHERE [phone_number] IS NOT NULL;
+GO
+
+SET NOEXEC OFF;
 GO
