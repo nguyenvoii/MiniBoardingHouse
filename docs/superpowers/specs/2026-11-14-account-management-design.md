@@ -41,6 +41,17 @@ khoa co hieu luc ngay (token cu 401), doi mat khau, ho so, nguoi thue khong doi 
 size bi cat 100), nhat ky, dang xuat, 403 dung nguoi, 405 khi goi sai phuong thuc.
 Phat hien khi kiem chung: `GlobalExceptionHandler` tra 500 cho loi cua nguoi goi API (sai phuong thuc HTTP) -> da sua thanh 405/415/400.
 
+## Bo sung sau review cuoi (2026-11-14)
+- Quyen cua request lay tu DB (khong lay tu token): `UserStatusChecker.activeRoles(userId)` tra vai tro hien tai neu ACTIVE, rong neu khoa/ngung/khong ton tai;
+  1 truy van JOIN theo khoa chinh. Giang chuc/doi vai tro/khoa/mo khoa co hieu luc ngay; token cu khong song lai quyen cu.
+- `PUT /api/auth/profile`: khong gui `phoneNumber` = giu nguyen; gui rong = xoa, bi tu choi (400) neu tai khoan khong co email.
+- Them `PATCH /api/tenants/{tenantId}/account/status` (LANDLORD, MANAGER) de khoa/mo khoa tai khoan nguoi thue (khach tra phong), co hieu luc ngay;
+  tai khoan tao truoc ho so (SDT bi tai su dung) khong tinh la cua khach thue nay.
+- `GlobalExceptionHandler`: `DataIntegrityViolationException` -> 409 (2 request cung luc them trung email/SDT).
+- Kiem chung: 101 unit test; E2E tren DB tam: hoi quy 53/53 va moi 23/23 PASS.
+- Reviewer con 10 diem Minor hoan lai (xem so ledger / bao cao cho Phi): ky tu `[` trong tu khoa, page tran so, sap xep tim kiem chua on dinh, loi DB hien thanh 401,
+  `mine(null)`, gioi han mat khau 72 byte va thu sai, audit UPDATE_STAFF thieu vai tro cu/moi, `users.updated_at`, chuan hoa email/SDT, vai loi 500 khac.
+
 ## Rui ro / chap nhan
 Doi mat khau khong thu hoi token cu (toi da 8 gio); khong co gioi han so lan dang nhap sai.
 `@PreAuthorize` chi co tac dung khi `app.security.enabled=true` (mac dinh mo de dong doi test).
