@@ -4,14 +4,30 @@ Website quản lý nhà trọ mini. Công nghệ: Java 17, Spring Boot 3, Spring
 
 ## Cấu trúc package (`com.group7.minihouse`)
 
-- `entity`: 56 class tương ứng 56 bảng trong `db/group-7.sql` (`UserRoleId` là khóa phức hợp, không phải entity)
-- `repository`: Spring Data JPA repository
-- `service`: xử lý nghiệp vụ
-- `controller`: REST / web controller
-- `dto`: đối tượng request/response
-- `config`: cấu hình (bảo mật, web...)
-- `util`: hàm tiện ích
-- `exception`: exception tùy chỉnh
+Một project duy nhất cho cả nhóm. Có 1 thư mục dùng chung và mỗi người có 1 package riêng mang tên mình.
+
+```
+com.group7.minihouse
+├── shared/            DÙNG CHUNG (không ai tự ý sửa, cần sửa thì báo Phi hoặc tạo PR)
+│   ├── entity/        56 entity map 56 bảng trong db/group-7.sql
+│   ├── dto/           ApiResponse, PageResponse
+│   ├── exception/     BusinessException, GlobalExceptionHandler
+│   ├── config/        SecurityConfig
+│   ├── util/          tiện ích dùng chung
+│   └── controller/    PingController (mẫu)
+├── phi/               RIÊNG của Nguyễn Anh Phi
+├── chi/               RIÊNG của Nguyễn Trần Bảo Chi
+├── toan/              RIÊNG của Phạm Khánh Toàn
+└── viet/              RIÊNG của Vũ Văn Quốc Việt
+```
+
+Bên trong package của mỗi người đều có 4 thư mục: `controller`, `service`, `repository`, `dto`.
+Ví dụ Chi làm phòng: `chi/controller/RoomController`, `chi/service/RoomService`, `chi/repository/RoomRepository`, `chi/dto/RoomResponse`.
+
+Quy tắc:
+- Mỗi người chỉ thêm file vào package của mình, nên không bao giờ đụng file nhau khi merge.
+- Cần dữ liệu của bảng người khác thì gọi Service của người đó (ví dụ Toàn cần phòng thì gọi `RoomService` trong package `chi`), không tự viết repository cho bảng người khác.
+- Spring Boot tự quét toàn bộ package con, nên thêm class vào đúng thư mục là chạy, không cần cấu hình gì thêm.
 
 ## Cách chạy
 
@@ -27,7 +43,7 @@ Website quản lý nhà trọ mini. Công nghệ: Java 17, Spring Boot 3, Spring
 
 Nguyên tắc: Nguyễn Anh Phi giữ toàn bộ khung xương của dự án và các phần khó nhất (tính tiền tháng, hợp đồng, thanh toán, phân quyền). 3 người còn lại chia đều số bảng, mỗi người một cụm nghiệp vụ độc lập để làm đồng thời được.
 
-Mỗi người viết repository, service, controller, dto cho các bảng của mình (entity đã sinh sẵn, chỉ cần rà soát lại). Đặt tên file theo tên entity, ví dụ `RoomRepository`, `RoomService`, `RoomController`.
+Mỗi người viết repository, service, controller, dto cho các bảng của mình, đặt trong package mang tên mình (entity đã sinh sẵn trong `shared/entity`, chỉ cần rà soát lại). Đặt tên file theo tên entity, ví dụ `RoomRepository`, `RoomService`, `RoomController`.
 
 | Thành viên | Mã SV | Số bảng | Vai trò |
 |---|---|---|---|
@@ -72,17 +88,17 @@ Các bảng:
 
 ### Tổng kết
 
-Phi 13 + Chi 14 + Toàn 15 + Việt 14 = 56 bảng, bằng số entity trong package `entity`.
+Phi 13 + Chi 14 + Toàn 15 + Việt 14 = 56 bảng, bằng số entity trong package `shared/entity`.
 
 ### Cách làm đồng thời, không chờ nhau
 
 Trạng thái giai đoạn 0: ĐÃ XONG (Phi). Các class dùng chung đã có trên `main`, hãy pull về dùng:
-- `dto/ApiResponse`: mọi API trả `ApiResponse.ok(data)` hoặc `ApiResponse.error(msg)`
-- `dto/PageResponse`: dùng cho API phân trang
-- `exception/BusinessException`: ném từ service khi vi phạm nghiệp vụ, ví dụ `throw BusinessException.notFound("Phong")`
-- `exception/GlobalExceptionHandler`: tự đổi exception thành response chuẩn
-- `config/SecurityConfig`: tạm cho phép mọi request (permitAll), chưa cần đăng nhập
-- `controller/PingController`: ví dụ controller mẫu, thử bằng `GET /api/ping`
+- `shared/dto/ApiResponse`: mọi API trả `ApiResponse.ok(data)` hoặc `ApiResponse.error(msg)`
+- `shared/dto/PageResponse`: dùng cho API phân trang
+- `shared/exception/BusinessException`: ném từ service khi vi phạm nghiệp vụ, ví dụ `throw BusinessException.notFound("Phong")`
+- `shared/exception/GlobalExceptionHandler`: tự đổi exception thành response chuẩn
+- `shared/config/SecurityConfig`: tạm cho phép mọi request (permitAll), chưa cần đăng nhập
+- `shared/controller/PingController`: ví dụ controller mẫu, thử bằng `GET /api/ping`
 
 - Giai đoạn 0 (Phi làm trước, càng sớm càng tốt, chỉ vài chục dòng): đẩy lên `main` các class dùng chung `ApiResponse`, `BusinessException`, `GlobalExceptionHandler`. Trong lúc chờ, `SecurityConfig` cho phép mọi request (permitAll) để mọi người test API mà chưa cần đăng nhập. Phi siết phân quyền lại sau khi mọi người đã có API.
 - Trong lúc Phi làm khung, Chi, Toàn, Việt bắt đầu ngay với các bảng của mình, không cần đợi.
@@ -93,7 +109,7 @@ Trạng thái giai đoạn 0: ĐÃ XONG (Phi). Các class dùng chung đã có t
 ## Quy ước làm chung
 
 - Mỗi thay đổi DB phải sửa `db/group-7.sql` VÀ entity tương ứng trong cùng 1 commit.
-- Số class trong package `entity` phải bằng số bảng trong DB.
+- Số class trong package `shared/entity` phải bằng số bảng trong DB.
 - Mỗi người làm trên branch riêng, ví dụ `phi/room`, `chi/tenant`, `toan/invoice`, `viet/debt`.
 - Pull `main` trước khi bắt đầu làm và trước khi push.
 - Làm xong thì tạo Pull Request vào `main`, không push thẳng lên `main`.
