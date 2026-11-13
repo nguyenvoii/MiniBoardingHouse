@@ -31,12 +31,12 @@ Mỗi người viết repository, service, controller, dto cho các bảng của
 
 | Thành viên | Mã SV | Số bảng | Vai trò |
 |---|---|---|---|
-| Nguyễn Anh Phi | TH08326 | 12 | Khung xương + phần khó: `config`, `exception`, `util`, dto chung, scheduler, xuất Excel/PDF, đăng nhập - phân quyền, tính tiền tháng, hợp đồng, thanh toán |
-| Nguyễn Trần Bảo Chi | TH08666 | 15 | Phòng - khách thuê - yêu cầu thuê |
+| Nguyễn Anh Phi | TH08326 | 13 | Khung xương + phần khó: `config`, `exception`, `util`, dto chung, scheduler, xuất Excel/PDF, đăng nhập - phân quyền, tính tiền tháng, hợp đồng, thanh toán |
+| Nguyễn Trần Bảo Chi | TH08666 | 14 | Phòng - khách thuê - yêu cầu thuê |
 | Phạm Khánh Toàn | TH08433 | 15 | Điện nước - đơn giá - hóa đơn - thu tiền |
 | Vũ Văn Quốc Việt | TH08548 | 14 | Công nợ - trả phòng - sửa chữa - thông báo - chi phí |
 
-### 1. Nguyễn Anh Phi (12 bảng + toàn bộ khung xương)
+### 1. Nguyễn Anh Phi (13 bảng + toàn bộ khung xương)
 Khung xương (không gắn với bảng nào):
 - `config`: Spring Security, đăng nhập, JWT/session, phân quyền theo Role/Permission, CORS
 - `exception`: `BusinessException`, `GlobalExceptionHandler`, mã lỗi thống nhất
@@ -48,14 +48,14 @@ Khung xương (không gắn với bảng nào):
 
 Các bảng:
 - Người dùng - phân quyền: `User`, `Role`, `Permission`, `UserRole` (+ `UserRoleId`), `UserVerification`, `UserActivityLog`
-- Hợp đồng: `RentalContract`
+- Hợp đồng: `RentalContract`, `ContractAdjustment`
 - Tính tiền tháng: `MonthlyBillingPeriod`, `CalculatedMonthlyFee`, `FeeItemDetail`
 - Thanh toán: `PaymentTransaction`, `BankAccount`
 
-### 2. Nguyễn Trần Bảo Chi (15 bảng)
+### 2. Nguyễn Trần Bảo Chi (14 bảng)
 - Khu trọ - phòng: `Property`, `PropertyFloor`, `Room`, `RoomMedia`, `RoomFurnishing`, `RoomEquipmentRequest`, `RoomAddonFee`
 - Khách thuê - cư dân: `Tenant`, `TenantIdCard`, `RoomResident`, `ResidentStayHistory`, `TenantVehicle`
-- Yêu cầu thuê - mẫu hợp đồng: `BookingRequest`, `ContractTemplate`, `ContractAdjustment`
+- Yêu cầu thuê - mẫu hợp đồng: `BookingRequest`, `ContractTemplate`
 
 ### 3. Phạm Khánh Toàn (15 bảng)
 - Chỉ số điện nước: `UtilityReadingPeriod`, `MeterReading`, `MeterPhoto`, `MeterAdjustmentLog`, `MeterAnomalyAlert`
@@ -72,7 +72,7 @@ Các bảng:
 
 ### Tổng kết
 
-Phi 12 + Chi 15 + Toàn 15 + Việt 14 = 56 bảng, bằng số entity trong package `entity`.
+Phi 13 + Chi 14 + Toàn 15 + Việt 14 = 56 bảng, bằng số entity trong package `entity`.
 
 ### Cách làm đồng thời, không chờ nhau
 
