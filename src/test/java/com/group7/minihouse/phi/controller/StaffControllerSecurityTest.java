@@ -16,6 +16,7 @@ import com.group7.minihouse.shared.security.AuthUser;
 import com.group7.minihouse.shared.security.JwtService;
 import com.group7.minihouse.shared.security.UserStatusChecker;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,12 +40,15 @@ class StaffControllerSecurityTest {
     @MockBean StaffService service;
     @MockBean UserStatusChecker statusChecker;
 
+    String dbRole = "MANAGER";
+
     @BeforeEach
-    void everyoneIsActive() {
-        when(statusChecker.isActive(any())).thenReturn(true);
+    void databaseKnowsTheUser() {
+        when(statusChecker.activeRoles(any())).thenAnswer(inv -> Optional.of(List.of(dbRole)));
     }
 
     private String bearer(String role) {
+        dbRole = role;
         Integer tenantId = "TENANT".equals(role) ? 1 : null;
         return "Bearer " + jwt.generate(new AuthUser(1, "a@b.c", "A", List.of(role), tenantId));
     }

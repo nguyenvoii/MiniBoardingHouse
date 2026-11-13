@@ -10,6 +10,7 @@ import com.group7.minihouse.shared.security.JwtService;
 import com.group7.minihouse.shared.security.UserStatusChecker;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,15 +44,31 @@ class SecurityRulesTest {
     @Autowired JwtService jwt;
     @MockBean UserStatusChecker statusChecker;
 
+    /** Vai tro "trong DB" ma statusChecker tra ve; bearer() dat bang vai tro trong token (nhu chua bi doi). */
+    List<String> dbRoles = List.of();
+
     @BeforeEach
-    void everyoneIsActiveByDefault() {
-        when(statusChecker.isActive(any())).thenReturn(true);
+    void databaseKnowsTheUser() {
+        when(statusChecker.activeRoles(any())).thenAnswer(inv -> Optional.of(dbRoles));
+    }
+
+    /** Quyen lay tu DB moi request, khong lay tu token: giang chuc/doi vai tro co hieu luc NGAY. */
+    @Test
+    void rolesComeFromTheDatabaseNotFromTheToken() throws Exception {
+        String oldToken = bearer("MANAGER");
+        dbRoles = List.of("TENANT"); // sau khi cap token, chu tro doi nguoi nay thanh vai tro khac
+
+        mvc.perform(get("/api/probe/staff").header("Authorization", oldToken)).andExpect(status().isForbidden());
+        mvc.perform(get("/api/me/probe").header("Authorization", oldToken)).andExpect(status().isOk());
+
+        dbRoles = List.of("MANAGER");
+        mvc.perform(get("/api/probe/staff").header("Authorization", oldToken)).andExpect(status().isOk());
     }
 
     /** UC9: khoa tai khoan phai chan NGAY token da cap (kiem tra trang thai trong DB moi request). */
     @Test
     void lockedUsersTokenIsRejectedImmediately() throws Exception {
-        when(statusChecker.isActive(1)).thenReturn(false);
+        when(statusChecker.activeRoles(1)).thenReturn(Optional.empty());
 
         mvc.perform(get("/api/probe/staff").header("Authorization", bearer("MANAGER")))
                 .andExpect(status().isUnauthorized());
@@ -62,6 +79,7 @@ class SecurityRulesTest {
     }
 
     private String bearer(String... roles) {
+        dbRoles = List.of(roles);
         Integer tenantId = Arrays.asList(roles).contains("TENANT") ? 1 : null;
         return "Bearer " + jwt.generate(new AuthUser(1, "a@b.c", "A", List.of(roles), tenantId));
     }

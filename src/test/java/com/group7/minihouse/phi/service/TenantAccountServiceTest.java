@@ -111,6 +111,90 @@ class TenantAccountServiceTest {
         return u;
     }
 
+    // ---------- khoa / mo khoa tai khoan nguoi thue ----------
+
+    private void tenantWithAccount(String... accountRoles) {
+        Tenant t = tenant(" 0901234567 ", null);
+        t.setCreatedAt(LocalDateTime.of(2026, 1, 1, 0, 0));
+        when(tenantRepository.findById(42)).thenReturn(Optional.of(t));
+        when(userRepository.findByPhoneNumber("0901234567")).thenReturn(
+                Optional.of(existingUser(7, "0901234567", null, LocalDateTime.of(2026, 2, 1, 0, 0))));
+        when(userRoleRepository.findRoleCodesByUserId(7)).thenReturn(List.of(accountRoles));
+    }
+
+    @Test
+    void locksAndUnlocksTenantAccountAndLogsBoth() {
+        tenantWithAccount("TENANT");
+
+        service.setAccountStatus(42, "LOCKED", 1, "ip");
+        verify(activityLogService).log(org.mockito.ArgumentMatchers.eq(1),
+                org.mockito.ArgumentMatchers.eq("LOCK_USER"), any(String.class),
+                org.mockito.ArgumentMatchers.eq("ip"));
+
+        service.setAccountStatus(42, "ACTIVE", 1, "ip");
+        verify(activityLogService).log(org.mockito.ArgumentMatchers.eq(1),
+                org.mockito.ArgumentMatchers.eq("UNLOCK_USER"), any(String.class),
+                org.mockito.ArgumentMatchers.eq("ip"));
+    }
+
+    @Test
+    void accountStatusActuallyChanges() {
+        Tenant t = tenant("0901234567", null);
+        User account = existingUser(7, "0901234567", null, LocalDateTime.of(2026, 2, 1, 0, 0));
+        when(tenantRepository.findById(42)).thenReturn(Optional.of(t));
+        when(userRepository.findByPhoneNumber("0901234567")).thenReturn(Optional.of(account));
+        when(userRoleRepository.findRoleCodesByUserId(7)).thenReturn(List.of("TENANT"));
+
+        service.setAccountStatus(42, "LOCKED", 1, "ip");
+
+        assertEquals("LOCKED", account.getStatus());
+        verify(userRepository).save(account);
+    }
+
+    @Test
+    void tenantWithoutAccountOrUnknownTenantIs404() {
+        when(tenantRepository.findById(42)).thenReturn(Optional.of(tenant("0901234567", null)));
+        when(tenantRepository.findById(99)).thenReturn(Optional.empty());
+
+        assertEquals(HttpStatus.NOT_FOUND,
+                assertThrows(BusinessException.class, () -> service.setAccountStatus(42, "LOCKED", 1, "ip")).getStatus());
+        assertEquals(HttpStatus.NOT_FOUND,
+                assertThrows(BusinessException.class, () -> service.setAccountStatus(99, "LOCKED", 1, "ip")).getStatus());
+    }
+
+    @Test
+    void staffUsingTheTenantsPhoneCannotBeLockedThroughTenantApi() {
+        tenantWithAccount("MANAGER");
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.setAccountStatus(42, "LOCKED", 1, "ip"));
+
+        assertEquals(HttpStatus.CONFLICT, ex.getStatus());
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    /** Tai khoan tao TRUOC ho so (SDT bi tai su dung) khong phai tai khoan cua khach thue nay. */
+    @Test
+    void orphanAccountIsNotTheTenantsAccount() {
+        Tenant t = tenant("0901234567", null);
+        t.setCreatedAt(LocalDateTime.of(2026, 1, 1, 0, 0));
+        when(tenantRepository.findById(42)).thenReturn(Optional.of(t));
+        when(userRepository.findByPhoneNumber("0901234567")).thenReturn(
+                Optional.of(existingUser(7, "0901234567", null, LocalDateTime.of(2025, 1, 1, 0, 0))));
+        when(userRoleRepository.findRoleCodesByUserId(7)).thenReturn(List.of("TENANT"));
+
+        assertEquals(HttpStatus.NOT_FOUND,
+                assertThrows(BusinessException.class, () -> service.setAccountStatus(42, "LOCKED", 1, "ip")).getStatus());
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void onlyActiveOrLockedAreAcceptedForTenantAccounts() {
+        for (String bad : List.of("INACTIVE", "x", "", "locked")) {
+            assertEquals(HttpStatus.BAD_REQUEST, assertThrows(BusinessException.class,
+                    () -> service.setAccountStatus(42, bad, 1, "ip")).getStatus(), bad);
+        }
+    }
+
     @Test
     void logsWhoCreatedTheTenantAccount() {
         when(tenantRepository.findById(42)).thenReturn(Optional.of(tenant("0901234567", null)));

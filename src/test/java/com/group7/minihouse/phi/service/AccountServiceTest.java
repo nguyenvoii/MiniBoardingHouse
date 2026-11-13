@@ -228,6 +228,47 @@ class AccountServiceTest {
         assertNull(c.getValue().getPhoneNumber());
     }
 
+    /** Khong gui phoneNumber = giu nguyen (chi gui "" moi la xoa), tranh vo y mat SDT khi chi sua ten. */
+    @Test
+    void absentPhoneMeansUnchanged() {
+        User u = user(5, "0912345678");
+        when(userRepository.findById(5)).thenReturn(Optional.of(u));
+        when(userRoleRepository.findRoleCodesByUserId(5)).thenReturn(List.of("MANAGER"));
+
+        service.updateProfile(5, new UpdateProfileRequest("Ten Moi", null), "ip");
+
+        assertEquals("Ten Moi", u.getFullName());
+        assertEquals("0912345678", u.getPhoneNumber());
+        verify(userRepository, never()).findByPhoneNumber(any());
+    }
+
+    /** Khong de nhan vien tu xoa SDT khi khong co email: se het cach dang nhap. */
+    @Test
+    void clearingPhoneIsRejectedWhenThereIsNoEmail() {
+        User u = user(5, "0912345678");
+        u.setEmail(null);
+        when(userRepository.findById(5)).thenReturn(Optional.of(u));
+        when(userRoleRepository.findRoleCodesByUserId(5)).thenReturn(List.of("MANAGER"));
+
+        BusinessException ex = fails(() -> service.updateProfile(5, new UpdateProfileRequest("A", ""), "ip"));
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
+        assertEquals("0912345678", u.getPhoneNumber());
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void tenantSendingOnlyTheNameKeepsPhoneWithoutError() {
+        User u = user(5, "0901234567");
+        when(userRepository.findById(5)).thenReturn(Optional.of(u));
+        when(userRoleRepository.findRoleCodesByUserId(5)).thenReturn(List.of("TENANT"));
+
+        service.updateProfile(5, new UpdateProfileRequest("Ten Khac", null), "ip");
+
+        assertEquals("Ten Khac", u.getFullName());
+        assertEquals("0901234567", u.getPhoneNumber());
+    }
+
     @Test
     void rejectsBlankName() {
         when(userRepository.findById(5)).thenReturn(Optional.of(user(5, null)));
