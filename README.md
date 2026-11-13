@@ -76,6 +76,14 @@ Phi 12 + Chi 15 + Toàn 15 + Việt 14 = 56 bảng, bằng số entity trong pac
 
 ### Cách làm đồng thời, không chờ nhau
 
+Trạng thái giai đoạn 0: ĐÃ XONG (Phi). Các class dùng chung đã có trên `main`, hãy pull về dùng:
+- `dto/ApiResponse`: mọi API trả `ApiResponse.ok(data)` hoặc `ApiResponse.error(msg)`
+- `dto/PageResponse`: dùng cho API phân trang
+- `exception/BusinessException`: ném từ service khi vi phạm nghiệp vụ, ví dụ `throw BusinessException.notFound("Phong")`
+- `exception/GlobalExceptionHandler`: tự đổi exception thành response chuẩn
+- `config/SecurityConfig`: tạm cho phép mọi request (permitAll), chưa cần đăng nhập
+- `controller/PingController`: ví dụ controller mẫu, thử bằng `GET /api/ping`
+
 - Giai đoạn 0 (Phi làm trước, càng sớm càng tốt, chỉ vài chục dòng): đẩy lên `main` các class dùng chung `ApiResponse`, `BusinessException`, `GlobalExceptionHandler`. Trong lúc chờ, `SecurityConfig` cho phép mọi request (permitAll) để mọi người test API mà chưa cần đăng nhập. Phi siết phân quyền lại sau khi mọi người đã có API.
 - Trong lúc Phi làm khung, Chi, Toàn, Việt bắt đầu ngay với các bảng của mình, không cần đợi.
 - Mỗi người chỉ tạo repository, service, controller trong phần bảng của mình. Cần dữ liệu của bảng người khác thì gọi qua `Service` của người đó, hoặc dùng quan hệ JPA có sẵn trong entity. Không tự viết repository cho bảng người khác.
