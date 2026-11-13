@@ -53,9 +53,7 @@ public class TenantAccountService {
         }
         String email = tenant.getEmail() == null || tenant.getEmail().isBlank() ? null : tenant.getEmail().trim();
 
-        if (userRepository.existsByPhoneNumber(phone)) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Khach thue nay da co tai khoan dang nhap");
-        }
+        userRepository.findByPhoneNumber(phone).ifPresent(existing -> resolveExistingAccount(existing, tenant));
         if (email != null && userRepository.existsByEmail(email)) {
             throw new BusinessException(HttpStatus.CONFLICT, "Email cua khach thue da duoc tai khoan khac su dung");
         }
@@ -78,6 +76,26 @@ public class TenantAccountService {
         userRoleRepository.save(userRole);
 
         return new TenantAccountResponse(saved.getUserId(), phone, tempPassword);
+    }
+
+    /**
+     * Da co user dung SDT nay. Nhan vien -> bao dung. Tai khoan nguoi thue TAO SAU ho so nay -> da cap roi (409).
+     * Tai khoan nguoi thue tao TRUOC ho so (SDT bi tai su dung cho khach moi) -> vo hieu hoa va giai phong SDT/email;
+     * phai flush ngay vi Hibernate chay INSERT truoc UPDATE, neu khong se dung unique index UX_users_phone.
+     */
+    private void resolveExistingAccount(User existing, Tenant tenant) {
+        if (!userRoleRepository.findRoleCodesByUserId(existing.getUserId()).contains("TENANT")) {
+            throw new BusinessException(HttpStatus.CONFLICT, "So dien thoai nay da duoc tai khoan nhan vien su dung");
+        }
+        boolean orphan = existing.getCreatedAt() != null && tenant.getCreatedAt() != null
+                && existing.getCreatedAt().isBefore(tenant.getCreatedAt());
+        if (!orphan) {
+            throw new BusinessException(HttpStatus.CONFLICT, "Khach thue nay da co tai khoan dang nhap");
+        }
+        existing.setStatus("INACTIVE");
+        existing.setPhoneNumber(null);
+        existing.setEmail(null);
+        userRepository.saveAndFlush(existing);
     }
 
     private String generatePassword() {

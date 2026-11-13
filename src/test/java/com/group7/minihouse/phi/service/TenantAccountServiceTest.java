@@ -19,6 +19,8 @@ import com.group7.minihouse.shared.entity.Tenant;
 import com.group7.minihouse.shared.entity.User;
 import com.group7.minihouse.shared.entity.UserRole;
 import com.group7.minihouse.shared.exception.BusinessException;
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -98,15 +100,67 @@ class TenantAccountServiceTest {
         assertEquals(3, ur.getValue().getId().getRoleId());
     }
 
+    private User existingUser(int id, String phone, String email, LocalDateTime createdAt) {
+        User u = new User();
+        u.setUserId(id);
+        u.setPhoneNumber(phone);
+        u.setEmail(email);
+        u.setStatus("ACTIVE");
+        u.setCreatedAt(createdAt);
+        return u;
+    }
+
     @Test
     void rejectsSecondAccountForSamePhone() {
-        when(tenantRepository.findById(42)).thenReturn(Optional.of(tenant("0901234567", null)));
-        when(userRepository.existsByPhoneNumber("0901234567")).thenReturn(true);
+        Tenant t = tenant("0901234567", null);
+        t.setCreatedAt(LocalDateTime.of(2026, 1, 1, 0, 0));
+        when(tenantRepository.findById(42)).thenReturn(Optional.of(t));
+        when(userRepository.findByPhoneNumber("0901234567")).thenReturn(
+                Optional.of(existingUser(7, "0901234567", null, LocalDateTime.of(2026, 2, 1, 0, 0))));
+        when(userRoleRepository.findRoleCodesByUserId(7)).thenReturn(List.of("TENANT"));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.createAccount(42));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatus());
+        assertTrue(ex.getMessage().contains("da co tai khoan"));
         verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void staffUsingTheSamePhoneGetsAccurateMessage() {
+        when(tenantRepository.findById(42)).thenReturn(Optional.of(tenant("0901234567", null)));
+        when(userRepository.findByPhoneNumber("0901234567")).thenReturn(
+                Optional.of(existingUser(3, "0901234567", "m@x.vn", LocalDateTime.of(2025, 1, 1, 0, 0))));
+        when(userRoleRepository.findRoleCodesByUserId(3)).thenReturn(List.of("MANAGER"));
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.createAccount(42));
+
+        assertEquals(HttpStatus.CONFLICT, ex.getStatus());
+        assertTrue(ex.getMessage().contains("nhan vien"));
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    /** SDT cua khach thue cu bi tai su dung cho khach moi: tai khoan mo coi bi vo hieu hoa, khach moi duoc cap tai khoan. */
+    @Test
+    void retiresOrphanAccountWhenPhoneIsReusedByNewTenant() {
+        Tenant t = tenant("0901234567", null);
+        t.setCreatedAt(LocalDateTime.of(2026, 1, 1, 0, 0));
+        User orphan = existingUser(7, "0901234567", "old@x.vn", LocalDateTime.of(2025, 1, 1, 0, 0));
+        when(tenantRepository.findById(42)).thenReturn(Optional.of(t));
+        when(userRepository.findByPhoneNumber("0901234567")).thenReturn(Optional.of(orphan));
+        when(userRoleRepository.findRoleCodesByUserId(7)).thenReturn(List.of("TENANT"));
+        when(roleRepository.findByRoleCode("TENANT")).thenReturn(Optional.of(tenantRole()));
+        saveAssignsId();
+
+        TenantAccountResponse res = service.createAccount(42);
+
+        // tai khoan cu phai duoc ghi xuong DB NGAY (flush) de nha cho unique index truoc khi them tai khoan moi
+        ArgumentCaptor<User> flushed = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).saveAndFlush(flushed.capture());
+        assertEquals("INACTIVE", flushed.getValue().getStatus());
+        assertNull(flushed.getValue().getPhoneNumber());
+        assertNull(flushed.getValue().getEmail());
+        assertEquals(9, res.userId());
     }
 
     @Test

@@ -5,6 +5,15 @@ Da kiem chung chay that tren DB tam (bat bao mat): cap tai khoan 200, cap lan 2 
 nguoi thue dang nhap bang SDT + mat khau tam -> tenantId dung, token nguoi thue goi API nhan vien -> 403, khong token -> 401,
 xoa ho so khach thue roi dang nhap -> 409 (khong 500). 17 unit test xanh.
 
+## Bo sung sau review cuoi (2026-11-14)
+- SDT bi tai su dung: tai khoan phai duoc tao SAU ho so khach thue (`users.created_at >= tenants.created_at`), neu cu hon thi
+  dang nhap bi tu choi (409). Khi cap tai khoan cho khach moi, tai khoan mo coi (TENANT, tao truoc ho so) bi vo hieu hoa
+  (INACTIVE, bo SDT/email, `saveAndFlush` vi Hibernate INSERT truoc UPDATE). SDT dang bi nhan vien dung -> bao dung nguyen nhan.
+- Luat URL khi bat bao mat: `/api/auth/**` moi nguoi dang nhap; `/api/me/**` chi TENANT; moi URL con lai chi nhan vien.
+- `CurrentUser.requireTenantId(user)`: null -> 401, nhan vien -> 403.
+- Ho so khach thue co SDT trong -> tu choi (409).
+- Kiem chung them: 31 unit test + E2E tren DB tam (tai su dung SDT, vo hieu hoa tai khoan cu, 403 cho nguoi thue/nhan vien sai khu vuc).
+
 ## Muc dich
 Excel yeu cau 3 vai tro: Chu tro, Nhan vien, Nguoi thue. Nguoi thue dang nhap va chi xem du lieu cua chinh minh
 (phong, hop dong, hoa don, cong no). Hien DB khong co cach noi tai khoan voi ho so khach thue.
