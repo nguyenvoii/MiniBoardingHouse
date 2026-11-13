@@ -29,8 +29,10 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
  * - false (MAC DINH, che do dev): moi API mo, khong can token; @PreAuthorize bi bo qua (xem MethodSecurityConfig).
  * - true (demo/bao ve): chi cong khai POST /api/auth/login, GET /api/ping, Swagger; con lai phai gui header
  *   "Authorization: Bearer <token>". Bat bang app.security.enabled=true trong application-local.properties.
- * - Phan quyen theo vai tro: gan @PreAuthorize("hasRole('MANAGER')") hoac hasAnyRole('LANDLORD','MANAGER')
- *   tren ham controller/service (role_code: LANDLORD, MANAGER, CASHIER, METER_READER).
+ *   Luat URL: /api/auth/** moi nguoi da dang nhap; /api/me/** chi nguoi thue (TENANT); moi URL khac chi nhan vien
+ *   (LANDLORD, MANAGER, CASHIER, METER_READER). API cua nguoi thue PHAI nam duoi /api/me/**.
+ * - Phan quyen theo vai tro (thu hep trong nhom nhan vien): gan @PreAuthorize("hasRole('MANAGER')") hoac
+ *   hasAnyRole('LANDLORD','MANAGER') tren ham controller/service.
  */
 @Configuration
 public class SecurityConfig {
@@ -45,7 +47,11 @@ public class SecurityConfig {
                 if (enabled) {
                     auth.requestMatchers("/api/auth/login", "/api/ping",
                             "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                        .anyRequest().authenticated();
+                        .requestMatchers("/api/auth/**").authenticated()
+                        // Khu vuc nguoi thue: API cua nguoi thue DAT DUOI /api/me/** (vd /api/me/invoices)
+                        .requestMatchers("/api/me/**").hasRole("TENANT")
+                        // Mac dinh chi nhan vien: nguoi thue khong vao duoc API nao quen gan @PreAuthorize
+                        .anyRequest().hasAnyRole("LANDLORD", "MANAGER", "CASHIER", "METER_READER");
                 } else {
                     auth.anyRequest().permitAll(); // che do dev: mo, khong can token
                 }

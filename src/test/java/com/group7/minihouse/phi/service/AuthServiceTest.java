@@ -116,6 +116,36 @@ class AuthServiceTest {
         verifyNoInteractions(tenantReadRepository);
     }
 
+    /** SDT bi tai su dung: tai khoan cu (tao TRUOC ho so khach thue moi) khong duoc nhan du lieu nguoi moi. */
+    @Test
+    void accountOlderThanTenantProfileIsRejected() {
+        User u = user(null, "0901234567");
+        u.setCreatedAt(java.time.LocalDateTime.of(2025, 1, 1, 0, 0));
+        Tenant t = tenant(42);
+        t.setCreatedAt(java.time.LocalDateTime.of(2026, 1, 1, 0, 0));
+        when(userRepository.findByEmailOrPhoneNumber("0901234567", "0901234567")).thenReturn(Optional.of(u));
+        when(userRoleRepository.findRoleCodesByUserId(5)).thenReturn(List.of("TENANT"));
+        when(tenantReadRepository.findByPhone("0901234567")).thenReturn(Optional.of(t));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.login(new LoginRequest("0901234567", "pw"), "127.0.0.1"));
+
+        assertEquals(HttpStatus.CONFLICT, ex.getStatus());
+    }
+
+    @Test
+    void accountCreatedAfterTenantProfileIsAccepted() {
+        User u = user(null, "0901234567");
+        u.setCreatedAt(java.time.LocalDateTime.of(2026, 2, 1, 0, 0));
+        Tenant t = tenant(42);
+        t.setCreatedAt(java.time.LocalDateTime.of(2026, 1, 1, 0, 0));
+        when(userRepository.findByEmailOrPhoneNumber("0901234567", "0901234567")).thenReturn(Optional.of(u));
+        when(userRoleRepository.findRoleCodesByUserId(5)).thenReturn(List.of("TENANT"));
+        when(tenantReadRepository.findByPhone("0901234567")).thenReturn(Optional.of(t));
+
+        assertEquals(42, service.login(new LoginRequest("0901234567", "pw"), "127.0.0.1").user().tenantId());
+    }
+
     @Test
     void tenantPhoneIsTrimmedBeforeLookup() {
         when(userRepository.findByEmailOrPhoneNumber("0901234567", "0901234567"))

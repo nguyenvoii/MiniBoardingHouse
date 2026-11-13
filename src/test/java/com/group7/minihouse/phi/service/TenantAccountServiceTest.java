@@ -121,6 +121,17 @@ class TenantAccountServiceTest {
     }
 
     @Test
+    void rejectsTenantProfileWithBlankPhone() {
+        when(tenantRepository.findById(42)).thenReturn(Optional.of(tenant("   ", null)));
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.createAccount(42));
+
+        assertEquals(HttpStatus.CONFLICT, ex.getStatus());
+        assertTrue(ex.getMessage().contains("so dien thoai"));
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
     void tenantNotFound() {
         when(tenantRepository.findById(99)).thenReturn(Optional.empty());
 
