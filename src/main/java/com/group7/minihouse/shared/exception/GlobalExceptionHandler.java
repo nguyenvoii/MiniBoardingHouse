@@ -4,6 +4,7 @@ import com.group7.minihouse.shared.dto.ApiResponse;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -59,6 +60,14 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({MissingServletRequestParameterException.class, MethodArgumentTypeMismatchException.class})
     public ResponseEntity<ApiResponse<Void>> handleBadParameter(Exception ex) {
         return ResponseEntity.badRequest().body(ApiResponse.error("Tham so khong hop le hoac thieu"));
+    }
+
+    /** Vi pham unique/khoa ngoai o DB (vd 2 request cung luc them trung email): xung dot du lieu, khong phai loi he thong. */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDataIntegrity(DataIntegrityViolationException ex) {
+        log.warn("Vi pham rang buoc du lieu: {}", ex.getMostSpecificCause().getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error("Du lieu bi trung hoac vi pham rang buoc, vui long kiem tra lai"));
     }
 
     /** @PreAuthorize that bai (dang nhap roi nhung thieu vai tro). */

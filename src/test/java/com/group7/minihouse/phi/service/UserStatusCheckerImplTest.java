@@ -1,10 +1,11 @@
 package com.group7.minihouse.phi.service;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
 import com.group7.minihouse.phi.repository.UserRepository;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -19,20 +20,36 @@ class UserStatusCheckerImplTest {
     @InjectMocks UserStatusCheckerImpl checker;
 
     @Test
-    void onlyActiveUsersAreActive() {
-        when(userRepository.findStatusById(1)).thenReturn(Optional.of("ACTIVE"));
-        when(userRepository.findStatusById(2)).thenReturn(Optional.of("LOCKED"));
-        when(userRepository.findStatusById(3)).thenReturn(Optional.of("INACTIVE"));
+    void activeUserGetsCurrentRolesFromDatabase() {
+        when(userRepository.findStatusAndRoleCodes(1)).thenReturn(List.of(
+                new Object[]{"ACTIVE", "MANAGER"}, new Object[]{"ACTIVE", "CASHIER"}));
 
-        assertTrue(checker.isActive(1));
-        assertFalse(checker.isActive(2));
-        assertFalse(checker.isActive(3));
+        assertEquals(Optional.of(List.of("MANAGER", "CASHIER")), checker.activeRoles(1));
     }
 
     @Test
-    void deletedOrUnknownUserIsNotActive() {
-        when(userRepository.findStatusById(99)).thenReturn(Optional.empty());
+    void activeUserWithoutRolesGetsEmptyList() {
+        when(userRepository.findStatusAndRoleCodes(2)).thenReturn(List.<Object[]>of(new Object[]{"ACTIVE", null}));
 
-        assertFalse(checker.isActive(99));
+        Optional<List<String>> roles = checker.activeRoles(2);
+
+        assertTrue(roles.isPresent());
+        assertTrue(roles.get().isEmpty());
+    }
+
+    @Test
+    void lockedOrInactiveUsersHaveNoAccess() {
+        when(userRepository.findStatusAndRoleCodes(3)).thenReturn(List.<Object[]>of(new Object[]{"LOCKED", "MANAGER"}));
+        when(userRepository.findStatusAndRoleCodes(4)).thenReturn(List.<Object[]>of(new Object[]{"INACTIVE", "TENANT"}));
+
+        assertEquals(Optional.empty(), checker.activeRoles(3));
+        assertEquals(Optional.empty(), checker.activeRoles(4));
+    }
+
+    @Test
+    void deletedOrUnknownUserHasNoAccess() {
+        when(userRepository.findStatusAndRoleCodes(99)).thenReturn(List.of());
+
+        assertEquals(Optional.empty(), checker.activeRoles(99));
     }
 }

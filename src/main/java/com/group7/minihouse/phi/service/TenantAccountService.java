@@ -81,6 +81,39 @@ public class TenantAccountService {
     }
 
     /**
+     * Khoa (LOCKED) hoac mo khoa (ACTIVE) tai khoan dang nhap cua khach thue, vi du khi khach tra phong.
+     * Co hieu luc ngay voi token da cap (xem UserStatusChecker). Chi tac dong len dung tai khoan cua khach thue nay:
+     * khong co tai khoan, hoac tai khoan tao truoc ho so (SDT bi tai su dung) -> 404; SDT thuoc nhan vien -> 409.
+     */
+    @Transactional
+    public void setAccountStatus(Integer tenantId, String status, Integer actorUserId, String ip) {
+        if (!"ACTIVE".equals(status) && !"LOCKED".equals(status)) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Trang thai chi nhan ACTIVE (mo khoa) hoac LOCKED (khoa)");
+        }
+        Tenant tenant = tenantRepository.findById(tenantId)
+                .orElseThrow(() -> BusinessException.notFound("Khach thue"));
+        String phone = tenant.getPhoneNumber() == null ? "" : tenant.getPhoneNumber().trim();
+        User account = userRepository.findByPhoneNumber(phone)
+                .orElseThrow(() -> BusinessException.notFound("Tai khoan cua khach thue"));
+        if (!userRoleRepository.findRoleCodesByUserId(account.getUserId()).contains("TENANT")) {
+            throw new BusinessException(HttpStatus.CONFLICT, "So dien thoai nay dang duoc tai khoan nhan vien su dung");
+        }
+        if (account.getCreatedAt() != null && tenant.getCreatedAt() != null
+                && account.getCreatedAt().isBefore(tenant.getCreatedAt())) {
+            throw BusinessException.notFound("Tai khoan cua khach thue");
+        }
+        account.setStatus(status);
+        userRepository.save(account);
+
+        if (actorUserId != null) {
+            boolean lock = "LOCKED".equals(status);
+            activityLogService.log(actorUserId, lock ? "LOCK_USER" : "UNLOCK_USER",
+                    (lock ? "Khoa" : "Mo khoa") + " tai khoan nguoi thue cua khach thue " + tenantId
+                            + " (user " + account.getUserId() + ")", ip);
+        }
+    }
+
+    /**
      * Da co user dung SDT nay. Nhan vien -> bao dung. Tai khoan nguoi thue TAO SAU ho so nay -> da cap roi (409).
      * Tai khoan nguoi thue tao TRUOC ho so (SDT bi tai su dung cho khach moi) -> vo hieu hoa va giai phong SDT/email;
      * phai flush ngay vi Hibernate chay INSERT truoc UPDATE, neu khong se dung unique index UX_users_phone.

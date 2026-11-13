@@ -34,6 +34,13 @@ class GlobalExceptionHandlerTest {
                 handler.handleMediaTypeNotSupported(new HttpMediaTypeNotSupportedException("text/plain")));
     }
 
+    /** Hai request cung luc trung email/SDT: chi 1 request thang (unique index), request kia phai la 409 chu khong phai 500. */
+    @Test
+    void duplicateKeyFromTheDatabaseIs409() {
+        assertFailure(HttpStatus.CONFLICT, handler.handleDataIntegrity(
+                new org.springframework.dao.DataIntegrityViolationException("Violation of UNIQUE KEY constraint")));
+    }
+
     @Test
     void missingOrMalformedParameterIs400() {
         assertFailure(HttpStatus.BAD_REQUEST, handler.handleBadParameter(

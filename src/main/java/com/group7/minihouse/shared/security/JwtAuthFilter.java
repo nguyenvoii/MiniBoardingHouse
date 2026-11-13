@@ -5,6 +5,8 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.List;
+import java.util.Optional;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -30,9 +32,13 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         String header = request.getHeader("Authorization");
         if (header != null && header.startsWith("Bearer ")) {
-            AuthUser user = jwtService.parse(header.substring(7).trim());
-            // Token hop le nhung tai khoan da bi khoa/vo hieu hoa/xoa thi coi nhu chua dang nhap (401)
-            if (user != null && statusChecker.isActive(user.userId())) {
+            AuthUser token = jwtService.parse(header.substring(7).trim());
+            // Token hop le nhung tai khoan da bi khoa/vo hieu hoa/xoa thi coi nhu chua dang nhap (401).
+            // Vai tro lay tu DB moi request (khong lay tu token) nen giang chuc/doi vai tro co hieu luc ngay.
+            Optional<List<String>> dbRoles = token == null ? Optional.empty() : statusChecker.activeRoles(token.userId());
+            if (dbRoles.isPresent()) {
+                AuthUser user = new AuthUser(token.userId(), token.email(), token.fullName(), dbRoles.get(),
+                        token.tenantId());
                 var authorities = user.roles().stream()
                         .map(r -> new SimpleGrantedAuthority("ROLE_" + r)).toList();
                 SecurityContextHolder.getContext().setAuthentication(
