@@ -10,7 +10,6 @@ import static org.mockito.Mockito.when;
 import com.group7.minihouse.phi.dto.LoginRequest;
 import com.group7.minihouse.phi.dto.LoginResponse;
 import com.group7.minihouse.phi.repository.TenantReadRepository;
-import com.group7.minihouse.phi.repository.UserActivityLogRepository;
 import com.group7.minihouse.phi.repository.UserRepository;
 import com.group7.minihouse.phi.repository.UserRoleRepository;
 import com.group7.minihouse.shared.entity.Tenant;
@@ -34,7 +33,7 @@ class AuthServiceTest {
 
     @Mock UserRepository userRepository;
     @Mock UserRoleRepository userRoleRepository;
-    @Mock UserActivityLogRepository logRepository;
+    @Mock ActivityLogService activityLogService;
     @Mock TenantReadRepository tenantReadRepository;
 
     final PasswordEncoder encoder = new BCryptPasswordEncoder();
@@ -43,7 +42,7 @@ class AuthServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new AuthService(userRepository, userRoleRepository, logRepository, encoder, jwt,
+        service = new AuthService(userRepository, userRoleRepository, activityLogService, encoder, jwt,
                 tenantReadRepository);
     }
 

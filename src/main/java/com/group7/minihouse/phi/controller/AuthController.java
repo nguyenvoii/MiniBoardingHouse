@@ -2,6 +2,7 @@ package com.group7.minihouse.phi.controller;
 
 import com.group7.minihouse.phi.dto.LoginRequest;
 import com.group7.minihouse.phi.dto.LoginResponse;
+import com.group7.minihouse.phi.service.ActivityLogService;
 import com.group7.minihouse.phi.service.AuthService;
 import com.group7.minihouse.shared.dto.ApiResponse;
 import com.group7.minihouse.shared.exception.BusinessException;
@@ -21,15 +22,26 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
+    private final ActivityLogService activityLogService;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, ActivityLogService activityLogService) {
         this.authService = authService;
+        this.activityLogService = activityLogService;
     }
 
     /** Dang nhap bang email/SDT + mat khau, tra ve JWT. */
     @PostMapping("/login")
     public ApiResponse<LoginResponse> login(@Valid @RequestBody LoginRequest req, HttpServletRequest http) {
         return ApiResponse.ok(authService.login(req, http.getRemoteAddr()));
+    }
+
+    /** Dang xuat: JWT khong luu phien nen client chi viec bo token; endpoint nay ghi nhat ky LOGOUT. */
+    @PostMapping("/logout")
+    public ApiResponse<Void> logout(@AuthenticationPrincipal AuthUser user, HttpServletRequest http) {
+        if (user != null) {
+            activityLogService.log(user.userId(), "LOGOUT", "Dang xuat", http.getRemoteAddr());
+        }
+        return ApiResponse.ok(null);
     }
 
     /** Thong tin nguoi dang dang nhap (dung de thu token). */

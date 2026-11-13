@@ -3,12 +3,10 @@ package com.group7.minihouse.phi.service;
 import com.group7.minihouse.phi.dto.LoginRequest;
 import com.group7.minihouse.phi.dto.LoginResponse;
 import com.group7.minihouse.phi.repository.TenantReadRepository;
-import com.group7.minihouse.phi.repository.UserActivityLogRepository;
 import com.group7.minihouse.phi.repository.UserRepository;
 import com.group7.minihouse.phi.repository.UserRoleRepository;
 import com.group7.minihouse.shared.entity.Tenant;
 import com.group7.minihouse.shared.entity.User;
-import com.group7.minihouse.shared.entity.UserActivityLog;
 import com.group7.minihouse.shared.exception.BusinessException;
 import com.group7.minihouse.shared.security.AuthUser;
 import com.group7.minihouse.shared.security.JwtService;
@@ -23,18 +21,18 @@ public class AuthService {
 
     private final UserRepository userRepository;
     private final UserRoleRepository userRoleRepository;
-    private final UserActivityLogRepository logRepository;
+    private final ActivityLogService activityLogService;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final TenantReadRepository tenantReadRepository;
 
     public AuthService(UserRepository userRepository, UserRoleRepository userRoleRepository,
-                       UserActivityLogRepository logRepository, PasswordEncoder passwordEncoder,
+                       ActivityLogService activityLogService, PasswordEncoder passwordEncoder,
                        JwtService jwtService, TenantReadRepository tenantReadRepository) {
         this.tenantReadRepository = tenantReadRepository;
         this.userRepository = userRepository;
         this.userRoleRepository = userRoleRepository;
-        this.logRepository = logRepository;
+        this.activityLogService = activityLogService;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
     }
@@ -55,12 +53,7 @@ public class AuthService {
         Integer tenantId = roles.contains("TENANT") ? findTenantId(user) : null;
         AuthUser authUser = new AuthUser(user.getUserId(), user.getEmail(), user.getFullName(), roles, tenantId);
 
-        UserActivityLog log = new UserActivityLog();
-        log.setUser(user);
-        log.setActionType("LOGIN");
-        log.setDescription("Dang nhap thanh cong");
-        log.setIpAddress(ipAddress);
-        logRepository.save(log);
+        activityLogService.log(user.getUserId(), "LOGIN", "Dang nhap thanh cong", ipAddress);
 
         return new LoginResponse(jwtService.generate(authUser), "Bearer", jwtService.getExpirationSeconds(), authUser);
     }
