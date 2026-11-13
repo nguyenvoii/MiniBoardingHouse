@@ -11,3 +11,7 @@ application-local.properties
 
 # Giao dien xem thu chi tren may Phi (khong dua len GitHub)
 demo-ui/
+
+# Ke hoach tung buoc / ghi chu lam viec cua AI: chi giu tren may, khong dua len GitHub
+docs/superpowers/
+.superpowers/
