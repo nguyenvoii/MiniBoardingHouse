@@ -15,6 +15,12 @@ public interface UserVerificationRepository extends JpaRepository<UserVerificati
     List<UserVerification> findActive(@Param("userId") Integer userId, @Param("type") String type,
                                       @Param("now") LocalDateTime now);
 
+    /** Xoa ma het han truoc moc cutoff, tra ve so dong da xoa. */
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.transaction.annotation.Transactional
+    @Query("delete from UserVerification v where v.expiresAt < :cutoff")
+    int deleteExpiredBefore(@Param("cutoff") LocalDateTime cutoff);
+
     /**
      * So ma da cap (ke ca ma da dung/bi huy) co han sau minExpiresAt, tuc la duoc cap sau thoi diem
      * (minExpiresAt - han ma). Dung de chan xin ma lien tuc.
