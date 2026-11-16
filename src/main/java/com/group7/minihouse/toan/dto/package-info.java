@@ -1,1 +1,1 @@
-package com.group7.minihouse.toan.dto;
+package com.group7.minihouse.dto;
