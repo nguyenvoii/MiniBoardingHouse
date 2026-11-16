@@ -1,1 +1,1 @@
-package com.group7.minihouse.controller;
+package com.group7.minihouse.toan.controller;

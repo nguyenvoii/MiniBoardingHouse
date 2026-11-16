@@ -1,1 +1,1 @@
-package com.group7.minihouse.repository;
+package com.group7.minihouse.toan.repository;
