@@ -2,6 +2,7 @@ import { h, mount } from '../lib/dom';
 import { icon } from '../lib/icons';
 import { date, money } from '../lib/format';
 import { loadLive, LiveRoom } from '../data/live';
+import { residentsBox } from '../ui/occupancy';
 import { dl, openDialog, pageHead, plate, sampleNote, statusBadge } from '../ui/kit';
 
 export async function roomsPage(view: HTMLElement): Promise<void> {
@@ -46,6 +47,7 @@ function openRoom(r: LiveRoom): void {
     h('div', { style: 'display:flex;gap:10px;align-items:center;flex-wrap:wrap' }, plate(r.code, 'lg'), statusBadge(r.status)),
     dl([['Tầng', r.floor], ['Diện tích', `${r.area} m²`], ['Giá thuê niêm yết', `${money(r.price)} ₫/tháng`], ['Tiền cọc', `${money(r.deposit)} ₫`], ['Số người tối đa', r.maxPeople], ['Tiện nghi', r.amenities.join(', ')],
       ['Người thuê', c ? c.tenantName : 'Chưa có'], ['Hợp đồng', c ? `${c.contractCode} (${date(c.startDate)} – ${date(c.endDate)})` : '–']]),
+    h('div', null, h('h3', { style: 'margin-bottom:10px' }, 'Người ở cùng (tính tiền dịch vụ theo đầu người)'), residentsBox(r.roomId, r.maxPeople)),
   );
   mount(d.foot, h('button', { class: 'btn secondary', onclick: d.close }, 'Đóng'),
     c ? h('a', { class: 'btn', href: `#/contracts?open=${c.contractId}`, onclick: d.close }, icon('file', 16), 'Mở hợp đồng') : null,

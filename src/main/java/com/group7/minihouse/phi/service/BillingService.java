@@ -1,5 +1,6 @@
 package com.group7.minihouse.phi.service;
 
+import com.group7.minihouse.phi.dto.BillingDtos.AddItemRequest;
 import com.group7.minihouse.phi.dto.BillingDtos.Anomaly;
 import com.group7.minihouse.phi.dto.BillingDtos.CalculationResult;
 import com.group7.minihouse.phi.dto.BillingDtos.CreatePeriodRequest;
@@ -9,6 +10,7 @@ import com.group7.minihouse.phi.dto.BillingDtos.Issue;
 import com.group7.minihouse.phi.dto.BillingDtos.ItemResponse;
 import com.group7.minihouse.phi.dto.BillingDtos.PeriodCreated;
 import com.group7.minihouse.phi.dto.BillingDtos.PeriodResponse;
+import com.group7.minihouse.phi.dto.BillingDtos.ServicePreview;
 import com.group7.minihouse.phi.dto.BillingDtos.UpdateItemRequest;
 import com.group7.minihouse.phi.repository.BillingPeriodRepository;
 import com.group7.minihouse.phi.repository.CalculatedFeeRepository;
@@ -33,7 +35,9 @@ import java.time.YearMonth;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.List;
 import java.util.Set;
 import org.springframework.http.HttpStatus;
@@ -58,6 +62,8 @@ public class BillingService {
     static final String ITEM_SURCHARGE = "Phụ thu";
     static final String ITEM_DISCOUNT = "Giảm trừ";
     static final String ITEM_PENALTY = "Phạt trễ hạn";
+    /** Khoan nhap tay: tien to nay giu lai khi tinh lai ky, tinh vao phu thu (so duong) hoac giam tru (so am). */
+    static final String MANUAL = "✎ ";
     static final String ITEM_SHARED = "Điện nước chung (phân bổ)";
     static final String SHARED_CATEGORY = "Điện nước chung";
     static final BigDecimal ANOMALY_RATIO = new BigDecimal("1.5");
@@ -174,6 +180,14 @@ public class BillingService {
         Integer propertyId = p.getProperty().getPropertyId();
         List<Issue> warnings = new ArrayList<>();
 
+        // Khoan nhap tay (tien to MANUAL) duoc giu lai theo phong, dung lai sau khi tinh
+        Map<Integer, List<Line>> manual = new HashMap<>();
+        for (FeeItemDetail i : em.createQuery("select i from FeeItemDetail i where i.calculatedFee.billingPeriod.billingPeriodId = :p "
+                + "and i.itemName like :pre order by i.detailId", FeeItemDetail.class)
+                .setParameter("p", periodId).setParameter("pre", MANUAL + "%").getResultList()) {
+            manual.computeIfAbsent(i.getCalculatedFee().getRoom().getRoomId(), k -> new ArrayList<>())
+                    .add(new Line(i.getItemName(), i.getQuantity(), i.getUnitPrice()));
+        }
         feeRepo.deleteItemsOfPeriod(periodId);
         feeRepo.deleteFeesOfPeriod(periodId);
         em.flush();
@@ -208,8 +222,7 @@ public class BillingService {
             d.add(ITEM_RENT, BigDecimal.ONE, prorateRent(c.getMonthlyRentPrice(), days, ym.lengthOfMonth()));
             addMeter(d, c, plan, readingPeriod == null ? null : reading(roomId, readingPeriod.getPeriodId()),
                     warnings);
-            d.residents = (int) Math.max(1, count("select count(r) from RoomResident r where r.room.roomId = :x "
-                    + "and r.isActive = true", roomId));
+            d.residents = 1 + (int) othersInRoom(roomId, c.getTenant().getTenantId());
             drafts.add(d);
         }
 
@@ -244,6 +257,17 @@ public class BillingService {
             }
         }
 
+        for (Draft d : drafts) {
+            List<Line> kept = manual.remove(d.contract.getRoom().getRoomId());
+            if (kept != null) {
+                d.lines.addAll(kept);
+            }
+        }
+        for (Map.Entry<Integer, List<Line>> lost : manual.entrySet()) {
+            warnings.add(new Issue(null, "Co " + lost.getValue().size() + " khoan nhap tay cua phong khong con trong ky "
+                    + "(het hop dong trong thang) nen bi bo: " + lost.getValue().stream()
+                    .map(l -> l.name().substring(MANUAL.length())).toList()));
+        }
         MonthlyBillingPeriod periodRef = em.getReference(MonthlyBillingPeriod.class, periodId);
         for (Draft d : drafts) {
             CalculatedMonthlyFee f = new CalculatedMonthlyFee();
@@ -328,6 +352,81 @@ public class BillingService {
         return toResponse(p, fees.size(), sum(fees));
     }
 
+    // ------------------------------------------------------------------ them / xoa khoan trong bang tinh (ky DRAFT)
+
+    /** Them 1 khoan tay vao phong. Khoan nay duoc giu lai khi tinh lai ky. */
+    @Transactional
+    public FeeResponse addItem(Integer feeId, AddItemRequest req, Integer actorId, String ip) {
+        CalculatedMonthlyFee fee = fee(feeId);
+        requireDraft(fee.getBillingPeriod());
+        if (req == null || req.itemName() == null || req.itemName().isBlank()) {
+            throw bad("Can ten khoan");
+        }
+        String name = req.itemName().trim();
+        if (name.length() > 90) {
+            throw bad("Ten khoan toi da 90 ky tu");
+        }
+        if (req.quantity() == null || req.quantity().signum() <= 0) {
+            throw bad("So luong phai lon hon 0");
+        }
+        if (req.unitPrice() == null || req.unitPrice().signum() == 0) {
+            throw bad("Don gia phai khac 0 (so am la giam tru)");
+        }
+        FeeItemDetail i = new FeeItemDetail();
+        i.setCalculatedFee(fee);
+        i.setItemName(MANUAL + name);
+        i.setQuantity(req.quantity());
+        i.setUnitPrice(req.unitPrice());
+        i.setSubtotal(subtotal(req.quantity(), req.unitPrice()));
+        itemRepo.saveAndFlush(i);
+        recompute(fee, itemRepo.findByCalculatedFeeCalculatedFeeIdOrderByDetailId(feeId));
+        audit(actorId, "ADD_FEE_ITEM", "Them khoan '" + name + "' vao bang tinh " + feeId, ip);
+        return toResponse(fee, true);
+    }
+
+    /** Xoa 1 dong (ke ca dong tu tinh; tinh lai ky thi dong tu tinh se hien lai). */
+    @Transactional
+    public FeeResponse deleteItem(Integer detailId, Integer actorId, String ip) {
+        FeeItemDetail item = itemRepo.findById(detailId).orElseThrow(() -> BusinessException.notFound("Dong chi tiet " + detailId));
+        CalculatedMonthlyFee fee = item.getCalculatedFee();
+        requireDraft(fee.getBillingPeriod());
+        String name = item.getItemName();
+        itemRepo.delete(item);
+        itemRepo.flush();
+        recompute(fee, itemRepo.findByCalculatedFeeCalculatedFeeIdOrderByDetailId(fee.getCalculatedFeeId()));
+        audit(actorId, "DELETE_FEE_ITEM", "Xoa dong '" + name + "' cua bang tinh " + fee.getCalculatedFeeId(), ip);
+        return toResponse(fee, true);
+    }
+
+    // ------------------------------------------------------------------ xem truoc anh huong cua dich vu
+
+    @Transactional(readOnly = true)
+    public ServicePreview servicePreview(String chargeType, BigDecimal unitPrice) {
+        if (chargeType == null || unitPrice == null || unitPrice.signum() < 0) {
+            throw bad("Can chargeType va unitPrice");
+        }
+        List<RentalContract> live = em.createQuery("select c from RentalContract c where c.status in ('ACTIVE', 'EXPIRING_SOON')",
+                RentalContract.class).getResultList();
+        long rooms = live.stream().map(c -> c.getRoom().getRoomId()).distinct().count();
+        long units;
+        switch (chargeType) {
+            case "FIXED_ROOM" -> units = rooms;
+            case "PER_PERSON" -> units = live.stream().mapToLong(c -> 1 + othersInRoom(c.getRoom().getRoomId(), c.getTenant().getTenantId())).sum();
+            case "PER_VEHICLE" -> units = live.stream().map(c -> c.getTenant().getTenantId()).distinct().mapToLong(t ->
+                    em.createQuery("select count(v) from TenantVehicle v where v.tenant.tenantId = :x and v.isActive = true", Long.class)
+                            .setParameter("x", t).getSingleResult()).sum();
+            default -> throw bad("chargeType khong ho tro tinh tu dong: " + chargeType);
+        }
+        return new ServicePreview(rooms, units, unitPrice.multiply(BigDecimal.valueOf(units)));
+    }
+
+    /** So nguoi o cung da khai trong phong (khong tinh nguoi dung ten hop dong, nguoi do luon la 1 nguoi). */
+    private long othersInRoom(Integer roomId, Integer contractTenantId) {
+        return em.createQuery("select count(r) from RoomResident r where r.room.roomId = :room and r.isActive = true "
+                + "and (r.tenant is null or r.tenant.tenantId <> :tenant)", Long.class)
+                .setParameter("room", roomId).setParameter("tenant", contractTenantId).getSingleResult();
+    }
+
     // ------------------------------------------------------------------ cong thuc thuan (de test)
 
     /** Tien thuc te = gia * so ngay o / so ngay trong thang, lam tron den dong; du thang thi giu nguyen gia. */
@@ -359,7 +458,13 @@ public class BillingService {
         for (FeeItemDetail i : items) {
             String n = i.getItemName();
             BigDecimal s = i.getSubtotal();
-            if (n.equals(ITEM_RENT)) {
+            if (n.startsWith(MANUAL)) {
+                if (s.signum() >= 0) {
+                    surcharge = surcharge.add(s);
+                } else {
+                    discount = discount.add(s.negate());
+                }
+            } else if (n.equals(ITEM_RENT)) {
                 rent = rent.add(s);
             } else if (n.equals(ITEM_ELECTRIC)) {
                 electric = electric.add(s);

@@ -15,6 +15,12 @@ public final class BillingDtos {
     /** UC74: sua so luong/don gia 1 dong chi tiet. Gui truong nao doi truong do. */
     public record UpdateItemRequest(BigDecimal quantity, BigDecimal unitPrice) {}
 
+    /** Them 1 khoan tay vao bang tinh cua phong (ky DRAFT). unitPrice am = giam tru. */
+    public record AddItemRequest(String itemName, BigDecimal quantity, BigDecimal unitPrice) {}
+
+    /** Xem truoc anh huong cua 1 dich vu: so phong, so don vi (phong/nguoi/xe) va tien moi thang cho toan khu. */
+    public record ServicePreview(long rooms, long units, BigDecimal monthlyAmount) {}
+
     public record PeriodResponse(Integer billingPeriodId, Integer propertyId, String monthYear, String status,
                                  LocalDateTime creationDate, long roomCount, BigDecimal totalAmount) {}
 

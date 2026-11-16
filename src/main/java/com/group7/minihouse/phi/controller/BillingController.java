@@ -1,5 +1,6 @@
 package com.group7.minihouse.phi.controller;
 
+import com.group7.minihouse.phi.dto.BillingDtos.AddItemRequest;
 import com.group7.minihouse.phi.dto.BillingDtos.Anomaly;
 import com.group7.minihouse.phi.dto.BillingDtos.CalculationResult;
 import com.group7.minihouse.phi.dto.BillingDtos.CreatePeriodRequest;
@@ -7,6 +8,7 @@ import com.group7.minihouse.phi.dto.BillingDtos.FeeResponse;
 import com.group7.minihouse.phi.dto.BillingDtos.Issue;
 import com.group7.minihouse.phi.dto.BillingDtos.PeriodCreated;
 import com.group7.minihouse.phi.dto.BillingDtos.PeriodResponse;
+import com.group7.minihouse.phi.dto.BillingDtos.ServicePreview;
 import com.group7.minihouse.phi.dto.BillingDtos.UpdateItemRequest;
 import com.group7.minihouse.phi.service.BillingService;
 import com.group7.minihouse.shared.dto.ApiResponse;
@@ -15,6 +17,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -83,6 +86,25 @@ public class BillingController {
     public ApiResponse<FeeResponse> updateItem(@PathVariable Integer detailId, @RequestBody UpdateItemRequest req,
                                                @AuthenticationPrincipal AuthUser user, HttpServletRequest http) {
         return ApiResponse.ok(service.updateItem(detailId, req, actor(user), http.getRemoteAddr()));
+    }
+
+    /** Them 1 khoan tay vao bang tinh cua phong (ky DRAFT); khoan nay duoc giu khi tinh lai ky. */
+    @PostMapping("/fees/{feeId}/items")
+    public ApiResponse<FeeResponse> addItem(@PathVariable Integer feeId, @RequestBody AddItemRequest req,
+                                            @AuthenticationPrincipal AuthUser user, HttpServletRequest http) {
+        return ApiResponse.ok(service.addItem(feeId, req, actor(user), http.getRemoteAddr()));
+    }
+
+    @DeleteMapping("/fee-items/{detailId}")
+    public ApiResponse<FeeResponse> deleteItem(@PathVariable Integer detailId, @AuthenticationPrincipal AuthUser user,
+                                               HttpServletRequest http) {
+        return ApiResponse.ok(service.deleteItem(detailId, actor(user), http.getRemoteAddr()));
+    }
+
+    /** Xem truoc: dich vu nay se cong them bao nhieu moi thang cho toan khu (theo hop dong dang hieu luc). */
+    @GetMapping("/service-preview")
+    public ApiResponse<ServicePreview> servicePreview(@RequestParam String chargeType, @RequestParam java.math.BigDecimal unitPrice) {
+        return ApiResponse.ok(service.servicePreview(chargeType, unitPrice));
     }
 
     /** Tat bao mat (dev) thi khong co nguoi dung: tra null, service bo qua nhat ky. */

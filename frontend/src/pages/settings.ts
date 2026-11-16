@@ -95,7 +95,24 @@ function svcDialog(s: Svc | null, done: () => void): void {
   const type = select(Object.entries(CHARGE).filter(([k]) => k !== 'PER_METER_UNIT').map(([k, l]) => [k, l] as [string, string]), s?.chargeType ?? 'FIXED_ROOM');
   const price = input({ type: 'number', min: '0', step: '1000', value: String(s?.unitPrice ?? ''), class: 'input num-in' });
   const active = h('input', { type: 'checkbox', checked: s ? s.active : true }) as HTMLInputElement;
-  d.body.append(err, field('Tên dịch vụ', name), field('Cách tính', type), field('Đơn giá (₫)', price), h('label', { style: 'display:flex;gap:8px;align-items:center;font-weight:500' }, active, 'Đang áp dụng'));
+  const impact = h('div', { class: 'route-next', style: 'margin:0' }, icon('info', 18), h('p', { style: 'flex:1' }, 'Nhập đơn giá để xem dịch vụ này cộng thêm bao nhiêu mỗi tháng.'));
+  const UNIT: Record<string, string> = { FIXED_ROOM: 'phòng', PER_PERSON: 'người (1 người đứng tên + người ở cùng đã khai)', PER_VEHICLE: 'xe đã đăng ký' };
+  let timer: number | undefined;
+  const preview = () => {
+    clearTimeout(timer);
+    timer = window.setTimeout(async () => {
+      const p = Number(price.value);
+      if (!(p >= 0) || price.value === '') return;
+      try {
+        const r = await api.get<{ rooms: number; units: number; monthlyAmount: number }>(`/api/billing/service-preview?chargeType=${type.value}&unitPrice=${p}`);
+        impact.querySelector('p')!.textContent = `Áp dụng cho ${r.units} ${UNIT[type.value] ?? 'đơn vị'} ở ${r.rooms} phòng đang thuê: thêm ${money(r.monthlyAmount)} ₫ mỗi tháng cho cả khu. Chỉ áp dụng cho kỳ tính tiền chưa duyệt (Nháp), kỳ đã duyệt giữ nguyên.`;
+      } catch { /* không xem trước được thì thôi */ }
+    }, 250);
+  };
+  type.addEventListener('change', preview);
+  price.addEventListener('input', preview);
+  if (s) preview();
+  d.body.append(err, field('Tên dịch vụ', name), field('Cách tính', type), field('Đơn giá (₫)', price), impact, h('label', { style: 'display:flex;gap:8px;align-items:center;font-weight:500' }, active, 'Đang áp dụng'));
   const ok = h('button', { class: 'btn' }, 'Lưu');
   d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Hủy'), ok);
   ok.addEventListener('click', () => busy(ok, async () => {

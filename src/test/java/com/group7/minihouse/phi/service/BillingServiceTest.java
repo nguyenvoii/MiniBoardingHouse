@@ -209,4 +209,83 @@ class BillingServiceTest {
                 () -> service.updateItem(31, new UpdateItemRequest(null, new BigDecimal("500")), 5, "ip"));
         assertThrows(BusinessException.class, () -> service.updateItem(30, new UpdateItemRequest(null, null), 5, "ip"));
     }
+
+    // ------------------------------------------------------------------ khoan nhap tay
+
+    private CalculatedMonthlyFee draftFee() {
+        MonthlyBillingPeriod p = period("DRAFT");
+        CalculatedMonthlyFee f = new CalculatedMonthlyFee();
+        f.setCalculatedFeeId(20);
+        f.setBillingPeriod(p);
+        when(feeRepo.findById(20)).thenReturn(Optional.of(f));
+        return f;
+    }
+
+    @Test
+    void manualLinesAreClassifiedBySignAndSurvive() {
+        CalculatedMonthlyFee f = new CalculatedMonthlyFee();
+        BillingService.recompute(f, List.of(
+                item(BillingService.ITEM_RENT, "1", "3000000"),
+                item(BillingService.MANUAL + "Sua may lanh", "1", "200000"),
+                item(BillingService.MANUAL + "Khuyen mai", "1", "-50000")));
+        assertEquals(0, new BigDecimal("200000").compareTo(f.getSurchargeAmount()));
+        assertEquals(0, new BigDecimal("50000").compareTo(f.getDiscountAmount()));
+        assertEquals(0, new BigDecimal("3150000").compareTo(f.getTotalCalculatedAmount()));
+    }
+
+    @Test
+    void addItemStoresWithManualPrefixAndRecomputes() {
+        CalculatedMonthlyFee f = draftFee();
+        when(itemRepo.findByCalculatedFeeCalculatedFeeIdOrderByDetailId(20)).thenAnswer(i -> List.of(
+                item(BillingService.ITEM_RENT, "1", "3000000"), item(BillingService.MANUAL + "Sua khoa", "2", "100000")));
+        try {
+            service.addItem(20, new com.group7.minihouse.phi.dto.BillingDtos.AddItemRequest("  Sua khoa ", new BigDecimal("2"), new BigDecimal("100000")), 5, "ip");
+        } catch (NullPointerException expectedFromUnmockedResponseBuild) {
+            // dung toResponse can room/contract; phan luu va tinh lai da chay truoc do
+        }
+        org.mockito.ArgumentCaptor<FeeItemDetail> cap = org.mockito.ArgumentCaptor.forClass(FeeItemDetail.class);
+        org.mockito.Mockito.verify(itemRepo).saveAndFlush(cap.capture());
+        assertEquals(BillingService.MANUAL + "Sua khoa", cap.getValue().getItemName());
+        assertEquals(0, new BigDecimal("200000").compareTo(cap.getValue().getSubtotal()));
+        assertEquals(0, new BigDecimal("3200000").compareTo(f.getTotalCalculatedAmount()));
+    }
+
+    @Test
+    void addItemValidatesInputAndOnlyWorksInDraft() {
+        draftFee();
+        var ok = new BigDecimal("1");
+        assertThrows(BusinessException.class, () -> service.addItem(20, new com.group7.minihouse.phi.dto.BillingDtos.AddItemRequest(" ", ok, ok), 5, "ip"));
+        assertThrows(BusinessException.class, () -> service.addItem(20, new com.group7.minihouse.phi.dto.BillingDtos.AddItemRequest("x", BigDecimal.ZERO, ok), 5, "ip"));
+        assertThrows(BusinessException.class, () -> service.addItem(20, new com.group7.minihouse.phi.dto.BillingDtos.AddItemRequest("x", ok, BigDecimal.ZERO), 5, "ip"));
+        assertThrows(BusinessException.class, () -> service.addItem(20, new com.group7.minihouse.phi.dto.BillingDtos.AddItemRequest("x".repeat(91), ok, ok), 5, "ip"));
+        MonthlyBillingPeriod approved = period("APPROVED");
+        CalculatedMonthlyFee locked = new CalculatedMonthlyFee();
+        locked.setBillingPeriod(approved);
+        when(feeRepo.findById(21)).thenReturn(Optional.of(locked));
+        assertEquals(HttpStatus.CONFLICT, assertThrows(BusinessException.class,
+                () -> service.addItem(21, new com.group7.minihouse.phi.dto.BillingDtos.AddItemRequest("x", ok, ok), 5, "ip")).getStatus());
+    }
+
+    @Test
+    void deleteItemRemovesLineAndRecomputes() {
+        CalculatedMonthlyFee f = draftFee();
+        FeeItemDetail internet = item("Internet", "1", "100000");
+        internet.setDetailId(40);
+        internet.setCalculatedFee(f);
+        when(itemRepo.findById(40)).thenReturn(Optional.of(internet));
+        when(itemRepo.findByCalculatedFeeCalculatedFeeIdOrderByDetailId(20)).thenReturn(List.of(item(BillingService.ITEM_RENT, "1", "3000000")));
+        try {
+            service.deleteItem(40, 5, "ip");
+        } catch (NullPointerException expectedFromUnmockedResponseBuild) {
+            // toResponse can room/contract
+        }
+        org.mockito.Mockito.verify(itemRepo).delete(internet);
+        assertEquals(0, new BigDecimal("3000000").compareTo(f.getTotalCalculatedAmount()));
+    }
+
+    @Test
+    void servicePreviewRejectsBadInput() {
+        assertThrows(BusinessException.class, () -> service.servicePreview(null, BigDecimal.TEN));
+        assertThrows(BusinessException.class, () -> service.servicePreview("FIXED_ROOM", new BigDecimal("-1")));
+    }
 }

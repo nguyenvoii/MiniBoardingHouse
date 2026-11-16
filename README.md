@@ -315,8 +315,24 @@ Chỉ nhân viên (LANDLORD, MANAGER). Một kỳ = một khu trọ + một thá
 | `PUT /api/billing/fee-items/{detailId}` | UC74: sửa số lượng/đơn giá một dòng (dòng giảm trừ phải có đơn giá âm) |
 | `GET /api/billing/periods/{id}/anomalies` | UC75: phòng vượt 150% trung bình các kỳ trước |
 | `POST /api/billing/periods/{id}/approve` | UC75: duyệt kỳ |
+| `POST /api/billing/fees/{feeId}/items` | Thêm một khoản tay vào bảng tính của phòng (kỳ Nháp); số âm là giảm trừ. Khoản này được **giữ lại khi tính lại kỳ** (tên có tiền tố `✎ `) |
+| `DELETE /api/billing/fee-items/{detailId}` | Xóa một dòng (kể cả dòng tự tính, tính lại kỳ thì dòng tự tính hiện lại), chỉ kỳ Nháp |
+| `GET /api/billing/service-preview?chargeType=&unitPrice=` | Xem trước một dịch vụ cộng thêm bao nhiêu mỗi tháng cho cả khu (theo hợp đồng đang hiệu lực) |
+
+Số lượng thật cho dịch vụ: **gửi xe** = số xe đang hoạt động của khách (đăng ký ở màn Khách thuê), **theo đầu người** = 1 người đứng tên hợp đồng + số người ở cùng đã khai (màn Phòng). Chưa khai thì tính 1 người và không tính tiền gửi xe, nên cần cập nhật hồ sơ khi có người hoặc xe mới. Khi tính lại kỳ, khoản thêm tay được giữ, chỉnh sửa tay trên dòng tự tính thì mất.
 
 Cách tính: tiền phòng theo số ngày thực tế trong tháng (vào hoặc trả giữa tháng thì chia theo ngày, làm tròn đồng); điện nước = chỉ số trong kỳ ghi chỉ số của tháng đó nhân đơn giá hiệu lực; dịch vụ theo `property_service_rates` (cố định mỗi phòng, theo số người ở, theo số xe; loại `PER_METER_UNIT` chưa tự tính); phụ thu/giảm trừ từ `room_custom_rates`; phạt trễ hạn = số ngày quá hạn của các khoản nợ chưa tất toán nhân `late_fee_per_day`. UC65 và UC72 (điện nước chung của khu): ghi các khoản chi nhóm "Điện nước chung" bằng `/api/expenses` của Việt, hệ thống cộng các khoản trong tháng và chia cho các phòng theo số người ở.
+
+### 7.4b. Xe và người ở cùng
+
+Nguồn số lượng thật cho dịch vụ gửi xe và dịch vụ theo đầu người. Xem: mọi nhân viên; thêm, sửa, xóa: LANDLORD, MANAGER. Xóa chỉ là ngừng dùng (giữ lịch sử).
+
+| API | Mô tả |
+|---|---|
+| `GET/POST /api/tenants/{tenantId}/vehicles` | Danh sách xe đang hoạt động, đăng ký xe `{licensePlate, vehicleType, brand, color}` (biển số không trùng; xe đã bỏ đăng ký lại được) |
+| `PUT/DELETE /api/vehicles/{id}` | Sửa xe, bỏ xe |
+| `GET/POST /api/rooms/{roomId}/residents` | Danh sách người ở cùng, thêm người ở cùng (không vượt số người tối đa của phòng, tính cả người đứng tên) |
+| `PUT/DELETE /api/residents/{id}` | Sửa, cho rời phòng |
 
 ### 7.5. Thanh toán hóa đơn (UC85-88)
 

@@ -71,13 +71,17 @@ export async function billingDetailPage(view: HTMLElement, params: Record<string
   const reload = () => billingDetailPage(view, params);
 
   const calcBtn = h('button', { class: draft && p.roomCount ? 'btn secondary' : 'btn', disabled: !draft }, icon('calc', 16), p.roomCount ? 'Tính lại' : 'Tính tiền');
-  calcBtn.addEventListener('click', () => busy(calcBtn, async () => {
+  calcBtn.addEventListener('click', async () => {
+    if (p.roomCount && !(await confirmDialog('Tính lại kỳ', 'Các dòng tự tính sẽ được tính lại theo dữ liệu mới nhất, mọi chỉnh sửa tay trên dòng tự tính sẽ mất. Khoản bạn đã «Thêm khoản» thì được giữ lại. Tiếp tục?', 'Tính lại'))) return;
+    await calcNow();
+  });
+  const calcNow = () => busy(calcBtn, async () => {
     try {
       const r = await api.post<Calculation>(`/api/billing/periods/${id}/calculate`);
       toast(`Đã tính ${r.fees.length} phòng${r.warnings.length ? `, ${r.warnings.length} cảnh báo` : ''}`);
       await reload();
     } catch (e) { toast(errText(e), 'err'); }
-  }));
+  });
   const approveBtn = h('button', { class: 'btn', disabled: !draft || !p.roomCount }, icon('check', 16), 'Duyệt kỳ');
   approveBtn.addEventListener('click', async () => {
     if (!(await confirmDialog('Duyệt kỳ tính tiền', `Sau khi duyệt, ${monthLabel(p.monthYear)} bị khóa, không sửa hoặc tính lại được. Tiếp tục?`, 'Duyệt kỳ'))) return;
@@ -161,12 +165,23 @@ async function openFee(feeId: number, draft: boolean, reload: () => void): Promi
   const err = h('div');
   const render = (f: Fee) => {
     mount(d.body, err, table<Fee['items'][number]>([
-      { key: 'n', label: 'Khoản', render: (i) => i.itemName },
+      { key: 'n', label: 'Khoản', render: (i) => i.itemName.startsWith('✎ ') ? h('span', null, i.itemName.slice(2), ' ', h('span', { class: 'st info' }, 'Nhập tay')) : i.itemName },
       { key: 'q', label: 'Số lượng', num: true, render: (i) => draft ? qtyInput(i, f) : i.quantity },
       { key: 'u', label: 'Đơn giá', num: true, render: (i) => draft ? priceInput(i, f) : money(i.unitPrice) },
       { key: 's', label: 'Thành tiền', num: true, render: (i) => money(i.subtotal) },
-    ], f.items, { footer: [h('td', { colspan: 3 }, 'Tổng'), h('td', { class: 'num' }, money(f.totalCalculatedAmount))] }),
-    draft ? h('p', { class: 'muted' }, 'Sửa số lượng hoặc đơn giá rồi bấm ra ngoài ô để lưu. Dòng giảm trừ có đơn giá âm.') : null);
+      { key: 'x', label: '', render: (i) => (draft ? h('button', { class: 'btn secondary sm', 'aria-label': `Xóa dòng ${i.itemName}`, onclick: () => void removeItem(i.detailId) }, 'Xóa') : '') },
+    ], f.items, { footer: [h('td', { colspan: 3 }, 'Tổng'), h('td', { class: 'num' }, money(f.totalCalculatedAmount)), h('td')] }),
+    draft ? h('div', { class: 'stack', style: 'gap:10px' },
+      h('button', { class: 'btn secondary', style: 'align-self:flex-start', onclick: () => addItemDialog(f.calculatedFeeId, (nf) => { render(nf); toast('Đã thêm khoản'); reload(); }) }, icon('plus', 16), 'Thêm khoản'),
+      h('p', { class: 'muted' }, 'Sửa số lượng hoặc đơn giá rồi bấm ra ngoài ô để lưu. Dòng giảm trừ có đơn giá âm. Khoản «Nhập tay» được giữ lại khi tính lại kỳ; chỉnh sửa trên dòng tự tính thì không. Số lượng gửi xe và theo đầu người lấy từ hồ sơ ở Khách thuê và Phòng.')) : null);
+  };
+  const removeItem = async (detailId: number) => {
+    try {
+      const f = await api.del<Fee>(`/api/billing/fee-items/${detailId}`);
+      render(f);
+      toast('Đã xóa dòng');
+      reload();
+    } catch (e) { err.replaceChildren(formError(errText(e))); }
   };
   const save = async (detailId: number, body: { quantity?: number; unitPrice?: number }) => {
     try {
@@ -180,6 +195,21 @@ async function openFee(feeId: number, draft: boolean, reload: () => void): Promi
   const priceInput = (i: Fee['items'][number], _f: Fee) => numInput(i.unitPrice, (v) => save(i.detailId, { unitPrice: v }));
   render(fee);
   d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Đóng'));
+}
+
+function addItemDialog(feeId: number, done: (f: Fee) => void): void {
+  const d = openDialog('Thêm khoản vào phòng này');
+  const err = h('div');
+  const name = input({ placeholder: 'Ví dụ: Sửa máy lạnh, Khuyến mãi tháng 12' });
+  const qty = input({ type: 'number', min: '0', step: 'any', value: '1', class: 'input num-in' });
+  const price = input({ type: 'number', step: '1000', class: 'input num-in', placeholder: 'Số âm là giảm trừ' });
+  d.body.append(err, field('Tên khoản', name), h('div', { class: 'form-grid' }, field('Số lượng', qty), field('Đơn giá (₫)', price, 'Số dương là phụ thu, số âm là giảm trừ')));
+  const ok = h('button', { class: 'btn' }, 'Thêm');
+  d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Hủy'), ok);
+  ok.addEventListener('click', () => busy(ok, async () => {
+    try { const f = await api.post<Fee>(`/api/billing/fees/${feeId}/items`, { itemName: name.value, quantity: Number(qty.value), unitPrice: Number(price.value) }); d.close(); done(f); }
+    catch (e) { err.replaceChildren(formError(errText(e))); }
+  }));
 }
 
 function numInput(v: number, onSave: (n: number) => void): HTMLElement {

@@ -3,6 +3,7 @@ import { icon } from '../lib/icons';
 import { api, errText } from '../lib/api';
 import { date } from '../lib/format';
 import { loadLive, LiveTenant } from '../data/live';
+import { vehiclesBox } from '../ui/occupancy';
 import { confirmDialog, dl, input, openDialog, pageHead, panel, plate, sampleNote, statusBadge, table, toast } from '../ui/kit';
 
 interface AccountInfo { exists: boolean; userId: number | null; phoneNumber: string | null; status: string | null }
@@ -49,8 +50,8 @@ function open(t: LiveTenant, accounts: Accounts, refresh: () => void): void {
   const acct = h('div', { class: 'stack', style: 'gap:12px' });
   d.body.append(
     h('div', { style: 'display:flex;gap:10px;align-items:center;flex-wrap:wrap' }, t.roomCode ? plate(t.roomCode, 'lg') : null, sampleNote('Hồ sơ là dữ liệu mẫu')),
-    dl([['Điện thoại', t.phone], ['Email', t.email ?? '–'], ['CCCD', t.idNumber], ['Nghề nghiệp', t.job], ['Ở từ', date(t.since)], ['Xe', t.vehicles.length ? t.vehicles.join(', ') : 'Không có'],
-      ['Hợp đồng', t.contract ? t.contract.contractCode : 'Chưa có']]),
+    dl([['Điện thoại', t.phone], ['Email', t.email ?? '–'], ['CCCD', t.idNumber], ['Nghề nghiệp', t.job], ['Ở từ', date(t.since)], ['Hợp đồng', t.contract ? t.contract.contractCode : 'Chưa có']]),
+    h('div', null, h('h3', { style: 'margin-bottom:10px' }, 'Xe đăng ký (tính tiền gửi xe)'), vehiclesBox(t.tenantId)),
     h('div', null, h('h3', { style: 'margin-bottom:10px' }, 'Tài khoản đăng nhập'), acct),
   );
   const paint = (a: AccountInfo | null | undefined) => {
