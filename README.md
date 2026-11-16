@@ -394,5 +394,9 @@ Thư mục `src/main/resources/static` và `frontend/node_modules` bị git igno
 - Chọn tháng ở thanh trên chỉ áp dụng cho Tổng quan, Chỉ số điện nước, Tính tiền tháng, Hóa đơn, Thanh toán, Chi phí vận hành và Báo cáo; các màn khác ẩn nó.
 - Trạng thái thuê của phòng và người đang ở lấy từ hợp đồng thật (danh sách phòng, khách gốc vẫn là dữ liệu mẫu cho tới khi Chi có API).
 - Phần của Chi: màn hình Phòng và Khách thuê, cùng danh sách chọn phòng/khách khi lập hợp đồng, đang dùng dữ liệu mẫu trong `frontend/src/data/sample.ts` và có nhãn "Dữ liệu mẫu". Khi Chi có API, chỉ cần thay dữ liệu trong file đó bằng lời gọi API.
+- Các màn chốt tháng (Chỉ số, Tính tiền, Hóa đơn, Thanh toán, Công nợ) có thanh "Tuyến tháng" thu gọn ở đầu trang, chặng đang xem được gạch chân.
+- Hủy giao dịch nằm trong hộp chi tiết giao dịch, chấm dứt hợp đồng nằm trong "vùng nguy hiểm" của hộp hợp đồng, để tránh bấm nhầm.
+- Duyệt kỳ tính tiền sẽ tự đóng kỳ ghi chỉ số cùng tháng. Công nợ tự cập nhật khi mở trang. Trên điện thoại (≤700px) bảng chuyển thành thẻ.
+- Backend bật nén dữ liệu (`server.compression.enabled=true`) để giao diện tải nhanh hơn.
 - Giao diện đang dùng một khu trọ (`PROPERTY_ID = 1` trong `frontend/src/lib/api.ts`).
 - Hóa đơn và chỉ số của Toàn trả JSON thô (không bọc `{success, data}`), client đã xử lý cả hai kiểu.
