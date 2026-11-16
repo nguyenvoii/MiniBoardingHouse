@@ -41,9 +41,9 @@ Cập nhật ngày 16/11/2026, theo những gì thực sự có trên GitHub (nh
 | Thành viên | Được giao | Đã có trên `main` | Đang chờ / việc tiếp theo |
 |---|---|---|---|
 | Nguyễn Anh Phi | 45 UC | 45 UC: 1-13, 41-51, 65-75, 85-88, 116, 118, 119, 120, 122, cộng khung xuất Excel/PDF | Đã xong hết phần được giao (UC76, UC77 do Toàn làm). Phần Phi đọc phòng và khách thuê trực tiếp qua EntityManager vì Chi chưa có service |
-| Nguyễn Trần Bảo Chi | 29 UC | 0 | Chưa có code nào trên GitHub. Phần của Phi và Toàn đang chờ `RoomService`, `TenantService` của Chi |
-| Phạm Khánh Toàn | 24 UC | Một phần (Pull Request #2): hóa đơn, chỉ số điện nước, thu tiền, đơn giá dịch vụ, job nhắc hạn | Chưa có test. Chi phí vận hành: đã bỏ bản của Toàn, giữ bản của Việt (`/api/expenses`, có phân quyền, tóm tắt, bộ lọc). Đối chiếu lại các mục còn lại trong `docs/LOI_CAN_SUA_CODE_TOAN.md`. Lưu ý: `BillingJobs` đang TỰ BẬT (thiếu cấu hình = bật), nên đặt `minihouse.scheduler.enabled=false` khi chạy thử trên máy. |
-| Vũ Văn Quốc Việt | 25 UC | Đã merge PR #1 | Đã có công nợ, trả phòng, bảo trì, thiết bị phòng, chi phí vận hành, thông báo. |
+| Nguyễn Trần Bảo Chi | 31 UC | 0 | Chưa có code nào trên GitHub. Phần của Phi và Toàn đang chờ `RoomService`, `TenantService` của Chi |
+| Phạm Khánh Toàn | 28 UC | Một phần (Pull Request #2): hóa đơn, chỉ số điện nước, thu tiền, đơn giá dịch vụ, job nhắc hạn | Chưa có test. Chi phí vận hành: đã bỏ bản của Toàn, giữ bản của Việt (`/api/expenses`, có phân quyền, tóm tắt, bộ lọc). Đối chiếu lại các mục còn lại trong `docs/LOI_CAN_SUA_CODE_TOAN.md`. Lưu ý: `BillingJobs` đang TỰ BẬT (thiếu cấu hình = bật), nên đặt `minihouse.scheduler.enabled=false` khi chạy thử trên máy. |
+| Vũ Văn Quốc Việt | 28 UC | Đã merge PR #1 | Đã có công nợ, trả phòng, bảo trì, thiết bị phòng, chi phí vận hành, thông báo. |
 
 Phần của Phi chi tiết:
 - Đã làm: UC1 đăng ký chủ trọ, UC2 xác thực email bằng OTP, UC3 đăng nhập/đăng xuất, UC4 quên mật khẩu, UC5 đổi mật khẩu, UC6 hồ sơ cá nhân, UC7 ảnh đại diện, UC8-9 quản lý nhân viên, UC10 cấp tài khoản người thuê, UC11 phân quyền theo vai trò, UC12 bảng quyền chi tiết, UC13 nhật ký thao tác, UC119 tài khoản ngân hàng và QR, UC120 khung job tự động, UC122 sao lưu và phục hồi, khung xuất Excel/PDF.
@@ -57,14 +57,30 @@ Phần của Phi chi tiết:
 
 ### 3.1. Theo use case
 
-Nguồn chính thức là file `docs/Nhom_7_47_usecase_khutro_4MM_PhanCongMoi.xlsx` (sheet "Phân Công", 123 use case, 663.8 giờ). Bảng dưới chỉ là bản tóm tắt, nếu lệch thì lấy Excel làm chuẩn.
+Nguồn chính thức là file `docs/Nhom_7_47_usecase_khutro_4MM_PhanCongMoi.xlsx` (sheet "Phân Công", 132 use case, 723.0 giờ). Bảng dưới chỉ là bản tóm tắt, nếu lệch thì lấy Excel làm chuẩn.
 
 | Thành viên | Số UC | Giờ | Use case |
 |---|---|---|---|
-| Nguyễn Anh Phi | 45 | 235.2 | 1-13, 41-51, 65-75, 77, 85-88, 116, 118-120, 122 |
-| Nguyễn Trần Bảo Chi | 29 | 146.3 | 14-40, 108-109 |
-| Phạm Khánh Toàn | 24 | 137.3 | 53-64, 76, 78-84, 89-92 |
-| Vũ Văn Quốc Việt | 25 | 145.0 | 52, 93-107, 110-115, 117, 121, 123 |
+| Nguyễn Anh Phi | 45 | 239.8 | 1-13, 41-51, 65-75, 77, 85-88, 116, 118-120, 122 |
+| Nguyễn Trần Bảo Chi | 31 | 160.7 | 14-40, 108-109, 124-125 |
+| Phạm Khánh Toàn | 28 | 160.6 | 53-64, 76, 78-84, 89-92, 126-129 |
+| Vũ Văn Quốc Việt | 28 | 161.9 | 52, 93-107, 110-115, 117, 121, 123, 130-132 |
+
+Cách cân bằng giờ: mỗi thành viên cần tối thiểu 160 giờ. Chi, Toàn và Việt ban đầu chỉ có khoảng 140-147 giờ, nên đã thêm 9 use case mới (UC124-132) vào Excel, chỉ dùng các bảng có sẵn trong DB, không thêm hay xóa bảng nào:
+
+| UC | Người làm | Nội dung | Giờ |
+|---|---|---|---|
+| 124 | Chi | Lập biên bản nhận phòng khi bắt đầu thuê (đối ứng với biên bản trả phòng UC102, 107 của Việt) | 9.0 |
+| 125 | Chi | Xuất danh sách phòng và khách thuê đang ở ra Excel | 4.5 |
+| 126 | Toàn | Hủy hóa đơn phát hành nhầm (chỉ khi chưa thu tiền, ghi lý do; dùng trạng thái `CANCELLED` có sẵn) | 7.8 |
+| 127 | Toàn | Báo cáo thu tiền theo ngày, theo người thu, đối soát cuối ngày | 4.5 |
+| 128 | Toàn | Xem lịch sử thao tác trên hóa đơn và giao dịch | 3.7 |
+| 129 | Toàn | Xuất bảng kê hóa đơn và phiếu thu theo tháng | 4.5 |
+| 130 | Việt | Gửi thông báo chung tới người thuê (toàn khu hoặc theo tầng), theo dõi số người đã đọc | 6.6 |
+| 131 | Việt | Thống kê sự cố và lịch sử bảo trì theo phòng | 4.5 |
+| 132 | Việt | Báo cáo hoàn tiền đặt cọc và quyết toán trả phòng theo tháng | 3.7 |
+
+Phi vẫn dư giờ so với mốc 160 (239.8 giờ) vì phần khó nhất và toàn bộ khung xương nằm ở Phi.
 
 ### 3.2. Theo nhóm bảng
 
