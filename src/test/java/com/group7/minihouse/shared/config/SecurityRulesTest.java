@@ -40,6 +40,18 @@ class SecurityRulesTest {
         @GetMapping("/api/auth/probe") String auth() { return "ok"; }
         @org.springframework.web.bind.annotation.PostMapping("/api/auth/forgot-password") String forgot() { return "ok"; }
         @org.springframework.web.bind.annotation.PostMapping("/api/auth/reset-password") String reset() { return "ok"; }
+        @org.springframework.web.bind.annotation.PostMapping("/api/auth/register") String register() { return "ok"; }
+        @org.springframework.web.bind.annotation.PostMapping("/api/auth/verify-email") String verify() { return "ok"; }
+        @org.springframework.web.bind.annotation.PostMapping("/api/auth/resend-verification") String resend() { return "ok"; }
+    }
+
+    /** UC1/UC2: dang ky va xac thuc email dien ra truoc khi co tai khoan dang nhap duoc => phai cong khai. */
+    @Test
+    void registerAndVerifyEmailArePublic() throws Exception {
+        for (String path : List.of("/api/auth/register", "/api/auth/verify-email", "/api/auth/resend-verification")) {
+            mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(path))
+                    .andExpect(status().isOk());
+        }
     }
 
     /** UC4: nguoi quen mat khau chua dang nhap duoc, nen 2 API nay phai cong khai; cac API /api/auth khac thi khong. */

@@ -3,7 +3,10 @@ package com.group7.minihouse.phi.controller;
 import com.group7.minihouse.phi.dto.ForgotPasswordRequest;
 import com.group7.minihouse.phi.dto.LoginRequest;
 import com.group7.minihouse.phi.dto.LoginResponse;
+import com.group7.minihouse.phi.dto.RegisterRequest;
 import com.group7.minihouse.phi.dto.ResetPasswordRequest;
+import com.group7.minihouse.phi.dto.VerifyEmailRequest;
+import com.group7.minihouse.phi.service.RegistrationService;
 import com.group7.minihouse.phi.service.ActivityLogService;
 import com.group7.minihouse.phi.service.AuthService;
 import com.group7.minihouse.phi.service.PasswordRecoveryService;
@@ -27,9 +30,11 @@ public class AuthController {
     private final AuthService authService;
     private final ActivityLogService activityLogService;
     private final PasswordRecoveryService recoveryService;
+    private final RegistrationService registrationService;
 
     public AuthController(AuthService authService, ActivityLogService activityLogService,
-                          PasswordRecoveryService recoveryService) {
+                          PasswordRecoveryService recoveryService, RegistrationService registrationService) {
+        this.registrationService = registrationService;
         this.authService = authService;
         this.activityLogService = activityLogService;
         this.recoveryService = recoveryService;
@@ -48,6 +53,27 @@ public class AuthController {
             activityLogService.log(user.userId(), "LOGOUT", "Dang xuat", http.getRemoteAddr());
         }
         return ApiResponse.ok(null);
+    }
+
+    /** UC1: dang ky chu tro. Tai khoan o trang thai INACTIVE cho den khi xac thuc email (UC2). */
+    @PostMapping("/register")
+    public ApiResponse<Void> register(@RequestBody RegisterRequest req, HttpServletRequest http) {
+        registrationService.register(req, http.getRemoteAddr());
+        return ApiResponse.ok("Da gui ma xac thuc ve email, hay nhap ma de kich hoat tai khoan", null);
+    }
+
+    /** UC2: nhap ma OTP gui qua email de kich hoat tai khoan. */
+    @PostMapping("/verify-email")
+    public ApiResponse<Void> verifyEmail(@Valid @RequestBody VerifyEmailRequest req, HttpServletRequest http) {
+        registrationService.verifyEmail(req.email(), req.code(), http.getRemoteAddr());
+        return ApiResponse.ok("Da kich hoat tai khoan, hay dang nhap", null);
+    }
+
+    /** UC2: gui lai ma xac thuc. Luon tra cung 1 thong bao. */
+    @PostMapping("/resend-verification")
+    public ApiResponse<Void> resendVerification(@Valid @RequestBody ForgotPasswordRequest req) {
+        registrationService.resendVerification(req.identifier());
+        return ApiResponse.ok("Neu tai khoan dang cho xac thuc, ma moi da duoc gui", null);
     }
 
     /** UC4 buoc 1: xin ma OTP dat lai mat khau. Luon tra cung 1 thong bao du tai khoan co ton tai hay khong. */

@@ -48,7 +48,8 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> {
                 if (enabled) {
                     auth.requestMatchers("/api/auth/login", "/api/auth/forgot-password",
-                            "/api/auth/reset-password", "/api/ping",
+                            "/api/auth/reset-password", "/api/auth/register", "/api/auth/verify-email",
+                            "/api/auth/resend-verification", "/api/ping",
                             "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html",
                             "/ui/**").permitAll() // /ui/**: giao dien tinh xem thu (chi co tren may nao dat thu muc demo-ui)
                         .requestMatchers("/api/auth/**").authenticated()
