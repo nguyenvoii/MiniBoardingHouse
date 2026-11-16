@@ -2,9 +2,106 @@
 
 Website quản lý nhà trọ mini. Công nghệ: Java 17, Spring Boot 3, Spring Data JPA, SQL Server.
 
-## Cấu trúc package (`com.group7.minihouse`)
+## Mục lục
 
-Một project duy nhất cho cả nhóm. Có 1 thư mục dùng chung và mỗi người có 1 package riêng mang tên mình.
+1. [Bắt đầu nhanh](#1-bắt-đầu-nhanh)
+2. [Tiến độ từng người](#2-tiến-độ-từng-người)
+3. [Phân công](#3-phân-công)
+4. [Cấu trúc code](#4-cấu-trúc-code)
+5. [Quy ước làm chung](#5-quy-ước-làm-chung)
+6. [Hướng dẫn viết API cho mọi người](#6-hướng-dẫn-viết-api-cho-mọi-người)
+7. [Các API đã có (phần của Phi)](#7-các-api-đã-có-phần-của-phi)
+8. [Cấu hình](#8-cấu-hình)
+
+Tài liệu khác trong thư mục `docs/`: file Excel phân công, `HUONG_DAN_GIT.md` (cách đẩy code và mở Pull Request), `LOI_CAN_SUA_CODE_TOAN.md`, và `docs/thiet-ke/` (lý do chọn cách làm đăng nhập, tài khoản người thuê, quản lý tài khoản).
+
+---
+
+## 1. Bắt đầu nhanh
+
+1. Chạy `db/group-7.sql` trên SQL Server.
+2. Tạo file `src/main/resources/application-local.properties` (file này bị git ignore):
+   ```
+   spring.datasource.username=...
+   spring.datasource.password=...
+   ```
+3. Chạy `db/seed.sql` để nạp 5 vai trò (LANDLORD, MANAGER, CASHIER, METER_READER, TENANT), 22 quyền và tài khoản `admin@minihouse.local` / `Admin@123` (chỉ dùng dev/demo).
+4. Chạy `mvn spring-boot:run`. Ứng dụng đặt `ddl-auto=validate` nên sẽ báo lỗi ngay nếu entity lệch với DB.
+5. Thử: `http://localhost:8080/api/ping`. Xem toàn bộ API tại Swagger: `http://localhost:8080/swagger-ui.html`.
+
+---
+
+## 2. Tiến độ từng người
+
+Cập nhật ngày 16/11/2026, theo những gì thực sự có trên GitHub (nhánh `main` và các nhánh con). Ai đẩy code mới thì tự sửa dòng của mình trong bảng này.
+
+| Thành viên | Được giao | Đã có trên `main` | Đang chờ / việc tiếp theo |
+|---|---|---|---|
+| Nguyễn Anh Phi | 45 UC | 16 UC: 1-13, 119, 120, 122, cộng khung xuất Excel/PDF | Hợp đồng 41-51, tính tiền tháng 65-77, thanh toán 85-88, 116, 118. Các phần này cần phòng, khách thuê, chỉ số, đơn giá, hóa đơn của Chi và Toàn nên phải chờ họ đẩy code |
+| Nguyễn Trần Bảo Chi | 29 UC | 0 | Chưa có code nào trên GitHub. Phần của Phi và Toàn đang chờ `RoomService`, `TenantService` của Chi |
+| Phạm Khánh Toàn | 24 UC | 0 | Đã gửi bản zip, Phi đã review. Cần sửa theo `docs/LOI_CAN_SUA_CODE_TOAN.md` (đưa vào package `toan`, bỏ entity trùng, dùng `BusinessException`) rồi đẩy bằng nhánh riêng và Pull Request |
+| Vũ Văn Quốc Việt | 25 UC | 0 (đã làm trên nhánh) | Nhánh `viet/boarding-house-management` đã có công nợ, trả phòng, bảo trì, thiết bị phòng, chi phí vận hành, thông báo. Chưa vào `main`, gộp với `main` không xung đột, cần tạo Pull Request |
+
+Phần của Phi chi tiết:
+- Đã làm: UC1 đăng ký chủ trọ, UC2 xác thực email bằng OTP, UC3 đăng nhập/đăng xuất, UC4 quên mật khẩu, UC5 đổi mật khẩu, UC6 hồ sơ cá nhân, UC7 ảnh đại diện, UC8-9 quản lý nhân viên, UC10 cấp tài khoản người thuê, UC11 phân quyền theo vai trò, UC12 bảng quyền chi tiết, UC13 nhật ký thao tác, UC119 tài khoản ngân hàng và QR, UC120 khung job tự động, UC122 sao lưu và phục hồi, khung xuất Excel/PDF.
+- Chưa làm (chờ người khác): hợp đồng UC41-51, tính tiền tháng UC65-77, thanh toán UC85-88, UC116, UC118 (dashboard, báo cáo).
+- Chưa gửi email/SMS thật: mã OTP hiện chỉ in ra log của ứng dụng (xem mục 7.2).
+
+---
+
+## 3. Phân công
+
+### 3.1. Theo use case
+
+Nguồn chính thức là file `docs/Nhom_7_47_usecase_khutro_4MM_PhanCongMoi.xlsx` (sheet "Phân Công", 123 use case, 663.8 giờ). Bảng dưới chỉ là bản tóm tắt, nếu lệch thì lấy Excel làm chuẩn.
+
+| Thành viên | Số UC | Giờ | Use case |
+|---|---|---|---|
+| Nguyễn Anh Phi | 45 | 235.2 | 1-13, 41-51, 65-75, 77, 85-88, 116, 118-120, 122 |
+| Nguyễn Trần Bảo Chi | 29 | 146.3 | 14-40, 108-109 |
+| Phạm Khánh Toàn | 24 | 137.3 | 53-64, 76, 78-84, 89-92 |
+| Vũ Văn Quốc Việt | 25 | 145.0 | 52, 93-107, 110-115, 117, 121, 123 |
+
+### 3.2. Theo nhóm bảng
+
+Nguyên tắc: Phi giữ toàn bộ khung xương của dự án và các phần khó nhất (tính tiền tháng, hợp đồng, thanh toán, phân quyền). Ba người còn lại chia đều số bảng, mỗi người một cụm nghiệp vụ độc lập để làm đồng thời được. Phi 13 + Chi 14 + Toàn 15 + Việt 14 = 56 bảng, bằng số entity trong `shared/entity`.
+
+| Thành viên | Mã SV | Số bảng | Vai trò |
+|---|---|---|---|
+| Nguyễn Anh Phi | TH08326 | 13 | Khung xương + phần khó: cấu hình, xử lý lỗi, tiện ích, scheduler, xuất Excel/PDF, đăng nhập - phân quyền, tính tiền tháng, hợp đồng, thanh toán |
+| Nguyễn Trần Bảo Chi | TH08666 | 14 | Phòng - khách thuê - yêu cầu thuê |
+| Phạm Khánh Toàn | TH08433 | 15 | Điện nước - đơn giá - hóa đơn - thu tiền |
+| Vũ Văn Quốc Việt | TH08548 | 14 | Công nợ - trả phòng - sửa chữa - thông báo - chi phí |
+
+Các bảng của từng người:
+- **Phi** (13 bảng + khung xương):
+  - Người dùng - phân quyền: `User`, `Role`, `Permission`, `UserRole` (+ `UserRoleId`), `UserVerification`, `UserActivityLog`
+  - Hợp đồng: `RentalContract`, `ContractAdjustment`
+  - Tính tiền tháng: `MonthlyBillingPeriod`, `CalculatedMonthlyFee`, `FeeItemDetail`
+  - Thanh toán: `PaymentTransaction`, `BankAccount`
+- **Chi** (14 bảng):
+  - Khu trọ - phòng: `Property`, `PropertyFloor`, `Room`, `RoomMedia`, `RoomFurnishing`, `RoomEquipmentRequest`, `RoomAddonFee`
+  - Khách thuê - cư dân: `Tenant`, `TenantIdCard`, `RoomResident`, `ResidentStayHistory`, `TenantVehicle`
+  - Yêu cầu thuê - mẫu hợp đồng: `BookingRequest`, `ContractTemplate`
+- **Toàn** (15 bảng):
+  - Chỉ số điện nước: `UtilityReadingPeriod`, `MeterReading`, `MeterPhoto`, `MeterAdjustmentLog`, `MeterAnomalyAlert`
+  - Đơn giá - phí dịch vụ: `ServiceRatePlan`, `PropertyServiceRate`, `RoomCustomRate`, `RateChangeHistory`
+  - Hóa đơn: `Invoice`, `InvoiceNotification`
+  - Thu tiền - cấn trừ: `ReceiptVoucher`, `PartialPaymentLog`, `TenantPrepayment`, `PrepaymentDeduction`
+- **Việt** (14 bảng):
+  - Công nợ: `TenantDebt`, `DebtPenaltyLog`, `DebtReminder`, `DebtProcessingLog`
+  - Trả phòng - hoàn cọc: `CheckoutRequest`, `CheckoutInspection`, `DepositRefundVoucher`
+  - Sự cố sửa chữa: `MaintenanceRequest`, `MaintenanceLog`, `IncidentCategory`
+  - Thông báo: `ContractNotification`, `NotificationTemplate`, `UserNotification`
+  - Chi phí vận hành: `OperatingExpense`
+
+Khung xương của Phi (không gắn với bảng nào): cấu hình bảo mật JWT, xử lý lỗi thống nhất, `ApiResponse`/`PageResponse`, tiện ích (upload ảnh, gửi thông báo), khung job tự động (Toàn viết phần chốt chỉ số - tính hóa đơn, Việt viết phần nhắc nợ - phạt trễ hạn), xuất Excel/PDF, dashboard - báo cáo, sao lưu phục hồi (UC122).
+
+---
+
+## 4. Cấu trúc code
+
+Một project duy nhất cho cả nhóm: 1 thư mục dùng chung và mỗi người có 1 package riêng mang tên mình.
 
 ```
 com.group7.minihouse
@@ -26,169 +123,169 @@ com.group7.minihouse
 └── viet/              RIÊNG của Vũ Văn Quốc Việt
 ```
 
-Bên trong package của mỗi người đều có 4 thư mục: `controller`, `service`, `repository`, `dto`.
-Ví dụ Chi làm phòng: `chi/controller/RoomController`, `chi/service/RoomService`, `chi/repository/RoomRepository`, `chi/dto/RoomResponse`.
+Trong package của mỗi người có 4 thư mục: `controller`, `service`, `repository`, `dto`. Ví dụ Chi làm phòng: `chi/controller/RoomController`, `chi/service/RoomService`, `chi/repository/RoomRepository`, `chi/dto/RoomResponse`. Đặt tên file theo tên entity.
 
 Quy tắc:
-- Mỗi người chỉ thêm file vào package của mình, nên không bao giờ đụng file nhau khi merge.
-- Cần dữ liệu của bảng người khác thì gọi Service của người đó (ví dụ Toàn cần phòng thì gọi `RoomService` trong package `chi`), không tự viết repository cho bảng người khác.
+- Mỗi người chỉ thêm file vào package của mình, nên không đụng file nhau khi merge.
+- Cần dữ liệu của bảng người khác thì gọi `Service` của người đó (ví dụ Toàn cần phòng thì gọi `RoomService` của `chi`), hoặc dùng quan hệ JPA có sẵn trong entity. Không tự viết repository cho bảng người khác.
+- Phụ thuộc giữa các package đi MỘT CHIỀU: `chi` (phòng, khách thuê) → `toan` (chỉ số, đơn giá, hóa đơn, phiếu thu) → `phi` (hợp đồng, tính tiền, thanh toán) → `viet` (công nợ, trả phòng, sửa chữa). Package đứng sau được gọi Service của package đứng trước, KHÔNG được ngược lại. Ví dụ: khi tính tiền tháng, Phi gọi `MeterReadingService`/`RateService` của Toàn; khi chốt tiền, Phi gọi `InvoiceService` của Toàn (Toàn không gọi ngược `phi`). Nếu bắt buộc phải gọi ngược thì chuyển phần dùng chung xuống `shared` hoặc truyền dữ liệu qua tham số/ID.
+- Các service nền tảng nhiều người cần (`RoomService`, `TenantService`) thì chủ sở hữu nên làm trước các hàm đọc cơ bản (`findById`, `findAll`), rồi mới làm nghiệp vụ phức tạp.
 - Spring Boot tự quét toàn bộ package con, nên thêm class vào đúng thư mục là chạy, không cần cấu hình gì thêm.
 
-## Cách chạy
+---
 
-1. Chạy `db/group-7.sql` trên SQL Server.
-2. Tạo file `src/main/resources/application-local.properties` (file này bị git ignore):
-   ```
-   spring.datasource.username=...
-   spring.datasource.password=...
-   ```
-3. Chạy `db/seed.sql` để nạp 5 vai trò (LANDLORD, MANAGER, CASHIER, METER_READER, TENANT), 22 quyền và tài khoản `admin@minihouse.local` / `Admin@123` (chỉ dùng dev/demo).
-4. Chạy `mvn spring-boot:run` (`ddl-auto=validate` sẽ báo lỗi nếu entity lệch với DB).
-5. Thử API: `http://localhost:8080/api/ping`, xem toàn bộ API tại Swagger: `http://localhost:8080/swagger-ui.html`.
+## 5. Quy ước làm chung
 
-Tài liệu yêu cầu (use case, phân công) nằm trong thư mục `docs/`. Các bản thiết kế (lý do chọn cách làm đăng nhập, tài khoản người thuê, quản lý tài khoản) nằm trong `docs/thiet-ke/`.
-
-## Phân công theo use case
-
-Nguồn chính thức là file `docs/Nhom_7_47_usecase_khutro_4MM_PhanCongMoi.xlsx` (sheet "Phân Công", 123 use case, 663.8 giờ). Bảng dưới đây chỉ là bản tóm tắt, nếu lệch thì lấy Excel làm chuẩn. Cách chia này khớp với mục "Phân công theo nhóm bảng" bên dưới.
-
-| Thành viên | Số UC | Giờ | Use case |
-|---|---|---|---|
-| Nguyễn Anh Phi | 45 | 235.2 | 1-13, 41-51, 65-75, 77, 85-88, 116, 118-120, 122 |
-| Nguyễn Trần Bảo Chi | 29 | 146.3 | 14-40, 108-109 |
-| Phạm Khánh Toàn | 24 | 137.3 | 53-64, 76, 78-84, 89-92 |
-| Vũ Văn Quốc Việt | 25 | 145.0 | 52, 93-107, 110-115, 117, 121, 123 |
-
-## Tiến độ từng người
-
-Cập nhật ngày 16/11/2026, theo những gì thực sự có trên GitHub (nhánh `main` và các nhánh con). Ai đẩy code mới thì tự sửa dòng của mình trong bảng này.
-
-| Thành viên | Được giao | Đã có trên `main` | Đang chờ / việc tiếp theo |
-|---|---|---|---|
-| Nguyễn Anh Phi | 45 UC | 16 UC: 1-13 (tài khoản, đăng nhập, phân quyền), 119, 120, 122, cộng khung xuất Excel/PDF | Hợp đồng 41-51, tính tiền tháng 65-77, thanh toán 85-88, 116, 118: phụ thuộc phòng, khách thuê, chỉ số, đơn giá, hóa đơn của Chi và Toàn nên chờ họ đẩy code |
-| Nguyễn Trần Bảo Chi | 29 UC | 0 | Chưa có code nào trên GitHub. Nhiều phần của Phi và Toàn đang chờ `RoomService`, `TenantService` của Chi |
-| Phạm Khánh Toàn | 24 UC | 0 | Đã gửi bản zip, Phi đã review. Cần sửa theo `docs/LOI_CAN_SUA_CODE_TOAN.md` (đưa vào package `toan`, bỏ entity trùng, dùng `BusinessException`) rồi đẩy bằng nhánh riêng và Pull Request theo `docs/HUONG_DAN_GIT.md` |
-| Vũ Văn Quốc Việt | 25 UC | 0 (đã làm trên nhánh) | Nhánh `viet/boarding-house-management` đã có công nợ, trả phòng, bảo trì, thiết bị phòng, chi phí vận hành, thông báo. Chưa vào `main`, kiểm tra thấy gộp với `main` không xung đột, cần tạo Pull Request |
-
-Chi tiết phần của Phi:
-- Đã làm: UC1 (đăng ký chủ trọ), UC2 (xác thực email bằng OTP), UC3 (đăng nhập, đăng xuất), UC4 (quên mật khẩu), UC5 (đổi mật khẩu), UC6 (hồ sơ cá nhân), UC7 (ảnh đại diện), UC8, UC9 (quản lý nhân viên), UC10 (cấp tài khoản người thuê), UC11 (phân quyền theo vai trò), UC12 (bảng quyền chi tiết theo vai trò), UC13 (nhật ký thao tác), UC119 (tài khoản ngân hàng, mã QR), UC120 (khung job tự động), UC122 (sao lưu, phục hồi), khung xuất Excel/PDF.
-- Chưa làm (chờ phần của người khác): hợp đồng (UC41-51), tính tiền tháng (UC65-77), thanh toán (UC85-88), UC116, UC118 (dashboard, báo cáo).
-- Chưa gửi email/SMS thật: mã OTP hiện chỉ in ra log của ứng dụng (xem mục "Tính năng dùng chung").
-
-## Phân công theo nhóm bảng (phân công lại)
-
-Nguyên tắc: Nguyễn Anh Phi giữ toàn bộ khung xương của dự án và các phần khó nhất (tính tiền tháng, hợp đồng, thanh toán, phân quyền). 3 người còn lại chia đều số bảng, mỗi người một cụm nghiệp vụ độc lập để làm đồng thời được.
-
-Mỗi người viết repository, service, controller, dto cho các bảng của mình, đặt trong package mang tên mình (entity đã sinh sẵn trong `shared/entity`, chỉ cần rà soát lại). Đặt tên file theo tên entity, ví dụ `RoomRepository`, `RoomService`, `RoomController`.
-
-| Thành viên | Mã SV | Số bảng | Vai trò |
-|---|---|---|---|
-| Nguyễn Anh Phi | TH08326 | 13 | Khung xương + phần khó: `config`, `exception`, `util`, dto chung, scheduler, xuất Excel/PDF, đăng nhập - phân quyền, tính tiền tháng, hợp đồng, thanh toán |
-| Nguyễn Trần Bảo Chi | TH08666 | 14 | Phòng - khách thuê - yêu cầu thuê |
-| Phạm Khánh Toàn | TH08433 | 15 | Điện nước - đơn giá - hóa đơn - thu tiền |
-| Vũ Văn Quốc Việt | TH08548 | 14 | Công nợ - trả phòng - sửa chữa - thông báo - chi phí |
-
-### 1. Nguyễn Anh Phi (13 bảng + toàn bộ khung xương)
-Khung xương (không gắn với bảng nào):
-- `config`: Spring Security, đăng nhập, JWT/session, phân quyền theo Role/Permission, CORS
-- `exception`: `BusinessException`, `GlobalExceptionHandler`, mã lỗi thống nhất
-- `dto` chung: `ApiResponse<T>`, `PageResponse<T>`, base DTO
-- `util`: upload ảnh, gửi email, OTP SMS, tiện ích ngày giờ - tiền tệ
-- Scheduler: tự động chốt chỉ số, tính tiền, nhắc nợ (khung chạy job, Toàn và Việt viết logic bên trong)
-- Xuất Excel/PDF (khung dùng chung), dashboard - báo cáo
-- Sao lưu phục hồi dữ liệu (usecase 122)
-
-Các bảng:
-- Người dùng - phân quyền: `User`, `Role`, `Permission`, `UserRole` (+ `UserRoleId`), `UserVerification`, `UserActivityLog`
-- Hợp đồng: `RentalContract`, `ContractAdjustment`
-- Tính tiền tháng: `MonthlyBillingPeriod`, `CalculatedMonthlyFee`, `FeeItemDetail`
-- Thanh toán: `PaymentTransaction`, `BankAccount`
-
-### 2. Nguyễn Trần Bảo Chi (14 bảng)
-- Khu trọ - phòng: `Property`, `PropertyFloor`, `Room`, `RoomMedia`, `RoomFurnishing`, `RoomEquipmentRequest`, `RoomAddonFee`
-- Khách thuê - cư dân: `Tenant`, `TenantIdCard`, `RoomResident`, `ResidentStayHistory`, `TenantVehicle`
-- Yêu cầu thuê - mẫu hợp đồng: `BookingRequest`, `ContractTemplate`
-
-### 3. Phạm Khánh Toàn (15 bảng)
-- Chỉ số điện nước: `UtilityReadingPeriod`, `MeterReading`, `MeterPhoto`, `MeterAdjustmentLog`, `MeterAnomalyAlert`
-- Đơn giá - phí dịch vụ: `ServiceRatePlan`, `PropertyServiceRate`, `RoomCustomRate`, `RateChangeHistory`
-- Hóa đơn: `Invoice`, `InvoiceNotification`
-- Thu tiền - cấn trừ: `ReceiptVoucher`, `PartialPaymentLog`, `TenantPrepayment`, `PrepaymentDeduction`
-
-### 4. Vũ Văn Quốc Việt (14 bảng)
-- Công nợ: `TenantDebt`, `DebtPenaltyLog`, `DebtReminder`, `DebtProcessingLog`
-- Trả phòng - hoàn cọc: `CheckoutRequest`, `CheckoutInspection`, `DepositRefundVoucher`
-- Sự cố sửa chữa: `MaintenanceRequest`, `MaintenanceLog`, `IncidentCategory`
-- Thông báo: `ContractNotification`, `NotificationTemplate`, `UserNotification`
-- Chi phí vận hành: `OperatingExpense`
-
-### Tổng kết
-
-Phi 13 + Chi 14 + Toàn 15 + Việt 14 = 56 bảng, bằng số entity trong package `shared/entity`.
-
-### Cách làm đồng thời, không chờ nhau
-
-Trạng thái giai đoạn 0: ĐÃ XONG (Phi). Các class dùng chung đã có trên `main`, hãy pull về dùng:
-- `shared/dto/ApiResponse`: mọi API trả `ApiResponse.ok(data)` hoặc `ApiResponse.error(msg)`
-- `shared/dto/PageResponse`: dùng cho API phân trang
-- `shared/exception/BusinessException`: ném từ service khi vi phạm nghiệp vụ, ví dụ `throw BusinessException.notFound("Phong")`
-- `shared/exception/GlobalExceptionHandler`: tự đổi exception thành response chuẩn
-- `shared/config/SecurityConfig`: đăng nhập JWT. MẶC ĐỊNH ĐANG MỞ (`app.security.enabled=false`): test API KHÔNG cần token, `@PreAuthorize` tạm bị bỏ qua. Bật `app.security.enabled=true` (trong `application-local.properties`) để bắt buộc đăng nhập, dùng khi demo/bảo vệ
-- `shared/security/AuthUser`: người đang đăng nhập, lấy trong controller bằng `@AuthenticationPrincipal AuthUser user`
-- `shared/controller/PingController`: ví dụ controller mẫu, thử bằng `GET /api/ping`
-
-Cách test API khi đã bật `app.security.enabled=true`: mở Swagger `http://localhost:8080/swagger-ui.html`, gọi `POST /api/auth/login` với `admin@minihouse.local` / `Admin@123`, copy `accessToken`, bấm nút Authorize và dán token. Ngoài Swagger thì gửi header `Authorization: Bearer <token>`.
-Phân quyền theo vai trò (`LANDLORD`, `MANAGER`, `CASHIER`, `METER_READER`, `TENANT`): gắn `@PreAuthorize("hasAnyRole('LANDLORD','MANAGER')")` lên hàm controller. Thiết kế chi tiết: `docs/thiet-ke/dang-nhap-jwt.md`.
-
-Tài khoản người thuê (role `TENANT`): KHÔNG sửa cấu trúc DB. Tài khoản người thuê là 1 dòng `users` có `phone_number` TRÙNG với `tenants.phone_number` của khách thuê đó. Chủ trọ/quản lý cấp tài khoản bằng `POST /api/tenants/{tenantId}/account` (trả mật khẩu tạm 1 lần). Khi người thuê đăng nhập, token có thêm `tenantId`.
-Quy ước cho API của người thuê (UC36, UC37, UC94...): đặt đường dẫn dưới `/api/me/**` (ví dụ `/api/me/invoices`), lấy mã khách thuê bằng `Integer tenantId = CurrentUser.requireTenantId(user)` với `user` là `@AuthenticationPrincipal AuthUser user`, TUYỆT ĐỐI không nhận `tenantId` từ client (nếu không người này xem được dữ liệu người khác). Khi bật `app.security.enabled=true`: `/api/me/**` chỉ người thuê vào được, MỌI đường dẫn khác chỉ nhân viên vào được (người thuê bị chặn mặc định, không cần gắn gì). Khi để mặc định (mở) thì không có token nên `user` là null: hãy test API người thuê bằng token người thuê (bật `app.security.enabled=true`), nếu không sẽ nhận 401. API của nhân viên thì gắn `@PreAuthorize` như trên để thu hẹp thêm trong nhóm nhân viên. Khi Chi viết xong `TenantService`, đổi `TenantReadRepository` (package `phi`) sang gọi service đó. Nếu đổi số điện thoại khách thuê phải cập nhật luôn tài khoản `users` tương ứng. Chi tiết: `docs/thiet-ke/tai-khoan-nguoi-thue.md`.
-
-Quản lý tài khoản (UC3, 5, 6, 8, 9, 13), mọi API đều có trong Swagger:
-- `POST /api/auth/password` đổi mật khẩu (mật khẩu mới từ 8 ký tự, có cả chữ và số); `GET/PUT /api/auth/profile` xem/sửa họ tên và số điện thoại (NGƯỜI THUÊ không tự đổi được số điện thoại vì tài khoản nối với hồ sơ khách thuê bằng số này); `POST /api/auth/logout` ghi nhật ký đăng xuất. Cả nhóm này dùng được cho mọi người đã đăng nhập, kể cả người thuê.
-- `/api/staff`: thêm nhân viên (chỉ LANDLORD, trả mật khẩu tạm 1 lần), tìm kiếm có phân trang `GET /api/staff?keyword=&status=&page=&size=` (LANDLORD, MANAGER), sửa thông tin và thay vai trò `PUT /api/staff/{id}`, khóa/mở khóa `PATCH /api/staff/{id}/status` với `{"status":"LOCKED"}` hoặc `{"status":"ACTIVE"}`. Vai trò nhân viên hợp lệ: `MANAGER`, `CASHIER`, `METER_READER`. Không thao tác được trên tài khoản chủ trọ/người thuê (trả 404) và không tự khóa chính mình.
-- Khóa tài khoản và đổi vai trò có hiệu lực NGAY: mỗi request có token đều tra `users.status` và vai trò hiện tại trong DB (1 truy vấn theo khóa chính) và LẤY QUYỀN TỪ DB, không lấy từ token. Token của tài khoản bị khóa nhận 401 liền; nhân viên bị giáng chức mất quyền cũ liền, không phải đợi token hết hạn. Khi viết test `@WebMvcTest` có `@Import(SecurityConfig.class)` phải thêm `@MockBean UserStatusChecker` (xem `StaffControllerSecurityTest` làm mẫu).
-- Khóa/mở khóa tài khoản NGƯỜI THUÊ (ví dụ khách trả phòng): `PATCH /api/tenants/{tenantId}/account/status` với `{"status":"LOCKED"}` hoặc `{"status":"ACTIVE"}` (LANDLORD, MANAGER), có hiệu lực ngay. Nhân viên thì dùng `/api/staff/{id}/status`.
-- Hồ sơ: không gửi `phoneNumber` = giữ nguyên số cũ, gửi chuỗi rỗng = xóa số (không xóa được nếu tài khoản chưa có email, vì sẽ hết cách đăng nhập).
-- Lỗi trùng email/SĐT khi hai người cùng thao tác một lúc trả 409 (không còn 500).
-- Nhật ký: `GET /api/activity-logs?userId=&actionType=&from=&to=&page=&size=` (chỉ LANDLORD), `GET /api/auth/activity` (nhật ký của chính mình). Các hành động được ghi: LOGIN, LOGOUT, CHANGE_PASSWORD, UPDATE_PROFILE, CREATE_STAFF, UPDATE_STAFF, LOCK_USER, UNLOCK_USER, CREATE_TENANT_ACCOUNT, RESET_PASSWORD, VERIFY_EMAIL, UPDATE_AVATAR, REMOVE_AVATAR, các thao tác tài khoản ngân hàng, BACKUP_DB. LANDLORD xuất nhật ký ra file bằng `GET /api/activity-logs/export?format=xlsx|pdf`. Muốn ghi nhật ký từ chức năng của mình thì gọi `ActivityLogService.log(userId, "TEN_HANH_DONG", "mo ta", ip)`.
-- Lỗi do người gọi API (sai phương thức HTTP, sai kiểu dữ liệu, thiếu tham số) trả 405/415/400 chứ không còn 500.
-Chi tiết: `docs/thiet-ke/quan-ly-tai-khoan.md`.
-
-### Tính năng dùng chung của Phi (UC1, 2, 4, 7, 12, 119, 120, 122 và khung xuất file)
-
-Đăng ký và quên mật khẩu (UC1, 2, 4), đều công khai khi bật bảo mật, mã OTP 6 số, hiệu lực 10 phút, dùng một lần, xin lại cách nhau 60 giây, đoán sai một lần là mã bị hủy:
-- `POST /api/auth/register` (họ tên, email, mật khẩu, số điện thoại tùy chọn): tạo tài khoản chủ trọ ở trạng thái `INACTIVE`, gửi mã xác thực. `POST /api/auth/verify-email` (email, code): nhập đúng mã thì tài khoản thành `ACTIVE`. `POST /api/auth/resend-verification`: gửi lại mã. Đăng ký lại bằng email đang chờ xác thực sẽ ghi đè tên và mật khẩu (để người chiếm email trước không giữ được mật khẩu).
-- `POST /api/auth/forgot-password` (email hoặc SĐT): luôn trả cùng một thông báo dù tài khoản có tồn tại hay không. `POST /api/auth/reset-password` (identifier, code, newPassword).
-- Gửi mã đi qua `shared/notification/NotificationSender`. Bản mặc định `LogNotificationSender` chỉ ghi nội dung ra log (tìm dòng `THONG BAO GIA LAP`). Muốn gửi thật: thêm một class `@Component @Primary` implements `NotificationSender`, không cần sửa chỗ gọi. Mã OTP lưu ở bảng `user_verifications`, job `purge-expired-verifications` dọn mã hết hạn mỗi ngày.
-
-Ảnh đại diện (UC7) và lưu file: `PUT /api/auth/avatar` (form-data, trường `file`, PNG/JPG/WebP, tối đa 2 MB), `DELETE /api/auth/avatar`, xem ảnh `GET /api/auth/avatars/{tên}`. File lưu trong thư mục `app.upload.dir` (mặc định `uploads/`, đã git ignore). Chức năng khác cần upload ảnh thì dùng `FileStorage.saveImage(thưMục, byte[], tốiĐa)`: nhận dạng ảnh theo nội dung file, tên file ngẫu nhiên, chống đường dẫn lạ.
-
-Tài khoản ngân hàng và QR (UC119): `GET/POST /api/properties/{propertyId}/bank-accounts`, `PUT /api/bank-accounts/{id}`, `PUT /api/bank-accounts/{id}/default`, `DELETE /api/bank-accounts/{id}` (ngừng dùng, không xóa dòng vì giao dịch có thể tham chiếu), `PUT /api/bank-accounts/{id}/qr` (ảnh QR), xem QR `GET /api/bank-accounts/qr/{tên}`. Mỗi khu trọ có đúng một tài khoản mặc định; tài khoản đầu tiên tự thành mặc định. Ghi: LANDLORD, MANAGER.
-
-Quyền chi tiết (UC12): `GET /api/permissions` (danh mục quyền), `GET /api/roles/permissions` (quyền mặc định của từng vai trò, LANDLORD và MANAGER xem), `GET /api/auth/permissions` (quyền của chính mình). Đây là bảng tra cứu cho giao diện hiện/ẩn chức năng; việc chặn API thật vẫn là `@PreAuthorize` theo vai trò. Muốn đổi quyền của một người thì đổi vai trò của họ (`PUT /api/staff/{id}`).
-
-Job tự động (UC120): khung ở `shared/scheduler`. Muốn thêm job chỉ cần viết một class `@Component implements ScheduledJob` (tên, mô tả, cron mặc định, hàm `run()`), khung tự tìm và lên lịch, không phải đăng ký ở đâu. Mặc định TẮT (`app.jobs.enabled=false`), bật khi demo/chạy thật. Đổi giờ chạy bằng `app.jobs.<tên-job>.cron` trong `application-local.properties`. LANDLORD xem và chạy tay job qua `GET /api/admin/jobs` và `POST /api/admin/jobs/{tên}/run`. Mỗi job chỉ chạy một bản cùng lúc, job lỗi được ghi nhận mà không làm hỏng job khác. Toàn và Việt viết job của mình theo cách này; nhánh của Việt hiện dùng `@Scheduled` riêng (`VietJobs`), vẫn chạy được, nhưng chuyển sang `ScheduledJob` thì xem và chạy tay được từ một chỗ.
-
-Sao lưu, phục hồi (UC122), chỉ LANDLORD: `POST /api/admin/backups` (sao lưu ngay, file `mbh-yyyyMMdd-HHmmss.bak`), `GET /api/admin/backups` (danh sách), `POST /api/admin/backups/{tên}/restore` với `{"confirm":"<tên CSDL>"}` (ghi đè TOÀN BỘ dữ liệu hiện tại, ngắt mọi kết nối đang mở). File do chính SQL Server ghi nên thư mục phải là nơi dịch vụ SQL Server ghi được: mặc định dùng thư mục sao lưu của SQL Server, đổi bằng `app.backup.dir`. Ứng dụng và SQL Server phải chạy cùng máy. Chức năng phục hồi chưa được thử trên DB thật, hãy thử trên DB tạm trước khi dùng.
-
-Xuất Excel/PDF (khung dùng chung): tạo `TableData(tiêuĐề, tênCột, cácDòng)` rồi gọi `TableExporter.toExcel(...)` hoặc `toPdf(...)`, trả về trong controller với `TableExporter.EXCEL_TYPE` / `PDF_TYPE`. Ví dụ đầy đủ: `ActivityLogController.export`. Tối đa 50.000 dòng. PDF cần font Unicode để hiện tiếng Việt có dấu: tự tìm Arial (Windows, Mac) hoặc DejaVu Sans (Linux), hoặc chỉ định bằng `app.export.pdf-font=đường/dẫn/font.ttf`.
-
-Cấu hình thêm trong `application-local.properties` khi cần: `app.upload.dir`, `app.jobs.enabled`, `app.backup.dir`, `app.export.pdf-font`.
-
-- Giai đoạn 0 (ĐÃ XONG): các class dùng chung `ApiResponse`, `BusinessException`, `GlobalExceptionHandler`, và đăng nhập JWT do Phi làm. Chi, Toàn, Việt cứ làm API của mình, gắn `@PreAuthorize` theo vai trò phù hợp.
-- Trong lúc Phi làm khung, Chi, Toàn, Việt bắt đầu ngay với các bảng của mình, không cần đợi.
-- Mỗi người chỉ tạo repository, service, controller trong phần bảng của mình. Cần dữ liệu của bảng người khác thì gọi qua `Service` của người đó, hoặc dùng quan hệ JPA có sẵn trong entity. Không tự viết repository cho bảng người khác.
-- Các service nền tảng nhiều người cần (`RoomService`, `TenantService`, `UserService`) chủ sở hữu nên làm các hàm đọc cơ bản (`findById`, `findAll`) trước, rồi mới làm nghiệp vụ phức tạp.
-- Logic trong job tự động: Toàn viết phần chốt chỉ số - tính hóa đơn, Việt viết phần nhắc nợ - phạt trễ hạn, Phi chỉ viết khung scheduler.
-
-## Quy ước làm chung
-
-- Mỗi thay đổi DB phải sửa `db/group-7.sql` VÀ entity tương ứng trong cùng 1 commit.
-- Số class trong package `shared/entity` phải bằng số bảng trong DB.
-- Mỗi người làm trên branch riêng, ví dụ `phi/room`, `chi/tenant`, `toan/invoice`, `viet/debt`.
+Git:
+- Mỗi người làm trên nhánh riêng, ví dụ `phi/room`, `chi/tenant`, `toan/invoice`, `viet/debt`.
 - Pull `main` trước khi bắt đầu làm và trước khi push.
-- Làm xong thì tạo Pull Request vào `main`, không push thẳng lên `main`.
+- Làm xong thì tạo Pull Request vào `main`, không push thẳng lên `main` (cách làm từng bước: `docs/HUONG_DAN_GIT.md`).
 - Không sửa file entity của người khác; cần sửa thì nhắn người đó hoặc tạo PR.
-- Phụ thuộc giữa các package đi MỘT CHIỀU, không gọi vòng. Thứ tự: `chi` (phòng, khách thuê) → `toan` (chỉ số, đơn giá, hóa đơn, phiếu thu) → `phi` (hợp đồng, tính tiền, thanh toán) → `viet` (công nợ, trả phòng, sửa chữa). Package đứng sau được gọi Service của package đứng trước, KHÔNG được ngược lại. Ví dụ: khi tính tiền tháng, Phi gọi `MeterReadingService`/`RateService` của Toàn; khi chốt tiền, Phi gọi `InvoiceService` của Toàn để tạo hóa đơn (Toàn không gọi ngược `phi`). Nếu bắt buộc phải gọi ngược thì chuyển phần dùng chung xuống `shared` hoặc truyền dữ liệu qua tham số/ID.
-- Mọi entity đã có `@DynamicInsert`: cột nào để `null` khi tạo mới thì Hibernate bỏ qua, DB tự điền giá trị `DEFAULT` (ví dụ `created_at`, `status`). Entity mới phải thêm `@DynamicInsert`.
-- Mọi API trả về `ApiResponse`, dùng `BusinessException` cho lỗi nghiệp vụ, dùng `@Valid` + annotation của `spring-boot-starter-validation` để kiểm tra đầu vào.
+
+Cơ sở dữ liệu:
+- Mỗi thay đổi DB phải sửa `db/group-7.sql` VÀ entity tương ứng trong cùng 1 commit. Số class trong `shared/entity` phải bằng số bảng trong DB.
+- Mọi entity có `@DynamicInsert`: cột nào để `null` khi tạo mới thì Hibernate bỏ qua, DB tự điền giá trị `DEFAULT` (ví dụ `created_at`, `status`). Entity mới phải thêm `@DynamicInsert`.
+
+Code:
+- Mọi API trả về `ApiResponse`; lỗi nghiệp vụ dùng `BusinessException`; kiểm tra đầu vào bằng `@Valid` và các annotation của `spring-boot-starter-validation`.
+- Thông báo lỗi và commit message viết tiếng Việt có dấu.
+
+---
+
+## 6. Hướng dẫn viết API cho mọi người
+
+### 6.1. Các class dùng chung (đã có trên `main`, pull về dùng)
+
+| Class | Cách dùng |
+|---|---|
+| `shared/dto/ApiResponse` | Mọi API trả `ApiResponse.ok(data)` hoặc `ApiResponse.error(msg)` |
+| `shared/dto/PageResponse` | Dùng cho API phân trang |
+| `shared/exception/BusinessException` | Ném từ service khi vi phạm nghiệp vụ, ví dụ `throw BusinessException.notFound("Phòng")` |
+| `shared/exception/GlobalExceptionHandler` | Tự đổi exception thành response chuẩn (sai phương thức, sai kiểu, thiếu tham số trả 405/415/400; trùng dữ liệu trả 409) |
+| `shared/security/AuthUser` | Người đang đăng nhập, lấy trong controller bằng `@AuthenticationPrincipal AuthUser user` |
+| `ActivityLogService.log(userId, "HANH_DONG", "mô tả", ip)` | Ghi nhật ký thao tác từ chức năng của mình |
+| `shared/controller/PingController` | Controller mẫu, thử bằng `GET /api/ping` |
+
+### 6.2. Bật bảo mật và phân quyền
+
+- MẶC ĐỊNH đang MỞ (`app.security.enabled=false`): test API KHÔNG cần token, `@PreAuthorize` tạm bị bỏ qua.
+- Bật `app.security.enabled=true` trong `application-local.properties` để bắt buộc đăng nhập (dùng khi demo/bảo vệ).
+- Test khi đã bật: mở Swagger, gọi `POST /api/auth/login` với `admin@minihouse.local` / `Admin@123`, copy `accessToken`, bấm Authorize và dán token. Ngoài Swagger thì gửi header `Authorization: Bearer <token>`.
+- Phân quyền theo vai trò (`LANDLORD`, `MANAGER`, `CASHIER`, `METER_READER`, `TENANT`): gắn `@PreAuthorize("hasAnyRole('LANDLORD','MANAGER')")` lên hàm controller.
+- Khóa tài khoản và đổi vai trò có hiệu lực NGAY: mỗi request đều tra trạng thái và vai trò hiện tại trong DB, không lấy từ token.
+- Khi viết test `@WebMvcTest` có `@Import(SecurityConfig.class)` phải thêm `@MockBean UserStatusChecker` (xem `StaffControllerSecurityTest` làm mẫu).
+- Thiết kế chi tiết: `docs/thiet-ke/dang-nhap-jwt.md`.
+
+### 6.3. API của người thuê (UC36, UC37, UC94...)
+
+- Đường dẫn đặt dưới `/api/me/**`, ví dụ `/api/me/invoices`.
+- Lấy mã khách thuê bằng `Integer tenantId = CurrentUser.requireTenantId(user)`, TUYỆT ĐỐI không nhận `tenantId` từ client (nếu không người này xem được dữ liệu người khác).
+- Khi bật bảo mật: `/api/me/**` chỉ người thuê vào được, mọi đường dẫn khác chỉ nhân viên vào được (người thuê bị chặn mặc định, không cần gắn gì).
+- Khi để mặc định (mở) thì không có token nên `user` là null: hãy test API người thuê bằng token người thuê (bật bảo mật), nếu không sẽ nhận 401.
+- Cách tài khoản người thuê hoạt động: tài khoản là 1 dòng `users` có `phone_number` TRÙNG với `tenants.phone_number` của khách thuê; chủ trọ/quản lý cấp bằng `POST /api/tenants/{tenantId}/account` (trả mật khẩu tạm 1 lần); token đăng nhập có thêm `tenantId`.
+- Khi Chi viết xong `TenantService`, đổi `TenantReadRepository` (package `phi`) sang gọi service đó. Nếu đổi số điện thoại khách thuê phải cập nhật luôn tài khoản `users` tương ứng.
+- Chi tiết: `docs/thiet-ke/tai-khoan-nguoi-thue.md`.
+
+### 6.4. Thêm job tự động
+
+Viết một class `@Component implements ScheduledJob` (tên, mô tả, cron mặc định, hàm `run()`). Khung `JobScheduler` tự tìm và lên lịch, không phải đăng ký ở đâu. Chi tiết ở mục 7.2.
+
+### 6.5. Xuất Excel/PDF
+
+Tạo `TableData(tiêuĐề, tênCột, cácDòng)` rồi gọi `TableExporter.toExcel(...)` hoặc `toPdf(...)`. Chi tiết và ví dụ ở mục 7.2.
+
+---
+
+## 7. Các API đã có (phần của Phi)
+
+Mọi API đều xem được trong Swagger.
+
+### 7.1. Tài khoản và phân quyền (UC1-13)
+
+| API | Ai gọi được | Mô tả |
+|---|---|---|
+| `POST /api/auth/login` | Công khai | Đăng nhập bằng email hoặc SĐT, trả JWT |
+| `POST /api/auth/logout` | Đã đăng nhập | Ghi nhật ký đăng xuất (client tự bỏ token) |
+| `GET /api/auth/me` | Đã đăng nhập | Thông tin người đang đăng nhập |
+| `POST /api/auth/register` | Công khai | UC1: đăng ký chủ trọ (xem 7.2) |
+| `POST /api/auth/verify-email`, `/resend-verification` | Công khai | UC2: xác thực email bằng OTP |
+| `POST /api/auth/forgot-password`, `/reset-password` | Công khai | UC4: quên mật khẩu |
+| `POST /api/auth/password` | Đã đăng nhập | UC5: đổi mật khẩu (từ 8 ký tự, có cả chữ và số) |
+| `GET/PUT /api/auth/profile` | Đã đăng nhập | UC6: xem/sửa họ tên và SĐT |
+| `PUT/DELETE /api/auth/avatar`, `GET /api/auth/avatars/{tên}` | Đã đăng nhập (xem ảnh: công khai) | UC7: ảnh đại diện |
+| `POST /api/staff` | LANDLORD | UC8: thêm nhân viên (trả mật khẩu tạm 1 lần) |
+| `GET /api/staff?keyword=&status=&page=&size=` | LANDLORD, MANAGER | UC9: tìm nhân viên |
+| `PUT /api/staff/{id}` | LANDLORD | UC9: sửa thông tin và thay vai trò |
+| `PATCH /api/staff/{id}/status` | LANDLORD | UC9: khóa/mở khóa, body `{"status":"LOCKED"}` hoặc `{"status":"ACTIVE"}` |
+| `POST /api/tenants/{tenantId}/account` | LANDLORD, MANAGER | UC10: cấp tài khoản người thuê |
+| `PATCH /api/tenants/{tenantId}/account/status` | LANDLORD, MANAGER | Khóa/mở khóa tài khoản người thuê (ví dụ khách trả phòng) |
+| `GET /api/permissions` | Nhân viên | UC11-12: danh mục quyền |
+| `GET /api/roles/permissions` | LANDLORD, MANAGER | UC12: quyền mặc định của từng vai trò |
+| `GET /api/auth/permissions` | Đã đăng nhập | UC12: quyền của chính mình |
+| `GET /api/activity-logs?userId=&actionType=&from=&to=&page=&size=` | LANDLORD | UC13: nhật ký của mọi người |
+| `GET /api/activity-logs/export?format=xlsx\|pdf` | LANDLORD | Xuất nhật ký ra file (tối đa 5000 dòng mới nhất) |
+| `GET /api/auth/activity` | Đã đăng nhập | Nhật ký của chính mình |
+
+Ghi chú:
+- Người thuê KHÔNG tự đổi được số điện thoại vì tài khoản nối với hồ sơ khách thuê bằng số này.
+- Hồ sơ: không gửi `phoneNumber` = giữ nguyên số cũ; gửi chuỗi rỗng = xóa số (không xóa được nếu tài khoản chưa có email, vì sẽ hết cách đăng nhập).
+- Vai trò nhân viên hợp lệ: `MANAGER`, `CASHIER`, `METER_READER`. Không thao tác được trên tài khoản chủ trọ/người thuê (trả 404) và không tự khóa chính mình.
+- Các hành động được ghi nhật ký: LOGIN, LOGOUT, CHANGE_PASSWORD, UPDATE_PROFILE, CREATE_STAFF, UPDATE_STAFF, LOCK_USER, UNLOCK_USER, CREATE_TENANT_ACCOUNT, RESET_PASSWORD, VERIFY_EMAIL, UPDATE_AVATAR, REMOVE_AVATAR, các thao tác tài khoản ngân hàng, BACKUP_DB.
+- Chi tiết thiết kế: `docs/thiet-ke/quan-ly-tai-khoan.md`.
+
+### 7.2. Tính năng dùng chung (UC1, 2, 4, 7, 12, 119, 120, 122 và khung xuất file)
+
+**Đăng ký, xác thực email, quên mật khẩu (UC1, 2, 4).** Mã OTP 6 số, hiệu lực 10 phút, dùng một lần, xin lại cách nhau 60 giây, đoán sai một lần là mã bị hủy.
+- `POST /api/auth/register` (họ tên, email, mật khẩu, SĐT tùy chọn): tạo tài khoản chủ trọ ở trạng thái `INACTIVE` và gửi mã. `POST /api/auth/verify-email` (email, code): nhập đúng mã thì thành `ACTIVE`. Đăng ký lại bằng email đang chờ xác thực sẽ ghi đè tên và mật khẩu, để người chiếm email trước không giữ được mật khẩu.
+- `POST /api/auth/forgot-password` (email hoặc SĐT): luôn trả cùng một thông báo dù tài khoản có tồn tại hay không. `POST /api/auth/reset-password` (identifier, code, newPassword).
+- Gửi mã đi qua `shared/notification/NotificationSender`. Bản mặc định `LogNotificationSender` chỉ ghi nội dung ra log (tìm dòng `THONG BAO GIA LAP`). Muốn gửi thật: thêm một class `@Component @Primary` implements `NotificationSender`, không cần sửa chỗ gọi.
+- Mã lưu ở bảng `user_verifications`; job `purge-expired-verifications` dọn mã hết hạn mỗi ngày.
+
+**Ảnh đại diện và lưu file (UC7).** Form-data, trường `file`, PNG/JPG/WebP, tối đa 2 MB. File lưu trong thư mục `app.upload.dir` (mặc định `uploads/`, đã git ignore). Chức năng khác cần upload ảnh thì dùng `FileStorage.saveImage(thưMục, byte[], tốiĐa)`: nhận dạng ảnh theo nội dung file, tên file ngẫu nhiên, chống đường dẫn lạ.
+
+**Tài khoản ngân hàng và QR (UC119).** Ghi: LANDLORD, MANAGER.
+
+| API | Mô tả |
+|---|---|
+| `GET/POST /api/properties/{propertyId}/bank-accounts` | Xem/thêm tài khoản của khu trọ |
+| `PUT /api/bank-accounts/{id}` | Sửa |
+| `PUT /api/bank-accounts/{id}/default` | Đặt làm mặc định |
+| `DELETE /api/bank-accounts/{id}` | Ngừng dùng (không xóa dòng vì giao dịch có thể tham chiếu) |
+| `PUT /api/bank-accounts/{id}/qr`, `GET /api/bank-accounts/qr/{tên}` | Đặt/xem ảnh QR |
+
+Mỗi khu trọ có đúng một tài khoản mặc định; tài khoản đầu tiên tự thành mặc định.
+
+**Quyền chi tiết (UC12).** Đây là bảng tra cứu để giao diện hiện/ẩn chức năng. Việc chặn API thật vẫn là `@PreAuthorize` theo vai trò. Muốn đổi quyền của một người thì đổi vai trò của họ (`PUT /api/staff/{id}`).
+
+**Job tự động (UC120).** Khung ở `shared/scheduler`.
+- Thêm job: viết một class `@Component implements ScheduledJob`, khung tự tìm và lên lịch.
+- Mặc định TẮT (`app.jobs.enabled=false`), bật khi demo hoặc chạy thật. Đổi giờ chạy bằng `app.jobs.<tên-job>.cron` trong `application-local.properties`.
+- LANDLORD xem và chạy tay job: `GET /api/admin/jobs`, `POST /api/admin/jobs/{tên}/run`.
+- Mỗi job chỉ chạy một bản cùng lúc; job lỗi được ghi nhận mà không làm hỏng job khác.
+- Nhánh của Việt hiện dùng `@Scheduled` riêng (`VietJobs`), vẫn chạy được; chuyển sang `ScheduledJob` thì xem và chạy tay được từ một chỗ.
+
+**Sao lưu, phục hồi (UC122).** Chỉ LANDLORD.
+- `POST /api/admin/backups`: sao lưu ngay, tạo file `mbh-yyyyMMdd-HHmmss.bak`. `GET /api/admin/backups`: danh sách.
+- `POST /api/admin/backups/{tên}/restore` với `{"confirm":"<tên CSDL>"}`: ghi đè TOÀN BỘ dữ liệu hiện tại và ngắt mọi kết nối đang mở.
+- File do chính SQL Server ghi nên thư mục phải là nơi dịch vụ SQL Server ghi được. Mặc định dùng thư mục sao lưu của SQL Server, đổi bằng `app.backup.dir`. Ứng dụng và SQL Server phải chạy cùng máy.
+- Chức năng phục hồi chưa được thử trên DB thật: hãy thử trên DB tạm trước khi dùng.
+
+**Xuất Excel/PDF (khung dùng chung).** Tạo `TableData(tiêuĐề, tênCột, cácDòng)` rồi gọi `TableExporter.toExcel(...)` hoặc `toPdf(...)`, trả về trong controller với `TableExporter.EXCEL_TYPE` / `PDF_TYPE`. Ví dụ đầy đủ: `ActivityLogController.export`. Tối đa 50.000 dòng. PDF cần font Unicode để hiện tiếng Việt có dấu: tự tìm Arial (Windows, Mac) hoặc DejaVu Sans (Linux), hoặc chỉ định bằng `app.export.pdf-font`.
+
+---
+
+## 8. Cấu hình
+
+Đặt trong `src/main/resources/application-local.properties` (không đưa lên GitHub). Giá trị mặc định nằm ở `application.properties`.
+
+| Khóa | Mặc định | Ý nghĩa |
+|---|---|---|
+| `spring.datasource.username`, `spring.datasource.password` | không có | Tài khoản SQL Server (bắt buộc) |
+| `app.security.enabled` | `false` | `true` = bắt buộc đăng nhập JWT, dùng khi demo/bảo vệ |
+| `app.jwt.secret` | khóa dev | Bí mật ký JWT, từ 32 ký tự; nên đổi khi chạy thật |
+| `app.jwt.expiration-minutes` | `480` | Thời hạn token |
+| `app.upload.dir` | `uploads` | Thư mục lưu file upload |
+| `app.jobs.enabled` | `false` | Bật các job tự động |
+| `app.jobs.<tên-job>.cron` | theo job | Đổi giờ chạy của từng job |
+| `app.backup.dir` | thư mục sao lưu của SQL Server | Nơi ghi file `.bak` |
+| `app.export.pdf-font` | tự tìm Arial/DejaVu | Đường dẫn font `.ttf` cho PDF |
