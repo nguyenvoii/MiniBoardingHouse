@@ -139,6 +139,26 @@ public class TableExporter {
         return out.toByteArray();
     }
 
+    /** PDF van ban don gian (hop dong...): tieu de + cac doan, moi phan tu cua lines la 1 doan (dong rong = cach dong). */
+    public byte[] toTextPdf(String title, List<String> lines) {
+        BaseFont base = loadFont();
+        Font titleFont = new Font(base, 15, Font.BOLD);
+        Font body = new Font(base, 11);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        Document doc = new Document(PageSize.A4, 50, 50, 50, 50);
+        PdfWriter.getInstance(doc, out);
+        doc.open();
+        Paragraph head = new Paragraph(title, titleFont);
+        head.setAlignment(Element.ALIGN_CENTER);
+        doc.add(head);
+        doc.add(new Paragraph(" ", body));
+        for (String line : lines) {
+            doc.add(new Paragraph(line == null || line.isEmpty() ? " " : line, body));
+        }
+        doc.close();
+        return out.toByteArray();
+    }
+
     // ------------------------------------------------------------------ noi bo
 
     private static void checkSize(TableData data) {

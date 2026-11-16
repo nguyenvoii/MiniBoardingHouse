@@ -37,14 +37,15 @@ Cập nhật ngày 16/11/2026, theo những gì thực sự có trên GitHub (nh
 
 | Thành viên | Được giao | Đã có trên `main` | Đang chờ / việc tiếp theo |
 |---|---|---|---|
-| Nguyễn Anh Phi | 45 UC | 16 UC: 1-13, 119, 120, 122, cộng khung xuất Excel/PDF | Hợp đồng 41-51, tính tiền tháng 65-77, thanh toán 85-88, 116, 118. Các phần này cần phòng, khách thuê, chỉ số, đơn giá, hóa đơn của Chi và Toàn nên phải chờ họ đẩy code |
+| Nguyễn Anh Phi | 45 UC | 27 UC: 1-13, 41-51, 119, 120, 122, cộng khung xuất Excel/PDF | Tính tiền tháng 65-77, thanh toán 85-88, 116, 118. Các phần này cần phòng, khách thuê, chỉ số, đơn giá, hóa đơn của Chi và Toàn nên phải chờ họ đẩy code |
 | Nguyễn Trần Bảo Chi | 29 UC | 0 | Chưa có code nào trên GitHub. Phần của Phi và Toàn đang chờ `RoomService`, `TenantService` của Chi |
 | Phạm Khánh Toàn | 24 UC | Một phần (Pull Request #2): hóa đơn, chỉ số điện nước, thu tiền, đơn giá dịch vụ, job nhắc hạn | Chưa có test. Chi phí vận hành: đã bỏ bản của Toàn, giữ bản của Việt (`/api/expenses`, có phân quyền, tóm tắt, bộ lọc). Đối chiếu lại các mục còn lại trong `docs/LOI_CAN_SUA_CODE_TOAN.md`. Lưu ý: `BillingJobs` đang TỰ BẬT (thiếu cấu hình = bật), nên đặt `minihouse.scheduler.enabled=false` khi chạy thử trên máy. |
 | Vũ Văn Quốc Việt | 25 UC | Đã merge PR #1 | Đã có công nợ, trả phòng, bảo trì, thiết bị phòng, chi phí vận hành, thông báo. |
 
 Phần của Phi chi tiết:
 - Đã làm: UC1 đăng ký chủ trọ, UC2 xác thực email bằng OTP, UC3 đăng nhập/đăng xuất, UC4 quên mật khẩu, UC5 đổi mật khẩu, UC6 hồ sơ cá nhân, UC7 ảnh đại diện, UC8-9 quản lý nhân viên, UC10 cấp tài khoản người thuê, UC11 phân quyền theo vai trò, UC12 bảng quyền chi tiết, UC13 nhật ký thao tác, UC119 tài khoản ngân hàng và QR, UC120 khung job tự động, UC122 sao lưu và phục hồi, khung xuất Excel/PDF.
-- Chưa làm (chờ người khác): hợp đồng UC41-51, tính tiền tháng UC65-77, thanh toán UC85-88, UC116, UC118 (dashboard, báo cáo).
+- Hợp đồng UC41-51 đã làm xong (mục 7.3).
+- Chưa làm: tính tiền tháng UC65-77, thanh toán UC85-88, UC116, UC118 (dashboard, báo cáo).
 - Chưa gửi email/SMS thật: mã OTP hiện chỉ in ra log của ứng dụng (xem mục 7.2).
 
 ---
@@ -273,6 +274,28 @@ Mỗi khu trọ có đúng một tài khoản mặc định; tài khoản đầu
 **Xuất Excel/PDF (khung dùng chung).** Tạo `TableData(tiêuĐề, tênCột, cácDòng)` rồi gọi `TableExporter.toExcel(...)` hoặc `toPdf(...)`, trả về trong controller với `TableExporter.EXCEL_TYPE` / `PDF_TYPE`. Ví dụ đầy đủ: `ActivityLogController.export`. Tối đa 50.000 dòng. PDF cần font Unicode để hiện tiếng Việt có dấu: tự tìm Arial (Windows, Mac) hoặc DejaVu Sans (Linux), hoặc chỉ định bằng `app.export.pdf-font`.
 
 ---
+
+### 7.3. Hợp đồng thuê phòng (UC41-51)
+
+Nhân viên (LANDLORD, MANAGER) quản lý; người thuê xem và ký hợp đồng của mình qua `/api/me/contracts`. Mọi thay đổi quan trọng ghi vào `contract_adjustments` (xem được ở chi tiết hợp đồng). Phòng và khách thuê đọc qua EntityManager vì Chi chưa có service.
+
+| API | Mô tả |
+|---|---|
+| `POST /api/contracts` | UC41: lập hợp đồng (phòng phải VACANT, giá và cọc mặc định lấy từ phòng, chu kỳ 1 tháng, hạn ngày 5), phòng chuyển RENTED |
+| `GET /api/contracts?keyword=&status=&page=&size=` | UC47: tra cứu theo mã HĐ, tên khách, mã phòng |
+| `GET /api/contracts/{id}` | UC47: chi tiết kèm lịch sử thay đổi |
+| `PUT /api/contracts/{id}/pricing` | UC42: giá thuê, tiền cọc, chu kỳ, ngày hạn |
+| `PUT /api/contracts/{id}/payment-terms` | UC43: phạt trễ hạn mỗi ngày, điều kiện hoàn cọc |
+| `PUT /api/contracts/{id}/utility-terms` | UC44: điều khoản điện nước |
+| `GET /api/contracts/{id}/pdf` | UC45: tải PDF hợp đồng theo mẫu (tạo lúc tải, dùng font như mục xuất PDF) |
+| `POST /api/contracts/{id}/send` | UC46: gửi thông báo trong app cho khách (cần khách đã có tài khoản UC10) |
+| `POST /api/contracts/{id}/sign` | UC46: nhân viên ký thay (form-data `file` là ảnh chữ ký); chỉ ký 1 lần |
+| `POST /api/me/contracts/{id}/sign` | UC46: người thuê tự ký |
+| `PUT /api/contracts/{id}/extend` | UC48: gia hạn (ngày mới phải sau ngày hết hạn hiện tại) |
+| `PATCH /api/contracts/{id}` | UC49: đổi giá thuê hoặc đổi người đứng tên (đổi người thì chữ ký bị xóa, phải ký lại) |
+| `POST /api/contracts/{id}/transfer` | UC50: chuyển phòng; gửi thêm `periodId`, `closingElectric`, `closingWater` để chốt chỉ số phòng cũ |
+| `POST /api/contracts/{id}/terminate` | UC51: chấm dứt kèm lý do, phòng về VACANT, ghi lịch sử lưu trú |
+| `GET /api/me/contracts`, `GET /api/me/contracts/{id}` | UC37: người thuê xem hợp đồng của mình |
 
 ## 8. Cấu hình
 
