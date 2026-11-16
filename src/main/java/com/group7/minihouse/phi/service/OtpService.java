@@ -1,0 +1,82 @@
+package com.group7.minihouse.phi.service;
+
+import com.group7.minihouse.phi.repository.UserVerificationRepository;
+import com.group7.minihouse.shared.entity.User;
+import com.group7.minihouse.shared.entity.UserVerification;
+import com.group7.minihouse.shared.exception.BusinessException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.SecureRandom;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.List;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+
+/**
+ * Ma OTP 6 so luu o bang user_verifications, dung chung cho UC1 (dang ky), UC2 (xac thuc), UC4 (quen mat khau).
+ * type: EMAIL, PHONE, RECOVERY. Ma co han 10 phut, dung 1 lan, xin lai cach nhau it nhat 60 giay.
+ * Chong do ma: doan SAI 1 lan la moi ma dang con han bi huy, phai xin ma moi (xin ma cach nhau >= 60 giay).
+ */
+@Service
+public class OtpService {
+
+    static final Duration TTL = Duration.ofMinutes(10);
+    static final Duration COOLDOWN = Duration.ofSeconds(60);
+
+    private final SecureRandom random = new SecureRandom();
+    private final UserVerificationRepository repo;
+    private final Clock clock;
+
+    public OtpService(UserVerificationRepository repo, Clock clock) {
+        this.repo = repo;
+        this.clock = clock;
+    }
+
+    /** Tao ma moi, huy cac ma cu. Nem 429 neu vua xin ma chua du 60 giay. Tra ve ma de caller gui di. */
+    @Transactional
+    public String issue(User user, String type) {
+        LocalDateTime now = LocalDateTime.now(clock);
+        // Ma duoc cap luc (expiresAt - TTL). Co ma nao cap trong 60 giay qua (ke ca ma da bi huy) thi chua cho xin tiep:
+        // neu khong, ke tan cong co the lap "xin ma -> doan sai -> xin ma" khong gioi han.
+        if (repo.countIssuedAfter(user.getUserId(), type, now.minus(COOLDOWN).plus(TTL)) > 0) {
+            throw new BusinessException(HttpStatus.TOO_MANY_REQUESTS,
+                    "Vua gui ma xac thuc, vui long doi 1 phut roi thu lai");
+        }
+        // Huy ma cu bang is_verified = true (giu nguyen expires_at de con tinh duoc thoi diem cap)
+        repo.findActive(user.getUserId(), type, now).forEach(v -> v.setIsVerified(true));
+
+        String code = String.format("%06d", random.nextInt(1_000_000));
+        UserVerification v = new UserVerification();
+        v.setUser(user);
+        v.setType(type);
+        v.setCode(code);
+        v.setExpiresAt(now.plus(TTL));
+        v.setIsVerified(false);
+        repo.save(v);
+        return code;
+    }
+
+    /** true neu code khop 1 ma con han (ma bi dung het hieu luc). Sai thi huy het ma con han va tra false. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW) // sai ma -> caller nem loi/rollback, viec huy ma van phai luu
+    public boolean verify(User user, String type, String code) {
+        LocalDateTime now = LocalDateTime.now(clock);
+        List<UserVerification> active = repo.findActive(user.getUserId(), type, now);
+        if (active.isEmpty()) {
+            return false;
+        }
+        UserVerification match = code == null ? null : active.stream()
+                .filter(v -> MessageDigest.isEqual(v.getCode().getBytes(StandardCharsets.UTF_8),
+                        code.trim().getBytes(StandardCharsets.UTF_8)))
+                .findFirst().orElse(null);
+        if (match == null) {
+            active.forEach(v -> v.setIsVerified(true));
+            return false;
+        }
+        match.setIsVerified(true);
+        return true;
+    }
+}

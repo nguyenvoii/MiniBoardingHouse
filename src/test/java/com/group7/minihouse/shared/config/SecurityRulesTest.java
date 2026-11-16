@@ -38,6 +38,18 @@ class SecurityRulesTest {
         @GetMapping("/api/probe/staff") String staff() { return "ok"; }
         @GetMapping("/api/me/probe") String tenantArea() { return "ok"; }
         @GetMapping("/api/auth/probe") String auth() { return "ok"; }
+        @org.springframework.web.bind.annotation.PostMapping("/api/auth/forgot-password") String forgot() { return "ok"; }
+        @org.springframework.web.bind.annotation.PostMapping("/api/auth/reset-password") String reset() { return "ok"; }
+    }
+
+    /** UC4: nguoi quen mat khau chua dang nhap duoc, nen 2 API nay phai cong khai; cac API /api/auth khac thi khong. */
+    @Test
+    void forgotAndResetPasswordArePublic() throws Exception {
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/auth/forgot-password"))
+                .andExpect(status().isOk());
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/auth/reset-password"))
+                .andExpect(status().isOk());
+        mvc.perform(get("/api/auth/probe")).andExpect(status().isUnauthorized());
     }
 
     @Autowired MockMvc mvc;

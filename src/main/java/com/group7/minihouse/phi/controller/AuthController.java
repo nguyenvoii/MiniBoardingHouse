@@ -1,9 +1,12 @@
 package com.group7.minihouse.phi.controller;
 
+import com.group7.minihouse.phi.dto.ForgotPasswordRequest;
 import com.group7.minihouse.phi.dto.LoginRequest;
 import com.group7.minihouse.phi.dto.LoginResponse;
+import com.group7.minihouse.phi.dto.ResetPasswordRequest;
 import com.group7.minihouse.phi.service.ActivityLogService;
 import com.group7.minihouse.phi.service.AuthService;
+import com.group7.minihouse.phi.service.PasswordRecoveryService;
 import com.group7.minihouse.shared.dto.ApiResponse;
 import com.group7.minihouse.shared.exception.BusinessException;
 import com.group7.minihouse.shared.security.AuthUser;
@@ -23,10 +26,13 @@ public class AuthController {
 
     private final AuthService authService;
     private final ActivityLogService activityLogService;
+    private final PasswordRecoveryService recoveryService;
 
-    public AuthController(AuthService authService, ActivityLogService activityLogService) {
+    public AuthController(AuthService authService, ActivityLogService activityLogService,
+                          PasswordRecoveryService recoveryService) {
         this.authService = authService;
         this.activityLogService = activityLogService;
+        this.recoveryService = recoveryService;
     }
 
     /** Dang nhap bang email/SDT + mat khau, tra ve JWT. */
@@ -42,6 +48,20 @@ public class AuthController {
             activityLogService.log(user.userId(), "LOGOUT", "Dang xuat", http.getRemoteAddr());
         }
         return ApiResponse.ok(null);
+    }
+
+    /** UC4 buoc 1: xin ma OTP dat lai mat khau. Luon tra cung 1 thong bao du tai khoan co ton tai hay khong. */
+    @PostMapping("/forgot-password")
+    public ApiResponse<Void> forgotPassword(@Valid @RequestBody ForgotPasswordRequest req, HttpServletRequest http) {
+        recoveryService.forgotPassword(req.identifier(), http.getRemoteAddr());
+        return ApiResponse.ok("Neu tai khoan ton tai, ma xac thuc da duoc gui", null);
+    }
+
+    /** UC4 buoc 2: nhap ma OTP + mat khau moi. */
+    @PostMapping("/reset-password")
+    public ApiResponse<Void> resetPassword(@Valid @RequestBody ResetPasswordRequest req, HttpServletRequest http) {
+        recoveryService.resetPassword(req.identifier(), req.code(), req.newPassword(), http.getRemoteAddr());
+        return ApiResponse.ok("Da dat lai mat khau, hay dang nhap bang mat khau moi", null);
     }
 
     /** Thong tin nguoi dang dang nhap (dung de thu token). */

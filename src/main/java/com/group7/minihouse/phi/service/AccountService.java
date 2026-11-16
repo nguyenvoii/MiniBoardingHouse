@@ -103,7 +103,7 @@ public class AccountService {
         return userRepository.findById(userId).orElseThrow(() -> BusinessException.notFound("Nguoi dung"));
     }
 
-    private static boolean isStrong(String p) {
+    static boolean isStrong(String p) {
         return p != null && p.length() >= 8 && p.chars().anyMatch(Character::isLetter)
                 && p.chars().anyMatch(Character::isDigit);
     }
