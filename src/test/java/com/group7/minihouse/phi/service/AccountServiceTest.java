@@ -34,13 +34,14 @@ class AccountServiceTest {
     @Mock UserRepository userRepository;
     @Mock UserRoleRepository userRoleRepository;
     @Mock ActivityLogService activityLogService;
+    @Mock com.group7.minihouse.shared.storage.FileStorage fileStorage;
 
     final PasswordEncoder encoder = new BCryptPasswordEncoder();
     AccountService service;
 
     @BeforeEach
     void setUp() {
-        service = new AccountService(userRepository, userRoleRepository, encoder, activityLogService);
+        service = new AccountService(userRepository, userRoleRepository, encoder, activityLogService, fileStorage);
     }
 
     private User user(int id, String phone) {
@@ -276,5 +277,59 @@ class AccountServiceTest {
 
         assertEquals(HttpStatus.BAD_REQUEST,
                 fails(() -> service.updateProfile(5, new UpdateProfileRequest("   ", null), "ip")).getStatus());
+    }
+
+    // ---------- UC7 ----------
+
+    @Test
+    void updateAvatarStoresFileDeletesOldOneAndLogs() {
+        User u = user(5, null);
+        u.setAvatarUrl("/api/auth/avatars/old.png");
+        when(userRepository.findById(5)).thenReturn(Optional.of(u));
+        byte[] img = {1, 2, 3};
+        when(fileStorage.saveImage("avatars", img, 2 * 1024 * 1024)).thenReturn("new.png");
+
+        ProfileResponse r = service.updateAvatar(5, img, "1.1.1.1");
+
+        assertEquals("/api/auth/avatars/new.png", u.getAvatarUrl());
+        assertEquals("/api/auth/avatars/new.png", r.avatarUrl());
+        verify(fileStorage).delete("avatars", "old.png");
+        verify(activityLogService).log(5, "UPDATE_AVATAR", "Cap nhat anh dai dien", "1.1.1.1");
+    }
+
+    @Test
+    void updateAvatarWithBadFileChangesNothing() {
+        User u = user(5, null);
+        u.setAvatarUrl("/api/auth/avatars/old.png");
+        when(userRepository.findById(5)).thenReturn(Optional.of(u));
+        when(fileStorage.saveImage(any(), any(), org.mockito.ArgumentMatchers.anyLong()))
+                .thenThrow(new BusinessException("Chi nhan anh"));
+
+        assertThrows(BusinessException.class, () -> service.updateAvatar(5, new byte[]{1}, "ip"));
+        assertEquals("/api/auth/avatars/old.png", u.getAvatarUrl());
+        verify(fileStorage, never()).delete(any(), any());
+    }
+
+    @Test
+    void removeAvatarClearsUrlAndDeletesFile() {
+        User u = user(5, null);
+        u.setAvatarUrl("/api/auth/avatars/old.png");
+        when(userRepository.findById(5)).thenReturn(Optional.of(u));
+
+        service.removeAvatar(5, "ip");
+
+        assertNull(u.getAvatarUrl());
+        verify(fileStorage).delete("avatars", "old.png");
+    }
+
+    @Test
+    void removeAvatarIgnoresExternalUrls() {
+        User u = user(5, null);
+        u.setAvatarUrl("https://example.com/a.png");
+        when(userRepository.findById(5)).thenReturn(Optional.of(u));
+
+        service.removeAvatar(5, "ip");
+
+        verify(fileStorage, never()).delete(any(), any());
     }
 }

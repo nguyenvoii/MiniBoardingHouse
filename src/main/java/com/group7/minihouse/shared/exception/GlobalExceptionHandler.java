@@ -57,7 +57,13 @@ public class GlobalExceptionHandler {
     }
 
     /** Thieu tham so bat buoc hoac sai kieu (vd size=abc). */
-    @ExceptionHandler({MissingServletRequestParameterException.class, MethodArgumentTypeMismatchException.class})
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiResponse<Void>> handleTooLarge(Exception ex) {
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(ApiResponse.error("File qua lon, toi da 5 MB"));
+    }
+
+    @ExceptionHandler({MissingServletRequestParameterException.class, MethodArgumentTypeMismatchException.class,
+            org.springframework.web.multipart.support.MissingServletRequestPartException.class})
     public ResponseEntity<ApiResponse<Void>> handleBadParameter(Exception ex) {
         return ResponseEntity.badRequest().body(ApiResponse.error("Tham so khong hop le hoac thieu"));
     }

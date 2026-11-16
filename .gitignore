@@ -15,3 +15,7 @@ demo-ui/
 # Ke hoach tung buoc / ghi chu lam viec cua AI: chi giu tren may, khong dua len GitHub
 docs/superpowers/
 .superpowers/
+
+# File nguoi dung upload va ban sao luu DB (tao luc chay)
+uploads/
+backups/

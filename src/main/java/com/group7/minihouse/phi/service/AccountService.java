@@ -6,6 +6,7 @@ import com.group7.minihouse.phi.repository.UserRepository;
 import com.group7.minihouse.phi.repository.UserRoleRepository;
 import com.group7.minihouse.shared.entity.User;
 import com.group7.minihouse.shared.exception.BusinessException;
+import com.group7.minihouse.shared.storage.FileStorage;
 import java.util.List;
 import java.util.Objects;
 import java.util.regex.Pattern;
@@ -14,19 +15,25 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** UC5 doi mat khau, UC6 ho so ca nhan: moi nguoi dung (ke ca nguoi thue) thao tac tren chinh tai khoan cua minh. */
+/** UC5 doi mat khau, UC6 ho so ca nhan, UC7 anh dai dien: moi nguoi dung (ke ca nguoi thue) thao tac tren chinh tai khoan cua minh. */
 @Service
 public class AccountService {
 
+    public static final String AVATAR_FOLDER = "avatars";
+    static final String AVATAR_URL_PREFIX = "/api/auth/avatars/";
+    static final long AVATAR_MAX_BYTES = 2 * 1024 * 1024;
     private static final Pattern PHONE = Pattern.compile("\\+?[0-9]{9,15}");
 
     private final UserRepository userRepository;
     private final UserRoleRepository userRoleRepository;
     private final PasswordEncoder passwordEncoder;
     private final ActivityLogService activityLogService;
+    private final FileStorage fileStorage;
 
     public AccountService(UserRepository userRepository, UserRoleRepository userRoleRepository,
-                          PasswordEncoder passwordEncoder, ActivityLogService activityLogService) {
+                          PasswordEncoder passwordEncoder, ActivityLogService activityLogService,
+                          FileStorage fileStorage) {
+        this.fileStorage = fileStorage;
         this.userRepository = userRepository;
         this.userRoleRepository = userRoleRepository;
         this.passwordEncoder = passwordEncoder;
@@ -99,6 +106,37 @@ public class AccountService {
         return toProfile(user, roles);
     }
 
+    /** UC7: dat anh dai dien (PNG/JPG/WebP, toi da 2 MB). Anh cu bi xoa. */
+    @Transactional
+    public ProfileResponse updateAvatar(Integer userId, byte[] image, String ip) {
+        User user = load(userId);
+        String name = fileStorage.saveImage(AVATAR_FOLDER, image, AVATAR_MAX_BYTES);
+        String old = user.getAvatarUrl();
+        user.setAvatarUrl(AVATAR_URL_PREFIX + name);
+        userRepository.save(user);
+        deleteStoredAvatar(old);
+        activityLogService.log(userId, "UPDATE_AVATAR", "Cap nhat anh dai dien", ip);
+        return toProfile(user, userRoleRepository.findRoleCodesByUserId(userId));
+    }
+
+    /** UC7: go anh dai dien. */
+    @Transactional
+    public ProfileResponse removeAvatar(Integer userId, String ip) {
+        User user = load(userId);
+        String old = user.getAvatarUrl();
+        user.setAvatarUrl(null);
+        userRepository.save(user);
+        deleteStoredAvatar(old);
+        activityLogService.log(userId, "REMOVE_AVATAR", "Go anh dai dien", ip);
+        return toProfile(user, userRoleRepository.findRoleCodesByUserId(userId));
+    }
+
+    private void deleteStoredAvatar(String url) {
+        if (url != null && url.startsWith(AVATAR_URL_PREFIX)) {
+            fileStorage.delete(AVATAR_FOLDER, url.substring(AVATAR_URL_PREFIX.length()));
+        }
+    }
+
     private User load(Integer userId) {
         return userRepository.findById(userId).orElseThrow(() -> BusinessException.notFound("Nguoi dung"));
     }
@@ -113,6 +151,7 @@ public class AccountService {
     }
 
     private static ProfileResponse toProfile(User u, List<String> roles) {
-        return new ProfileResponse(u.getUserId(), u.getFullName(), u.getEmail(), u.getPhoneNumber(), roles);
+        return new ProfileResponse(u.getUserId(), u.getFullName(), u.getEmail(), u.getPhoneNumber(), u.getAvatarUrl(),
+                roles);
     }
 }
