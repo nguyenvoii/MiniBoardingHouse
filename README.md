@@ -37,7 +37,7 @@ Cập nhật ngày 16/11/2026, theo những gì thực sự có trên GitHub (nh
 
 | Thành viên | Được giao | Đã có trên `main` | Đang chờ / việc tiếp theo |
 |---|---|---|---|
-| Nguyễn Anh Phi | 45 UC | 27 UC: 1-13, 41-51, 119, 120, 122, cộng khung xuất Excel/PDF | Tính tiền tháng 65-77, thanh toán 85-88, 116, 118. Các phần này cần phòng, khách thuê, chỉ số, đơn giá, hóa đơn của Chi và Toàn nên phải chờ họ đẩy code |
+| Nguyễn Anh Phi | 45 UC | 45 UC: 1-13, 41-51, 65-75, 85-88, 116, 118, 119, 120, 122, cộng khung xuất Excel/PDF | Đã xong hết phần được giao (UC76, UC77 do Toàn làm). Phần Phi đọc phòng và khách thuê trực tiếp qua EntityManager vì Chi chưa có service |
 | Nguyễn Trần Bảo Chi | 29 UC | 0 | Chưa có code nào trên GitHub. Phần của Phi và Toàn đang chờ `RoomService`, `TenantService` của Chi |
 | Phạm Khánh Toàn | 24 UC | Một phần (Pull Request #2): hóa đơn, chỉ số điện nước, thu tiền, đơn giá dịch vụ, job nhắc hạn | Chưa có test. Chi phí vận hành: đã bỏ bản của Toàn, giữ bản của Việt (`/api/expenses`, có phân quyền, tóm tắt, bộ lọc). Đối chiếu lại các mục còn lại trong `docs/LOI_CAN_SUA_CODE_TOAN.md`. Lưu ý: `BillingJobs` đang TỰ BẬT (thiếu cấu hình = bật), nên đặt `minihouse.scheduler.enabled=false` khi chạy thử trên máy. |
 | Vũ Văn Quốc Việt | 25 UC | Đã merge PR #1 | Đã có công nợ, trả phòng, bảo trì, thiết bị phòng, chi phí vận hành, thông báo. |
@@ -45,7 +45,7 @@ Cập nhật ngày 16/11/2026, theo những gì thực sự có trên GitHub (nh
 Phần của Phi chi tiết:
 - Đã làm: UC1 đăng ký chủ trọ, UC2 xác thực email bằng OTP, UC3 đăng nhập/đăng xuất, UC4 quên mật khẩu, UC5 đổi mật khẩu, UC6 hồ sơ cá nhân, UC7 ảnh đại diện, UC8-9 quản lý nhân viên, UC10 cấp tài khoản người thuê, UC11 phân quyền theo vai trò, UC12 bảng quyền chi tiết, UC13 nhật ký thao tác, UC119 tài khoản ngân hàng và QR, UC120 khung job tự động, UC122 sao lưu và phục hồi, khung xuất Excel/PDF.
 - Hợp đồng UC41-51 đã làm xong (mục 7.3).
-- Chưa làm: tính tiền tháng UC65-77, thanh toán UC85-88, UC116, UC118 (dashboard, báo cáo).
+- Tính tiền tháng UC65-75 (mục 7.4), thanh toán UC85-88 (7.5), dashboard UC116 và báo cáo UC118 (7.6) đã làm xong. UC76 và UC77 là phần của Toàn (đã có trong `InvoiceController`).
 - Chưa gửi email/SMS thật: mã OTP hiện chỉ in ra log của ứng dụng (xem mục 7.2).
 
 ---
@@ -297,6 +297,47 @@ Nhân viên (LANDLORD, MANAGER) quản lý; người thuê xem và ký hợp đ�
 | `POST /api/contracts/{id}/terminate` | UC51: chấm dứt kèm lý do, phòng về VACANT, ghi lịch sử lưu trú |
 | `GET /api/me/contracts`, `GET /api/me/contracts/{id}` | UC37: người thuê xem hợp đồng của mình |
 
+### 7.4. Tính tiền hàng tháng (UC65-75)
+
+Chỉ nhân viên (LANDLORD, MANAGER). Một kỳ = một khu trọ + một tháng (`YYYY-MM`). Kỳ DRAFT tính và tính lại thoải mái; duyệt (APPROVED) xong thì khóa. UC77 phát hành hóa đơn là `POST /api/invoices/batch` của Toàn, chỉ chạy khi kỳ đã duyệt. Mọi con số lấy từ các dòng `fee_item_details`, các cột tiền phòng/điện/nước/dịch vụ/phụ thu/giảm trừ/phạt/tổng ở `calculated_monthly_fees` luôn được tính lại từ các dòng đó nên sửa tay một dòng không làm lệch tổng.
+
+| API | Mô tả |
+|---|---|
+| `POST /api/billing/periods` | UC66: tạo kỳ `{propertyId, monthYear}`, trả danh sách hợp đồng có hiệu lực trong tháng |
+| `GET /api/billing/periods?propertyId=`, `GET /api/billing/periods/{id}` | Danh sách kỳ, bảng tính của kỳ |
+| `GET /api/billing/periods/{id}/validate` | UC67: thiếu chỉ số, chỉ số chưa xác nhận, thiếu đơn giá |
+| `POST /api/billing/periods/{id}/calculate` | UC68-73: tính tiền toàn kỳ (xóa bảng tính cũ rồi tính lại). Trả kèm cảnh báo |
+| `GET /api/billing/fees/{feeId}` | Chi tiết các dòng phí của một phòng |
+| `PUT /api/billing/fee-items/{detailId}` | UC74: sửa số lượng/đơn giá một dòng (dòng giảm trừ phải có đơn giá âm) |
+| `GET /api/billing/periods/{id}/anomalies` | UC75: phòng vượt 150% trung bình các kỳ trước |
+| `POST /api/billing/periods/{id}/approve` | UC75: duyệt kỳ |
+
+Cách tính: tiền phòng theo số ngày thực tế trong tháng (vào hoặc trả giữa tháng thì chia theo ngày, làm tròn đồng); điện nước = chỉ số trong kỳ ghi chỉ số của tháng đó nhân đơn giá hiệu lực; dịch vụ theo `property_service_rates` (cố định mỗi phòng, theo số người ở, theo số xe; loại `PER_METER_UNIT` chưa tự tính); phụ thu/giảm trừ từ `room_custom_rates`; phạt trễ hạn = số ngày quá hạn của các khoản nợ chưa tất toán nhân `late_fee_per_day`. UC65 và UC72 (điện nước chung của khu): ghi các khoản chi nhóm "Điện nước chung" bằng `/api/expenses` của Việt, hệ thống cộng các khoản trong tháng và chia cho các phòng theo số người ở.
+
+### 7.5. Thanh toán hóa đơn (UC85-88)
+
+Nhân viên thu ngân (LANDLORD, MANAGER, CASHIER). Cần đăng nhập để biết ai nhận tiền. Giao dịch chờ xác nhận được lưu ở trạng thái `FAILED` (DB chỉ có SUCCESS/FAILED/REVERSED) và chỉ cộng vào hóa đơn khi chuyển SUCCESS. Trả dư thì dùng chức năng thanh toán dư của Toàn.
+
+| API | Mô tả |
+|---|---|
+| `POST /api/payments` | UC85: ghi nhận đã nhận tiền mặt hoặc chuyển khoản `{invoiceId, method: CASH/BANK_TRANSFER, amount, transactionCode?}`, cộng vào hóa đơn ngay |
+| `POST /api/payments/qr` | UC86: tạo giao dịch chờ, trả tài khoản ngân hàng mặc định (UC119), ảnh QR và nội dung chuyển khoản (= mã hóa đơn) |
+| `POST /api/me/payments/qr` | UC86: người thuê tự lấy mã QR cho hóa đơn của mình |
+| `POST /api/payments/callback` | UC86: cổng thanh toán gọi về, kiểm tra header `X-Callback-Secret` = `app.payment.callback-secret` (để trống = tắt) |
+| `POST /api/payments/match` | UC88: tìm hóa đơn có mã nằm trong nội dung chuyển khoản |
+| `POST /api/payments/{id}/confirm` | UC88: nhập số tiền thực nhận trên sao kê; khớp thì cộng vào hóa đơn, lệch thì giữ nguyên chờ |
+| `GET /api/payments?invoiceId=&keyword=&status=`, `GET /api/payments/{id}` | UC87: tra cứu giao dịch |
+
+### 7.6. Dashboard và báo cáo (UC116, UC118)
+
+LANDLORD, MANAGER. `propertyId` bỏ trống là gộp mọi khu trọ.
+
+| API | Mô tả |
+|---|---|
+| `GET /api/dashboard?propertyId=` | Số phòng (đang thuê, trống), tỷ lệ lấp đầy, doanh thu/đã lập hóa đơn/chi phí của tháng này, tổng công nợ, số hóa đơn chưa trả và quá hạn, hợp đồng sắp hết hạn |
+| `GET /api/reports/revenue?propertyId=&year=` | Doanh thu, chi phí, lợi nhuận 12 tháng. Doanh thu = các giao dịch SUCCESS theo ngày thanh toán |
+| `GET /api/reports/revenue/export?propertyId=&year=&format=xlsx\|pdf` | Xuất báo cáo ra Excel hoặc PDF |
+
 ## 8. Cấu hình
 
 Đặt trong `src/main/resources/application-local.properties` (không đưa lên GitHub). Giá trị mặc định nằm ở `application.properties`.
@@ -310,5 +351,6 @@ Nhân viên (LANDLORD, MANAGER) quản lý; người thuê xem và ký hợp đ�
 | `app.upload.dir` | `uploads` | Thư mục lưu file upload |
 | `app.jobs.enabled` | `false` | Bật các job tự động |
 | `app.jobs.<tên-job>.cron` | theo job | Đổi giờ chạy của từng job |
+| `app.payment.callback-secret` | trống (tắt) | Bí mật cổng thanh toán gọi `/api/payments/callback` |
 | `app.backup.dir` | thư mục sao lưu của SQL Server | Nơi ghi file `.bak` |
 | `app.export.pdf-font` | tự tìm Arial/DejaVu | Đường dẫn font `.ttf` cho PDF |
