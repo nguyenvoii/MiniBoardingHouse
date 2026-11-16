@@ -5,7 +5,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
 @Configuration
-public class SchedulerConfig {
+public class JobSchedulerConfig {
 
     /** 2 luong cho job (job khac nhau co the chay cung luc, cung 1 job thi khong). */
     @Bean

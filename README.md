@@ -39,7 +39,7 @@ Cập nhật ngày 16/11/2026, theo những gì thực sự có trên GitHub (nh
 |---|---|---|---|
 | Nguyễn Anh Phi | 45 UC | 16 UC: 1-13, 119, 120, 122, cộng khung xuất Excel/PDF | Hợp đồng 41-51, tính tiền tháng 65-77, thanh toán 85-88, 116, 118. Các phần này cần phòng, khách thuê, chỉ số, đơn giá, hóa đơn của Chi và Toàn nên phải chờ họ đẩy code |
 | Nguyễn Trần Bảo Chi | 29 UC | 0 | Chưa có code nào trên GitHub. Phần của Phi và Toàn đang chờ `RoomService`, `TenantService` của Chi |
-| Phạm Khánh Toàn | 24 UC | 0 | Đã gửi bản zip, Phi đã review. Cần sửa theo `docs/LOI_CAN_SUA_CODE_TOAN.md` (đưa vào package `toan`, bỏ entity trùng, dùng `BusinessException`) rồi đẩy bằng nhánh riêng và Pull Request |
+| Phạm Khánh Toàn | 24 UC | Một phần (Pull Request #2): hóa đơn, chỉ số điện nước, thu tiền, đơn giá dịch vụ, chi phí vận hành, job nhắc hạn | Chưa có test. Đối chiếu lại các mục còn lại trong `docs/LOI_CAN_SUA_CODE_TOAN.md`. Lưu ý: `BillingJobs` đang TỰ BẬT (thiếu cấu hình = bật), nên đặt `minihouse.scheduler.enabled=false` khi chạy thử trên máy. Phần chi phí vận hành đang trùng với `ExpenseController` của Việt, hai người cần thống nhất ai giữ |
 | Vũ Văn Quốc Việt | 25 UC | 0 (đã làm trên nhánh) | Nhánh `viet/boarding-house-management` đã có công nợ, trả phòng, bảo trì, thiết bị phòng, chi phí vận hành, thông báo. Chưa vào `main`, gộp với `main` không xung đột, cần tạo Pull Request |
 
 Phần của Phi chi tiết:
