@@ -2,7 +2,7 @@ import {
   createElement, ArrowRight, Banknote, Bell, BedDouble, Calculator, Calendar, ChartColumn, Check, ChevronLeft,
   ChevronRight, CircleAlert, Clock, CreditCard, Download, Droplets, Eye, FileText, House, Info, KeyRound, Landmark,
   LayoutDashboard, Lock, LogOut, Mail, Menu, Pencil, Phone, Plus, Printer, QrCode, Receipt, RefreshCw, Route, Search,
-  Send, Settings, ShieldCheck, TriangleAlert, User, Users, Wallet, X, Zap, FileSignature, History, Building2,
+  Send, Settings, ShieldCheck, TriangleAlert, User, Users, Wallet, X, Zap, FileSignature, History, Building2, Wrench,
 } from 'lucide';
 
 const ICONS = {
@@ -12,7 +12,7 @@ const ICONS = {
   key: KeyRound, bank: Landmark, dash: LayoutDashboard, lock: Lock, logout: LogOut, mail: Mail, menu: Menu,
   edit: Pencil, phone: Phone, plus: Plus, print: Printer, qr: QrCode, receipt: Receipt, refresh: RefreshCw,
   route: Route, search: Search, send: Send, settings: Settings, shield: ShieldCheck, warn: TriangleAlert, user: User,
-  users: Users, wallet: Wallet, x: X, zap: Zap, sign: FileSignature, history: History, building: Building2,
+  users: Users, wallet: Wallet, x: X, zap: Zap, sign: FileSignature, history: History, building: Building2, wrench: Wrench,
 } as const;
 
 export type IconName = keyof typeof ICONS;

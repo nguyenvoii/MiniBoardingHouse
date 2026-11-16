@@ -17,7 +17,7 @@ export async function contractsPage(view: HTMLElement, _p: Record<string, string
   const state = { keyword: '', status: '' };
   const holder = h('div');
   const q = input({ type: 'search', placeholder: 'Mã hợp đồng, tên khách hoặc phòng', 'aria-label': 'Tìm hợp đồng' });
-  const status = select([['', 'Mọi trạng thái'], ['ACTIVE', 'Đang hiệu lực'], ['EXPIRING_SOON', 'Sắp hết hạn'], ['EXPIRED', 'Đã hết hạn'], ['TERMINATED', 'Đã chấm dứt']], '');
+  const status = select([['', 'Mọi trạng thái'], ['ACTIVE', 'Đang hiệu lực'], ['EXPIRING_SOON', 'Sắp hết hạn'], ['EXPIRED', 'Đã hết hạn'], ['TERMINATED', 'Đã chấm dứt']], '', { 'aria-label': 'Lọc theo trạng thái hợp đồng' });
   const load = async () => {
     const r = await api.get<Page<Contract>>(`/api/contracts?keyword=${encodeURIComponent(state.keyword)}&status=${state.status}&size=50`);
     holder.replaceChildren(table<Contract>([
@@ -60,7 +60,7 @@ async function createContract(roomId: number | null, done: () => void): Promise<
   const cycle = select([['1', 'Mỗi tháng'], ['2', '2 tháng một lần'], ['3', '3 tháng một lần'], ['6', '6 tháng một lần']]);
   const due = input({ type: 'number', min: '1', max: '28', value: '5', class: 'input num-in' });
   const late = input({ type: 'number', min: '0', step: '1000', value: '10000', class: 'input num-in' });
-  d.body.append(err, sampleNote('Danh sách khách là dữ liệu mẫu, chờ API của Chi. Phòng trống lấy theo hợp đồng thật'),
+  d.body.append(err, sampleNote('Danh sách khách là dữ liệu mẫu. Phòng trống lấy theo hợp đồng thật'),
     h('div', { class: 'form-grid' }, field('Phòng (chỉ phòng trống)', room), field('Người thuê', tenant),
       field('Ngày bắt đầu', start), field('Ngày kết thúc', end),
       field('Giá thuê (₫/tháng)', rent), field('Tiền cọc (₫)', dep),
@@ -89,6 +89,7 @@ async function openContract(id: number, reload: () => void): Promise<void> {
   const detail = await api.get<ContractDetail>(`/api/contracts/${id}`).catch((e) => { toast(errText(e), 'err'); return null; });
   if (!detail) return;
   const c = detail.contract;
+  const history = detail.adjustments.filter((a) => !(isNum(a.oldValue) && isNum(a.newValue) && Number(a.oldValue) === Number(a.newValue)));
   const live = c.status === 'ACTIVE' || c.status === 'EXPIRING_SOON';
   const d = openDialog(`Hợp đồng ${c.contractCode}`, { drawer: true, width: 620 });
   const refresh = () => { d.close(); reload(); void openContract(id, reload); };
@@ -102,9 +103,9 @@ async function openContract(id: number, reload: () => void): Promise<void> {
       ['Chữ ký', c.digitalSignatureUrl ? h('img', { src: c.digitalSignatureUrl, alt: 'Chữ ký', style: 'height:56px;border:1px solid var(--line);border-radius:6px;background:#fff' }) : 'Chưa ký'],
     ]),
     h('div', null, h('h3', { style: 'margin-bottom:10px' }, 'Lịch sử thay đổi'),
-      detail.adjustments.length
-        ? h('ol', { class: 'timeline' }, ...detail.adjustments.map((a) => h('li', null, h('span', { class: 'pip' }),
-            h('div', null, h('b', null, ADJ[a.adjustmentType] ?? a.adjustmentType), h('span', null, `${a.oldValue ? a.oldValue + ' → ' : ''}${a.newValue ?? ''} · ${dateTime(a.adjustedAt)}`)))))
+      history.length
+        ? h('ol', { class: 'timeline' }, ...history.map((a) => h('li', null, h('span', { class: 'pip' }),
+            h('div', null, h('b', null, ADJ[a.adjustmentType] ?? a.adjustmentType), h('span', null, `${a.oldValue ? fmtVal(a.oldValue) + ' → ' : ''}${fmtVal(a.newValue ?? '')} · ${dateTime(a.adjustedAt)}`)))))
         : h('p', { class: 'muted' }, 'Chưa có thay đổi nào.')),
   );
 
@@ -117,9 +118,17 @@ async function openContract(id: number, reload: () => void): Promise<void> {
       act('Ký', 'sign', () => signPad(id, refresh))),
     h('div', { style: 'display:flex;gap:6px;flex-wrap:wrap' },
       act('Sửa điều khoản', 'edit', () => editTerms(c, refresh)), act('Gia hạn', 'calendar', () => extend(c, refresh)),
-      act('Đổi phòng', 'key', () => transfer(c, refresh)), act('Chấm dứt', 'x', () => terminate(c, refresh), 'danger')),
+      act('Đổi phòng', 'key', () => transfer(c, refresh))),
   );
+  if (live) {
+    d.body.append(h('div', { class: 'danger-zone' }, h('p', null, 'Chấm dứt hợp đồng sẽ trả phòng về trạng thái trống và không hoàn tác được.'),
+      h('button', { class: 'btn danger', onclick: () => void terminate(c, refresh) }, icon('x', 16), 'Chấm dứt hợp đồng')));
+  }
 }
+
+const isNum = (v: string | null): v is string => v !== null && /^-?\d+(\.\d+)?$/.test(v);
+/** Số trong lịch sử (3000000.00) hiện dạng 3.000.000; chữ và ngày giữ nguyên. */
+const fmtVal = (v: string): string => (isNum(v) && v.replace(/[-.]/g, '').length >= 5 ? money(v) : v);
 
 async function sendMsg(id: number): Promise<string> {
   const r = await api.post<unknown>(`/api/contracts/${id}/send`);

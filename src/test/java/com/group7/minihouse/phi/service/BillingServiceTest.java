@@ -18,6 +18,7 @@ import com.group7.minihouse.shared.entity.MonthlyBillingPeriod;
 import com.group7.minihouse.shared.entity.Property;
 import com.group7.minihouse.shared.exception.BusinessException;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.TypedQuery;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
@@ -43,6 +44,7 @@ class BillingServiceTest {
     @Mock FeeItemRepository itemRepo;
     @Mock EntityManager em;
     @Mock ActivityLogService activityLogService;
+    @Mock TypedQuery<Object> emptyQuery;
 
     BillingService service;
     Property property;
@@ -53,6 +55,10 @@ class BillingServiceTest {
         service = new BillingService(periodRepo, feeRepo, itemRepo, em, activityLogService, clock);
         property = new Property();
         property.setPropertyId(1);
+        when(em.createQuery(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.<Class<Object>>any())).thenReturn(emptyQuery);
+        when(emptyQuery.setParameter(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any())).thenReturn(emptyQuery);
+        when(emptyQuery.setMaxResults(org.mockito.ArgumentMatchers.anyInt())).thenReturn(emptyQuery);
+        when(emptyQuery.getResultList()).thenReturn(List.of());
         when(periodRepo.save(any(MonthlyBillingPeriod.class))).thenAnswer(i -> {
             MonthlyBillingPeriod p = i.getArgument(0);
             p.setBillingPeriodId(10);
@@ -148,6 +154,19 @@ class BillingServiceTest {
                 assertThrows(BusinessException.class, () -> service.calculate(10, 5, "ip")).getStatus());
         assertEquals(HttpStatus.CONFLICT,
                 assertThrows(BusinessException.class, () -> service.approve(10, 5, "ip")).getStatus());
+    }
+
+    @Test
+    void approveAlsoClosesTheMeterReadingPeriodOfThatMonth() {
+        period("DRAFT");
+        CalculatedMonthlyFee f = new CalculatedMonthlyFee();
+        f.setTotalCalculatedAmount(new BigDecimal("100"));
+        when(feeRepo.findByPeriod(10)).thenReturn(List.of(f));
+        var reading = new com.group7.minihouse.shared.entity.UtilityReadingPeriod();
+        reading.setIsClosed(false);
+        when(emptyQuery.getResultList()).thenReturn(List.of(reading));
+        service.approve(10, 5, "ip");
+        assertEquals(true, reading.getIsClosed());
     }
 
     @Test

@@ -16,7 +16,7 @@ export async function roomsPage(view: HTMLElement): Promise<void> {
     for (const floor of [...new Set(rooms.map((r) => r.floor))]) {
       const list = rooms.filter((r) => r.floor === floor && (!filter || r.status === filter));
       if (!list.length) continue;
-      board.appendChild(h('section', { class: 'floor' }, h('h3', null, `Tầng ${floor}`), h('div', { class: 'room-grid' }, ...list.map(tile))));
+      board.appendChild(h('section', { class: 'floor' }, h('h2', null, `Tầng ${floor}`), h('div', { class: 'room-grid' }, ...list.map(tile))));
     }
   };
   const tile = (r: LiveRoom) =>
@@ -35,7 +35,7 @@ export async function roomsPage(view: HTMLElement): Promise<void> {
   }
   paint();
   view.replaceChildren(
-    pageHead('Phòng', 'Sơ đồ phòng theo tầng. Phòng có hợp đồng còn hiệu lực là «Đang thuê».', [sampleNote('Danh sách phòng là dữ liệu mẫu, trạng thái lấy từ hợp đồng thật'), h('button', { class: 'btn', disabled: true, title: 'Chờ API của Chi' }, icon('plus', 16), 'Thêm phòng')]),
+    pageHead('Phòng', 'Sơ đồ phòng theo tầng. Phòng có hợp đồng còn hiệu lực là «Đang thuê».', [sampleNote('Danh sách phòng là dữ liệu mẫu, trạng thái lấy từ hợp đồng thật'), h('button', { class: 'btn', disabled: true, title: 'Chưa có chức năng thêm phòng' }, icon('plus', 16), 'Thêm phòng')]),
     h('div', { class: 'stack' }, h('div', null, seg), board),
   );
 }

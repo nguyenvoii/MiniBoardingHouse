@@ -32,6 +32,7 @@
   --panel-2: #f7faf7;
   --line: #dae3dc;
   --line-strong: #bccabf;
+  --field: #7a8b7f; /* viền ô nhập: 3.6:1 trên trắng (WCAG 1.4.11) */
 
   /* Mực */
   --ink: #14231c;

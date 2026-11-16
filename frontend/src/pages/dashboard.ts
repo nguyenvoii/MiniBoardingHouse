@@ -1,6 +1,7 @@
 import { h } from '../lib/dom';
 import { icon } from '../lib/icons';
-import { api, Page, PROPERTY_ID, can } from '../lib/api';
+import { api, PROPERTY_ID, can } from '../lib/api';
+import { liveContracts } from '../data/live';
 import { getMonth, setOverdue } from '../lib/ctx';
 import { date, money, monthLabel } from '../lib/format';
 import type { Contract, Dashboard, Invoice, MonthSummary, Period } from '../data/types';
@@ -15,7 +16,7 @@ export async function dashboardPage(view: HTMLElement): Promise<void> {
     staffOnly ? api.get<Period[]>(`/api/billing/periods?propertyId=${PROPERTY_ID}`) : Promise.resolve([] as Period[]),
     api.get<Invoice[]>(`/api/invoices?propertyId=${PROPERTY_ID}&monthYear=${month}`),
     api.get<MonthSummary>(`/api/invoices/summary/${month}?propertyId=${PROPERTY_ID}`).catch(() => null),
-    staffOnly ? api.get<Page<Contract>>('/api/contracts?status=EXPIRING_SOON&size=6') : Promise.resolve(null),
+    staffOnly ? liveContracts().catch(() => [] as Contract[]) : Promise.resolve(null),
   ]);
   const period = periods.find((p) => p.monthYear === month) ?? null;
   const overdueAll = await api.get<Invoice[]>(`/api/invoices?propertyId=${PROPERTY_ID}&status=OVERDUE`).catch(() => [] as Invoice[]);
@@ -30,7 +31,7 @@ export async function dashboardPage(view: HTMLElement): Promise<void> {
     h('div', { class: 'stack' },
       staffOnly ? routePanel(month, period, invoices, flow) : null,
       figures(summary, dash, overdueAll),
-      h('div', { class: 'grid-2' }, attentionPanel(invoices, overdueAll), staffOnly ? expiringPanel(expiring?.items ?? [], dash) : h('div')),
+      h('div', { class: 'grid-2' }, attentionPanel(invoices, overdueAll), staffOnly ? expiringPanel(endingSoon(expiring ?? []), dash) : h('div')),
     ),
   );
 }
@@ -66,7 +67,7 @@ function routePanel(month: string, period: Period | null, invoices: Invoice[], f
   const state = (i: number): Stop['state'] => (cur === -1 || i < cur ? 'done' : i === cur ? 'current' : 'todo');
   const bill = period ? `#/billing/${period.billingPeriodId}` : '#/billing';
   const stops: Stop[] = [
-    { name: 'Tạo kỳ', sub: period ? 'Đã tạo kỳ' : 'Chưa tạo kỳ', state: state(0), href: '#/billing' },
+    { name: 'Chỉ số và kỳ', sub: period ? 'Đã tạo kỳ' : 'Chưa tạo kỳ', state: state(0), href: '#/meters' },
     { name: 'Tính tiền', sub: hasFees ? `${period!.roomCount} phòng · ${money(period!.totalAmount)} ₫` : 'Chưa tính', state: state(1), href: bill },
     { name: 'Duyệt kỳ', sub: approved ? 'Đã duyệt' : period ? 'Chờ duyệt' : '–', state: state(2), href: bill },
     { name: 'Phát hành hóa đơn', sub: issued ? `${issued} hóa đơn` : 'Chưa phát hành', state: state(3), href: '#/invoices' },
@@ -122,13 +123,20 @@ function attentionPanel(invoices: Invoice[], overdueAll: Invoice[]): HTMLElement
   }), { sub: 'Chưa trả đủ, kể cả các tháng trước, hạn gần nhất ở trên', flush: true, actions: [h('a', { class: 'btn ghost sm', href: '#/invoices' }, 'Xem tất cả')] });
 }
 
-function expiringPanel(list: Contract[], dash: Dashboard | null): HTMLElement {
+/** Hợp đồng còn hiệu lực và hết hạn trong 30 ngày tới, gần nhất lên trước (cùng quy tắc với con số trên Tổng quan). */
+function endingSoon(all: Contract[]): Contract[] {
+  const today = new Date().toISOString().slice(0, 10);
+  const limit = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+  return all.filter((c) => c.endDate >= today && c.endDate <= limit).sort((a, b) => a.endDate.localeCompare(b.endDate));
+}
+
+function expiringPanel(list: Contract[], _dash: Dashboard | null): HTMLElement {
   const body = list.length
     ? h('div', null, ...list.map((c) => h('a', { class: 'list-row', href: `#/contracts?open=${c.contractId}` },
         plate(c.roomCode), h('div', { class: 'grow' }, h('b', null, c.tenantName), h('span', null, `hết hạn ${date(c.endDate)}`)), icon('right', 16))))
     : emptyState('Không có hợp đồng sắp hết hạn', 'Các hợp đồng còn xa ngày hết hạn.');
   return panel('Hợp đồng sắp hết hạn', body, {
-    sub: dash ? `${dash.contractsEndingIn30Days} hợp đồng hết hạn trong 30 ngày tới` : undefined, flush: true,
+    sub: `${list.length} hợp đồng hết hạn trong 30 ngày tới`, flush: true,
     actions: [h('a', { class: 'btn ghost sm', href: '#/contracts' }, 'Tất cả hợp đồng')],
   });
 }

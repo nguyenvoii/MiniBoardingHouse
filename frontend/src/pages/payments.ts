@@ -60,9 +60,9 @@ export async function paymentsPage(view: HTMLElement): Promise<void> {
   const month = getMonth();
   const state = { status: '', keyword: '', all: false };
   const holder = h('div');
-  const status = select([['', 'Mọi trạng thái'], ['FAILED', 'Chờ xác nhận'], ['SUCCESS', 'Thành công'], ['REVERSED', 'Đã hủy giao dịch']], '');
+  const status = select([['', 'Mọi trạng thái'], ['FAILED', 'Chờ xác nhận'], ['SUCCESS', 'Thành công'], ['REVERSED', 'Đã hủy giao dịch']], '', { 'aria-label': 'Lọc theo trạng thái giao dịch' });
   const kw = input({ type: 'search', placeholder: 'Mã giao dịch hoặc mã hóa đơn', 'aria-label': 'Tìm giao dịch' });
-  const scope = select([['month', monthLabel(month)], ['all', 'Mọi tháng']], 'month');
+  const scope = select([['month', monthLabel(month)], ['all', 'Mọi tháng']], 'month', { 'aria-label': 'Chọn tháng của giao dịch' });
   scope.addEventListener('change', () => { state.all = scope.value === 'all'; void load(); });
   const load = async () => {
     const r = await api.get<Page<Payment>>(`/api/payments?status=${state.status}&keyword=${encodeURIComponent(state.keyword)}&size=200`);
@@ -75,17 +75,8 @@ export async function paymentsPage(view: HTMLElement): Promise<void> {
       { key: 'a', label: 'Số tiền (₫)', num: true, render: (p) => h('b', null, money(p.amountPaid)) },
       { key: 'u', label: 'Người nhận', render: (p) => p.receivedByName ?? '–' },
       { key: 's', label: 'Trạng thái', render: (p) => statusBadge(p.status) },
-      { key: 'x', label: '', render: (p) => p.status === 'FAILED' ? confirmBtn(p) : p.status === 'SUCCESS' ? reverseBtn(p) : '' },
-    ], r.items, { empty: emptyState(state.all ? 'Chưa có giao dịch' : `Không có giao dịch trong ${monthLabel(month).toLowerCase()}`, state.all ? 'Khi ghi nhận thanh toán hoặc tạo mã QR, giao dịch hiện ở đây.' : 'Đổi tháng ở thanh trên, hoặc chọn «Mọi tháng» ở bộ lọc.') }));
-  };
-  const reverseBtn = (p: Payment) => {
-    const b = h('button', { class: 'btn secondary sm' }, 'Hủy giao dịch');
-    b.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      if (!(await confirmDialog('Hủy giao dịch thanh toán', `Hủy giao dịch ${money(p.amountPaid)} ₫ của hóa đơn ${p.invoiceCode}? Số tiền sẽ bị trừ khỏi hóa đơn. Dùng khi ghi nhầm.`, 'Hủy giao dịch', true))) return;
-      try { await api.post(`/api/payment-transactions/${p.transactionId}/reverse`); toast('Đã hủy giao dịch'); void load(); } catch (x) { toast(errText(x), 'err'); }
-    });
-    return b;
+      { key: 'x', label: '', render: (p) => p.status === 'FAILED' ? confirmBtn(p) : '' },
+    ], r.items, { onRow: (p) => openPayment(p, load), empty: emptyState(state.all ? 'Chưa có giao dịch' : `Không có giao dịch trong ${monthLabel(month).toLowerCase()}`, state.all ? 'Khi ghi nhận thanh toán hoặc tạo mã QR, giao dịch hiện ở đây.' : 'Đổi tháng ở thanh trên, hoặc chọn «Mọi tháng» ở bộ lọc.') }));
   };
   const confirmBtn = (p: Payment) => {
     const b = h('button', { class: 'btn sm' }, icon('check', 14), 'Xác nhận');
@@ -148,3 +139,22 @@ function matchDialog(done: () => void): void {
 }
 
 void panel;
+
+/** Chi tiết giao dịch. «Hủy giao dịch» (làm giảm số đã trả của hóa đơn) nằm riêng ở cuối, không đặt trên từng hàng để khỏi bấm nhầm. */
+function openPayment(p: Payment, reload: () => void): void {
+  const d = openDialog(`Giao dịch ${p.transactionCode ?? p.transactionId}`);
+  d.body.append(
+    h('div', { style: 'display:flex;gap:10px;align-items:center;flex-wrap:wrap' }, h('span', { class: 'plate ghost' }, p.invoiceCode), statusBadge(p.status)),
+    h('dl', { class: 'dl' }, h('dt', null, 'Số tiền'), h('dd', null, `${money(p.amountPaid)} ₫`), h('dt', null, 'Phương thức'), h('dd', null, METHODS[p.method] ?? p.method),
+      h('dt', null, 'Thời điểm'), h('dd', null, dateTime(p.paymentDate)), h('dt', null, 'Người nhận'), h('dd', null, p.receivedByName ?? '–')),
+  );
+  if (p.status === 'SUCCESS') {
+    const btn = h('button', { class: 'btn danger' }, 'Hủy giao dịch');
+    btn.addEventListener('click', async () => {
+      if (!(await confirmDialog('Hủy giao dịch thanh toán', `Hủy giao dịch ${money(p.amountPaid)} ₫ của hóa đơn ${p.invoiceCode}? Số tiền sẽ bị trừ khỏi hóa đơn. Chỉ dùng khi ghi nhầm.`, 'Hủy giao dịch', true))) return;
+      try { await api.post(`/api/payment-transactions/${p.transactionId}/reverse`); d.close(); toast('Đã hủy giao dịch'); reload(); } catch (x) { toast(errText(x), 'err'); }
+    });
+    d.body.append(h('div', { class: 'danger-zone' }, h('p', null, 'Ghi nhầm số tiền hoặc hóa đơn? Hủy giao dịch để trừ lại khỏi hóa đơn.'), btn));
+  }
+  d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Đóng'));
+}

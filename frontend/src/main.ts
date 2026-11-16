@@ -11,6 +11,7 @@ import { onMonth, getMonth } from './lib/ctx';
 import { api, PROPERTY_ID } from './lib/api';
 import type { Period } from './data/types';
 import { enterView, initMotionPref } from './lib/motion';
+import { monthRouteBar } from './ui/monthRoute';
 import { buildStaffShell, buildTenantShell, StaffShell, TenantShell } from './ui/shell';
 import { errorState, skeletonRows } from './ui/kit';
 import { renderLogin } from './pages/login';
@@ -33,6 +34,13 @@ import { expensesPage } from './pages/expenses';
 import { debtsPage } from './pages/debts';
 import { maintenancePage } from './pages/maintenance';
 
+const TITLES: Record<string, string> = {
+  '/': 'Tổng quan', '/meters': 'Chỉ số điện nước', '/billing': 'Tính tiền tháng', '/invoices': 'Hóa đơn', '/payments': 'Thanh toán', '/debts': 'Công nợ',
+  '/maintenance': 'Sửa chữa', '/contracts': 'Hợp đồng', '/rooms': 'Phòng', '/tenants': 'Khách thuê', '/reports': 'Doanh thu và chi phí', '/expenses': 'Chi phí vận hành',
+  '/staff': 'Nhân viên', '/settings': 'Cài đặt', '/activity': 'Nhật ký thao tác', '/profile': 'Tài khoản của tôi', '/login': 'Đăng nhập',
+  '/me': 'Trang chủ', '/me/invoices': 'Hóa đơn của tôi', '/me/contracts': 'Hợp đồng của tôi', '/me/support': 'Hỗ trợ', '/me/notifications': 'Thông báo',
+};
+const ROUTE_PAGES: Record<string, number> = { '/meters': 0, '/billing': 1, '/invoices': 3, '/payments': 4, '/debts': 4 };
 const STAFF_ROLES = ['LANDLORD', 'MANAGER', 'CASHIER', 'METER_READER'] as const;
 
 route('/', 'staff', dashboardPage);
@@ -63,6 +71,28 @@ const app = document.getElementById('app')!;
 let shell: (StaffShell | TenantShell) & { kind?: string } | null = null;
 let shellKind: 'staff' | 'tenant' | null = null;
 let offMonth: (() => void) | null = null;
+let routeObserver: MutationObserver | null = null;
+
+/** Thanh «Tuyến tháng» thu gọn ở đầu các màn chốt tháng; chèn lại nếu trang tự vẽ lại sau một thao tác. */
+function keepMonthRoute(view: HTMLElement, path: string): void {
+  routeObserver?.disconnect();
+  routeObserver = null;
+  const here = ROUTE_PAGES[path];
+  if (here === undefined || isTenant(loadSession())) return;
+  let busy = false;
+  const ensure = async () => {
+    if (busy || view.querySelector('.route.compact')) return;
+    const head = view.querySelector('.page-head');
+    if (!head) return;
+    busy = true;
+    const bar = await monthRouteBar(getMonth(), here);
+    if (bar && head.isConnected && !view.querySelector('.route.compact') && current().path === path) head.after(bar);
+    busy = false;
+  };
+  routeObserver = new MutationObserver(() => void ensure());
+  routeObserver.observe(view, { childList: true });
+  void ensure();
+}
 
 async function render(): Promise<void> {
   const s = loadSession();
@@ -90,6 +120,7 @@ async function render(): Promise<void> {
     app.replaceChildren(shell.root);
   }
   const m = match(path);
+  document.title = `${TITLES[path] ?? (path.startsWith('/billing/') ? 'Kỳ tính tiền' : 'Stayly')} · Stayly`.replace('Stayly · Stayly', 'Stayly');
   const view = shell.view;
   shell.setActive(path);
   if (offMonth) {
@@ -102,10 +133,13 @@ async function render(): Promise<void> {
   }
   if (!tenant && !STAFF_ROLES.some((r) => can(r))) return;
   const run = async () => {
+    routeObserver?.disconnect(); // ngắt theo dõi của trang trước, kẻo nó chèn thanh tuyến vào trang mới
+    routeObserver = null;
     view.replaceChildren(skeletonRows(6));
     try {
       await m.route.handler(view, m.params, current().query);
       enterView(view);
+      keepMonthRoute(view, path);
     } catch (e) {
       view.replaceChildren(errorState(errText(e), () => void run()));
     }

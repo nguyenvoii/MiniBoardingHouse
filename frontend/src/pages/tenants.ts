@@ -34,7 +34,7 @@ export async function tenantsPage(view: HTMLElement): Promise<void> {
   q.addEventListener('input', paint);
   paint();
   view.replaceChildren(
-    pageHead('Khách thuê', 'Hồ sơ người thuê, phòng đang ở và tài khoản đăng nhập để họ xem hóa đơn trên điện thoại.', [sampleNote('Hồ sơ khách là dữ liệu mẫu, chờ API của Chi'), h('button', { class: 'btn', disabled: true, title: 'Chờ API của Chi' }, icon('plus', 16), 'Thêm khách thuê')]),
+    pageHead('Khách thuê', 'Hồ sơ người thuê, phòng đang ở và tài khoản đăng nhập để họ xem hóa đơn trên điện thoại.', [sampleNote('Hồ sơ khách là dữ liệu mẫu'), h('button', { class: 'btn', disabled: true, title: 'Chưa có chức năng thêm khách thuê' }, icon('plus', 16), 'Thêm khách thuê')]),
     panel(null, [h('div', { class: 'toolbar' }, h('div', { class: 'grow' }, q)), holder], { flush: true }),
   );
 }

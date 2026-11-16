@@ -63,12 +63,12 @@ export function renderLogin(root: HTMLElement, onDone: () => void): void {
       h('div', { class: 'login-side' },
         h('div', { style: 'display:flex;align-items:center;gap:12px' }, logo(44), h('b', { style: 'font-size:26px;color:#fff;letter-spacing:-0.02em' }, 'Stayly')),
         h('div', null,
-          h('h2', null, 'Chốt tiền tháng không sót một phòng.'),
+          h('p', { class: 'login-headline' }, 'Chốt tiền tháng không sót một phòng.'),
           h('p', null, 'Từ chỉ số điện nước đến hóa đơn và thu tiền: mỗi tháng là một tuyến, mỗi phòng là một trạm.'),
         ),
         h('div', { style: 'display:flex;gap:8px;flex-wrap:wrap' }, ...['P101', 'P102', 'P103', 'P201', 'P202'].map((c) => h('span', { class: 'plate' }, c))),
       ),
-      h('div', { class: 'login-main' }, form),
+      h('main', { class: 'login-main' }, form),
     ),
   );
   id.focus();

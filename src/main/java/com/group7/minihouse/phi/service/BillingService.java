@@ -348,6 +348,11 @@ public class BillingService {
             throw new BusinessException(HttpStatus.CONFLICT, "Ky chua co bang tinh nao, hay tinh tien truoc khi duyet");
         }
         p.setStatus("APPROVED");
+        // Ky tinh tien da duyet thi ky ghi chi so cung thang cung dong lai, de hai trang thai khong mau thuan
+        var reading = readingPeriod(p.getProperty().getPropertyId(), YearMonth.parse(p.getMonthYear()));
+        if (reading != null) {
+            reading.setIsClosed(true);
+        }
         audit(actorId, "APPROVE_BILLING", "Duyet ky tinh tien " + p.getMonthYear(), ip);
         return toResponse(p, fees.size(), sum(fees));
     }

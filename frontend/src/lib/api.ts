@@ -1,5 +1,7 @@
 // Gọi API Spring Boot. API của Phi/Việt bọc {success, message, data}; API của Toàn trả JSON thô: client xử lý cả hai.
 
+import { restoreVi } from './vi';
+
 export const PROPERTY_ID = 1; // Hiện chỉ có một khu trọ; đổi khi Chi làm xong API khu trọ.
 
 export class ApiError extends Error {
@@ -156,5 +158,5 @@ export interface Page<T> {
 }
 
 export function errText(e: unknown): string {
-  return e instanceof Error ? e.message : 'Có lỗi xảy ra, thử lại sau.';
+  return e instanceof Error ? restoreVi(e.message) : 'Có lỗi xảy ra, thử lại sau.';
 }

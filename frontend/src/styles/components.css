@@ -17,7 +17,8 @@
 .btn.danger { background: var(--danger); }
 .btn.danger:hover { background: #8f2016; }
 .btn.plate { background: var(--plate); color: var(--plate-ink); border-color: var(--plate-ink); }
-.btn.plate:hover { background: #ffd22e; color: var(--plate-ink); }
+.btn.plate:hover:not([disabled]) { background: #ffd22e; color: var(--plate-ink); }
+.btn.plate[disabled] { background: var(--line); color: var(--ink-3); border-color: transparent; }
 .link-btn { border: 0; background: none; padding: 4px 0; color: var(--primary); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
 .link-btn:hover { color: var(--primary-hover); }
 .btn.sm { min-height: 30px; padding: 4px 10px; font-size: 12.5px; }
@@ -34,11 +35,12 @@
 .field .hint { font-size: 12px; color: var(--ink-3); }
 .field .error { font-size: 12.5px; color: var(--danger); font-weight: 500; display: flex; gap: 6px; align-items: center; }
 .input, .select, .textarea {
-  width: 100%; min-height: 38px; padding: 8px 11px; border: 1px solid var(--line-strong); border-radius: var(--r);
+  width: 100%; min-height: 38px; padding: 8px 11px; border: 1px solid var(--field); border-radius: var(--r);
   background: #fff; transition: border-color 150ms var(--ease), box-shadow 150ms var(--ease);
 }
 .textarea { min-height: 84px; resize: vertical; }
 .input:hover, .select:hover { border-color: var(--ink-3); }
+::placeholder { color: #5c6c62; opacity: 1; }
 .input:focus-visible, .select:focus-visible, .textarea:focus-visible { border-color: var(--primary); outline: 3px solid var(--plate); outline-offset: 0; box-shadow: none; }
 .input[aria-invalid='true'] { border-color: var(--danger); background: var(--danger-bg); }
 .input:disabled, .select:disabled { background: var(--panel-2); color: var(--ink-3); }
@@ -74,7 +76,8 @@
 .tbl { font-size: 13.5px; }
 .tbl th { position: sticky; top: 0; text-align: left; font-size: 12px; font-weight: 650; color: var(--ink-3); padding: 10px 14px; background: var(--panel-2); border-bottom: 1px solid var(--line); white-space: nowrap; }
 .tbl th.num { text-align: right; }
-.tbl th button { all: unset; cursor: pointer; display: inline-flex; gap: 4px; align-items: center; }
+.tbl th button { all: unset; cursor: pointer; display: inline-flex; gap: 4px; align-items: center; min-height: 28px; padding: 0 2px; }
+.tbl th button:hover { color: var(--ink); }
 .tbl th button:focus-visible { outline: 3px solid var(--plate); }
 .tbl td { padding: 11px 14px; border-bottom: 1px solid var(--line); vertical-align: middle; }
 .tbl tr:last-child td { border-bottom: 0; }
@@ -134,7 +137,7 @@
 .tabs button { border: 0; background: none; padding: 11px 14px; font-weight: 600; color: var(--ink-3); border-bottom: 3px solid transparent; margin-bottom: -1px; white-space: nowrap; }
 .tabs button:hover { color: var(--ink); }
 .tabs button[aria-selected='true'] { color: var(--primary); border-bottom-color: var(--plate); box-shadow: inset 0 -1px 0 var(--plate-ink); }
-.seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: var(--r); overflow: hidden; background: #fff; }
+.seg { display: inline-flex; border: 1px solid var(--field); border-radius: var(--r); overflow: hidden; background: #fff; }
 .seg button { border: 0; background: none; padding: 6px 12px; font-weight: 600; color: var(--ink-2); font-size: 13px; }
 .seg button + button { border-left: 1px solid var(--line); }
 .seg button[aria-pressed='true'] { background: var(--primary); color: #fff; }
@@ -173,7 +176,7 @@ dialog.drawer { margin: 0 0 0 auto; width: min(560px, 100vw); height: 100dvh; ma
 .skel { background: linear-gradient(90deg, #e6ede7 25%, #f2f6f2 50%, #e6ede7 75%); background-size: 200% 100%; animation: shimmer 1.3s linear infinite; border-radius: 6px; min-height: 14px; }
 @keyframes shimmer { to { background-position: -200% 0; } }
 .empty { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 36px 24px; max-width: 520px; margin: 0 auto; text-align: left; }
-.empty h3 { font-size: 16px; }
+.empty .empty-title { font-size: 16px; font-weight: 650; }
 .empty p { color: var(--ink-3); }
 .sample-note { display: inline-flex; align-items: center; gap: 8px; padding: 4px 10px; border-radius: 99px; background: var(--info-bg); color: var(--info); font-size: 12.5px; font-weight: 600; }
 .sample-note svg { width: 14px; height: 14px; }
@@ -189,7 +192,7 @@ dialog.drawer { margin: 0 0 0 auto; width: min(560px, 100vw); height: 100dvh; ma
 
 /* ---------- Thẻ phòng (Chi, dữ liệu mẫu) ---------- */
 .floor { display: flex; flex-direction: column; gap: 10px; }
-.floor h3 { color: var(--ink-3); font-size: 12.5px; letter-spacing: 0.04em; text-transform: uppercase; }
+.floor h2 { color: var(--ink-3); font-size: 12.5px; letter-spacing: 0.04em; text-transform: uppercase; }
 .room-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
 .room-tile.repair { background: var(--warn-bg); border-color: #e8c46a; }
 .room-tile { text-align: left; border: 1px solid var(--line); background: var(--panel); border-radius: var(--r); padding: 12px 13px; display: flex; flex-direction: column; gap: 8px; box-shadow: var(--shadow-1); transition: border-color 150ms, transform 150ms var(--ease); }
@@ -234,3 +237,39 @@ a.list-row:hover { background: var(--primary-faint); color: inherit; }
   .figure:first-child { border-top: 0; }
   dialog.dlg { width: calc(100vw - 16px); }
 }
+
+/* ---------- Tuyến tháng thu gọn (đầu các màn chốt tháng) ---------- */
+.route.compact { padding: 10px 20px 12px; }
+.route.compact .route-line { margin: 0; }
+.route.compact .stop::before { top: 11px; height: 4px; }
+.route.compact .stop .node { width: 26px; height: 26px; border-width: 3px; font-size: 11px; }
+.route.compact .stop.done .node svg { width: 13px; height: 13px; }
+.route.compact .stop.current .node { min-width: 46px; height: 28px; margin-top: -1px; font-size: 13px; padding: 0 8px; box-shadow: 0 2px 6px rgb(20 35 28 / 0.2); }
+.route.compact .stop .name { font-size: 12.5px; margin-top: 3px; }
+.route.compact .stop .sub { font-size: 11.5px; }
+.route.compact .stop.here .name { text-decoration: underline; text-decoration-thickness: 2px; text-decoration-color: var(--plate); text-underline-offset: 4px; font-weight: 700; }
+@media (max-width: 700px) {
+  .route.compact { padding: 10px 16px; }
+  .route.compact .route-line { gap: 8px; }
+}
+
+/* ---------- Vùng bấm đủ lớn trên điện thoại và màn cảm ứng (đặt cuối để thắng luật .btn gốc) ---------- */
+@media (max-width: 700px), (pointer: coarse) {
+  .btn { min-height: 44px; }
+  .btn.sm { min-height: 40px; }
+  .icon-btn { width: 44px; height: 44px; }
+  .seg button, .tabs button { min-height: 44px; }
+  .month-switch button { min-width: 40px; min-height: 40px; }
+  .tbl th button { min-height: 36px; }
+}
+
+/* ---------- Nhóm menu đóng/mở và vùng nguy hiểm ---------- */
+.nav-sec { display: flex; flex-direction: column; gap: 1px; }
+.nav-sec > summary.nav-group { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; margin-top: 10px; padding: 6px 10px; border-radius: var(--r); }
+.nav-sec > summary::-webkit-details-marker { display: none; }
+.nav-sec > summary:hover { background: var(--rail-2); }
+.nav-sec > summary svg { transition: transform 160ms var(--ease); color: var(--rail-ink-2); flex: none; }
+.nav-sec[open] > summary svg { transform: rotate(90deg); }
+.nav-sec > summary:focus-visible { outline: 3px solid var(--plate); outline-offset: -2px; }
+.danger-zone { border: 1px solid #e3b3ac; background: var(--danger-bg); border-radius: var(--r); padding: 14px 16px; display: flex; gap: 14px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.danger-zone p { color: var(--danger); font-weight: 500; flex: 1 1 220px; }

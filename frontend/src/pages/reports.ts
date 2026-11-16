@@ -14,9 +14,17 @@ const el = (tag: string, attrs: Record<string, string | number>, text?: string):
   return e as SVGElement;
 };
 
-function chart(r: RevenueReport): SVGElement {
+type Month = RevenueReport['months'][number];
+
+/** Từ tháng đầu đến tháng cuối có phát sinh (tháng giữa chừng không có số liệu vẫn giữ để trục thời gian liền mạch). */
+function trimMonths(months: Month[]): Month[] {
+  const idx = months.map((m, i) => (m.revenue || m.expense ? i : -1)).filter((i) => i >= 0);
+  return idx.length ? months.slice(idx[0], idx[idx.length - 1] + 1) : months;
+}
+
+function chart(r: RevenueReport, months: Month[]): SVGElement {
   const W = 920, H = 300, L = 64, B = 34, T = 16, R = 8;
-  const max = Math.max(1, ...r.months.flatMap((m) => [m.revenue, m.expense]));
+  const max = Math.max(1, ...months.flatMap((m) => [m.revenue, m.expense]));
   const step = niceStep(max / 4);
   const top = Math.ceil(max / step) * step;
   const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, class: 'chart', role: 'img', 'aria-label': `Doanh thu và chi phí năm ${r.year}` });
@@ -25,10 +33,10 @@ function chart(r: RevenueReport): SVGElement {
     svg.appendChild(el('line', { x1: L, x2: W - R, y1: y(v), y2: y(v), class: 'grid' }));
     svg.appendChild(el('text', { x: L - 8, y: y(v) + 4, 'text-anchor': 'end' }, v >= 1e6 ? `${v / 1e6} tr` : money(v)));
   }
-  const slot = (W - L - R) / 12;
-  r.months.forEach((m, i) => {
-    const x0 = L + slot * i + slot * 0.14;
-    const bw = slot * 0.34;
+  const slot = (W - L - R) / months.length;
+  months.forEach((m, i) => {
+    const bw = Math.min(slot * 0.34, 42);
+    const x0 = L + slot * i + slot / 2 - bw - 1.5;
     const rev = el('rect', { style: `--i:${i}`, x: x0, y: y(m.revenue), width: bw, height: Math.max(0, H - B - y(m.revenue)), rx: 3, class: 'bar-rev' });
     rev.appendChild(el('title', {}, `Tháng ${m.month}: doanh thu ${money(m.revenue)} ₫`));
     const exp = el('rect', { style: `--i:${i}`, x: x0 + bw + 3, y: y(m.expense), width: bw, height: Math.max(0, H - B - y(m.expense)), rx: 3, class: 'bar-exp' });
@@ -45,11 +53,13 @@ function niceStep(raw: number): number {
 
 export async function reportsPage(view: HTMLElement): Promise<void> {
   const year = Number(getMonth().slice(0, 4));
-  const yearSel = select([-2, -1, 0].map((d) => [String(year + d), `Năm ${year + d}`] as [string, string]), String(year));
+  const yearSel = select([-2, -1, 0].map((d) => [String(year + d), `Năm ${year + d}`] as [string, string]), String(year), { 'aria-label': 'Chọn năm báo cáo' });
   const holder = h('div', { class: 'stack' });
+  let showAll = false;
   const load = async () => {
     const r = await api.get<RevenueReport>(`/api/reports/revenue?propertyId=${PROPERTY_ID}&year=${yearSel.value}`);
     const has = r.totalRevenue > 0 || r.totalExpense > 0;
+    const shown = showAll ? r.months : trimMonths(r.months);
     holder.replaceChildren(
       h('div', { class: 'figures' },
         h('div', { class: 'figure' }, h('span', { class: 'label' }, 'Doanh thu cả năm'), h('span', { class: 'value' }, money(r.totalRevenue), h('small', null, '₫'))),
@@ -58,14 +68,15 @@ export async function reportsPage(view: HTMLElement): Promise<void> {
         h('div', { class: 'figure' }, h('span', { class: 'label' }, 'Cách tính'), h('span', { class: 'note' }, 'Doanh thu là các giao dịch thanh toán thành công theo ngày nhận tiền; chi phí theo ngày chi.'))),
       has ? panel('Doanh thu và chi phí theo tháng', [
         h('div', { class: 'panel-body' }, h('div', { class: 'legend', style: 'margin-bottom:12px' },
-          h('span', null, h('i', { style: 'background:var(--primary)' }), 'Doanh thu'), h('span', null, h('i', { style: 'background:var(--plate);border:1.2px solid var(--plate-ink)' }), 'Chi phí')), chart(r)),
+          h('span', null, h('i', { style: 'background:var(--primary)' }), 'Doanh thu'), h('span', null, h('i', { style: 'background:var(--plate);border:1.2px solid var(--plate-ink)' }), 'Chi phí')), chart(r, shown)),
       ]) : panel(null, emptyState(`Chưa có phát sinh trong năm ${r.year}`, 'Biểu đồ hiện khi có giao dịch thanh toán hoặc khoản chi.')),
       panel('Chi tiết theo tháng', table([
         { key: 'm', label: 'Tháng', render: (m: RevenueReport['months'][number]) => `Tháng ${m.month}` },
         { key: 'r', label: 'Doanh thu (₫)', num: true, render: (m) => money(m.revenue) },
         { key: 'e', label: 'Chi phí (₫)', num: true, render: (m) => money(m.expense) },
         { key: 'p', label: 'Lợi nhuận (₫)', num: true, render: (m) => h('b', { style: m.profit < 0 ? 'color:var(--danger)' : '' }, money(m.profit)) },
-      ], r.months, { footer: [h('td', null, 'Cả năm'), h('td', { class: 'num' }, money(r.totalRevenue)), h('td', { class: 'num' }, money(r.totalExpense)), h('td', { class: 'num' }, money(r.totalProfit))] }), { flush: true }),
+      ], shown, { footer: [h('td', null, 'Cả năm'), h('td', { class: 'num' }, money(r.totalRevenue)), h('td', { class: 'num' }, money(r.totalExpense)), h('td', { class: 'num' }, money(r.totalProfit))] }),
+        { flush: true, sub: showAll ? 'Cả 12 tháng' : 'Các tháng có phát sinh', actions: [h('button', { class: 'btn ghost sm', onclick: () => { showAll = !showAll; void load(); } }, showAll ? 'Chỉ tháng có số liệu' : 'Hiện cả 12 tháng')] }),
     );
   };
   yearSel.addEventListener('change', () => void load());

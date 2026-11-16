@@ -13,29 +13,32 @@ export function logo(size = 32): HTMLElement {
 }
 
 interface NavItem { href: string; label: string; icon: IconName; roles?: Role[]; badge?: boolean }
-const GROUPS: Array<{ title: string; items: NavItem[] }> = [
+const TOP: NavItem = { href: '#/', label: 'Tổng quan', icon: 'dash', roles: ['LANDLORD', 'MANAGER', 'CASHIER'] };
+const GROUPS: Array<{ title: string; open: boolean; items: NavItem[] }> = [
   {
-    title: 'Vận hành',
+    title: 'Chốt tháng',
+    open: true,
     items: [
-      { href: '#/', label: 'Tổng quan', icon: 'dash', roles: ['LANDLORD', 'MANAGER', 'CASHIER'] },
       { href: '#/meters', label: 'Chỉ số điện nước', icon: 'water', roles: ['LANDLORD', 'MANAGER', 'METER_READER'] },
       { href: '#/billing', label: 'Tính tiền tháng', icon: 'calc', roles: ['LANDLORD', 'MANAGER'] },
       { href: '#/invoices', label: 'Hóa đơn', icon: 'receipt', roles: ['LANDLORD', 'MANAGER', 'CASHIER'], badge: true },
       { href: '#/payments', label: 'Thanh toán', icon: 'wallet', roles: ['LANDLORD', 'MANAGER', 'CASHIER'] },
       { href: '#/debts', label: 'Công nợ', icon: 'alert', roles: ['LANDLORD', 'MANAGER', 'CASHIER'] },
-      { href: '#/maintenance', label: 'Sửa chữa', icon: 'settings', roles: ['LANDLORD', 'MANAGER'] },
     ],
   },
   {
-    title: 'Danh mục',
+    title: 'Quản lý',
+    open: true,
     items: [
       { href: '#/contracts', label: 'Hợp đồng', icon: 'file', roles: ['LANDLORD', 'MANAGER'] },
       { href: '#/rooms', label: 'Phòng', icon: 'bed', roles: ['LANDLORD', 'MANAGER'] },
       { href: '#/tenants', label: 'Khách thuê', icon: 'users', roles: ['LANDLORD', 'MANAGER'] },
+      { href: '#/maintenance', label: 'Sửa chữa', icon: 'wrench', roles: ['LANDLORD', 'MANAGER'] },
     ],
   },
   {
     title: 'Báo cáo',
+    open: false,
     items: [
       { href: '#/reports', label: 'Doanh thu và chi phí', icon: 'chart', roles: ['LANDLORD', 'MANAGER'] },
       { href: '#/expenses', label: 'Chi phí vận hành', icon: 'banknote', roles: ['LANDLORD', 'MANAGER'] },
@@ -43,9 +46,10 @@ const GROUPS: Array<{ title: string; items: NavItem[] }> = [
   },
   {
     title: 'Hệ thống',
+    open: false,
     items: [
       { href: '#/staff', label: 'Nhân viên', icon: 'user', roles: ['LANDLORD', 'MANAGER'] },
-      { href: '#/settings', label: 'Cài đặt giá và ngân hàng', icon: 'bank', roles: ['LANDLORD', 'MANAGER'] },
+      { href: '#/settings', label: 'Cài đặt', icon: 'settings', roles: ['LANDLORD', 'MANAGER'] },
       { href: '#/activity', label: 'Nhật ký thao tác', icon: 'history', roles: ['LANDLORD'] },
       { href: '#/profile', label: 'Tài khoản của tôi', icon: 'key' },
     ],
@@ -59,22 +63,25 @@ export const ROLE_NAMES: Record<string, string> = {
 export interface StaffShell { root: HTMLElement; view: HTMLElement; setActive(path: string): void }
 
 export function buildStaffShell(s: Session): StaffShell {
-  const view = h('div', { class: 'content', id: 'view', tabindex: '-1' });
+  const view = h('main', { class: 'content', id: 'view', tabindex: '-1' });
   const links: HTMLAnchorElement[] = [];
   const rail = h('aside', { class: 'rail', 'aria-label': 'Điều hướng chính' },
     h('a', { class: 'brand', href: '#/' }, logo(36), h('div', null, h('b', null, 'Stayly'), h('small', null, 'Quản lý nhà trọ'))),
   );
   const nav = h('nav', { class: 'rail-nav', 'aria-label': 'Menu' });
+  const mkLink = (it: NavItem) => {
+    const a = h('a', { class: 'nav-link', href: it.href }, icon(it.icon), h('span', null, it.label),
+      it.badge ? h('span', { class: 'count', 'data-overdue-count': '', hidden: true, title: 'Hóa đơn quá hạn' }, '0') : null) as HTMLAnchorElement;
+    links.push(a);
+    return a;
+  };
+  if (!TOP.roles || can(...TOP.roles)) nav.appendChild(mkLink(TOP));
   for (const g of GROUPS) {
     const items = g.items.filter((i) => !i.roles || can(...i.roles));
     if (!items.length) continue;
-    nav.appendChild(h('div', { class: 'nav-group' }, g.title));
-    for (const it of items) {
-      const a = h('a', { class: 'nav-link', href: it.href }, icon(it.icon), h('span', null, it.label),
-        it.badge ? h('span', { class: 'count', 'data-overdue-count': '', hidden: true, title: 'Hóa đơn quá hạn' }, '0') : null) as HTMLAnchorElement;
-      links.push(a);
-      nav.appendChild(a);
-    }
+    const sec = h('details', { class: 'nav-sec', open: g.open }, h('summary', { class: 'nav-group' }, h('span', null, g.title), icon('right', 14)));
+    for (const it of items) sec.appendChild(mkLink(it));
+    nav.appendChild(sec);
   }
   rail.appendChild(nav);
   rail.appendChild(h('div', { class: 'rail-foot' },
@@ -85,6 +92,13 @@ export function buildStaffShell(s: Session): StaffShell {
   const out = h('output', null, monthLabel(getMonth()));
   onMonth(() => (out.textContent = monthLabel(getMonth())));
   const bell = notificationBell();
+  const searchBox = h('label', { class: 'search' }, icon('search', 16), h('span', { class: 'sr-only' }, 'Tìm hóa đơn hoặc hợp đồng'),
+    h('input', { type: 'search', placeholder: 'Tìm mã hóa đơn, hợp đồng, phòng…', onkeydown: (e: KeyboardEvent) => {
+      const v = (e.target as HTMLInputElement).value.trim();
+      if (e.key === 'Enter' && v) { location.hash = `#/invoices?q=${encodeURIComponent(v)}`; searchBox.classList.remove('open'); }
+      if (e.key === 'Escape') searchBox.classList.remove('open');
+    } }));
+  const searchBtn = h('button', { class: 'icon-btn search-toggle', 'aria-label': 'Tìm kiếm', onclick: () => { searchBox.classList.toggle('open'); (searchBox.querySelector('input') as HTMLInputElement).focus(); } }, icon('search'));
   const topbar = h('header', { class: 'topbar' },
     h('button', { class: 'icon-btn menu-btn', 'aria-label': 'Mở menu', onclick: () => rail.classList.toggle('open') }, icon('menu')),
     h('div', { class: 'ctx' },
@@ -93,15 +107,13 @@ export function buildStaffShell(s: Session): StaffShell {
         h('button', { 'aria-label': 'Tháng trước', onclick: () => setMonth(shiftMonth(getMonth(), -1)) }, icon('left', 16)), out,
         h('button', { 'aria-label': 'Tháng sau', onclick: () => setMonth(shiftMonth(getMonth(), 1)) }, icon('right', 16))),
     ),
-    h('label', { class: 'search' }, icon('search', 16), h('span', { class: 'sr-only' }, 'Tìm hóa đơn hoặc hợp đồng'),
-      h('input', { type: 'search', placeholder: 'Tìm mã hóa đơn, hợp đồng, phòng…', onkeydown: (e: KeyboardEvent) => {
-        const v = (e.target as HTMLInputElement).value.trim();
-        if (e.key === 'Enter' && v) location.hash = `#/invoices?q=${encodeURIComponent(v)}`;
-      } })),
+    searchBox,
+    searchBtn,
     bell,
   );
 
-  const root = h('div', { class: 'app' }, rail, h('div', { class: 'main' }, topbar, view));
+  const skip = h('a', { class: 'skip-link', href: '#view', onclick: (e: Event) => { e.preventDefault(); view.focus(); } }, 'Bỏ qua điều hướng');
+  const root = h('div', { class: 'app' }, skip, rail, h('div', { class: 'main' }, topbar, view));
   rail.addEventListener('click', (e) => {
     if ((e.target as HTMLElement).closest('a')) rail.classList.remove('open');
   });
@@ -112,8 +124,10 @@ export function buildStaffShell(s: Session): StaffShell {
       for (const a of links) {
         const href = a.getAttribute('href')!.slice(1);
         const on = href === '/' ? path === '/' : path === href || path.startsWith(href + '/');
-        if (on) a.setAttribute('aria-current', 'page');
-        else a.removeAttribute('aria-current');
+        if (on) {
+          a.setAttribute('aria-current', 'page');
+          a.closest('details')?.setAttribute('open', '');
+        } else a.removeAttribute('aria-current');
       }
     },
   };

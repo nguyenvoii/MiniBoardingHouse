@@ -106,7 +106,7 @@ export async function billingDetailPage(view: HTMLElement, params: Record<string
   const st = (i: number): Stop['state'] => (cur === -1 || i < cur ? 'done' : i === cur ? 'current' : 'todo');
   const stuckAt = [0, 0, p.roomCount, Math.max(p.roomCount - invoices.length, 0), invoices.length - paidCount];
   const stops: Stop[] = [
-    { name: 'Tạo kỳ', sub: 'Đã tạo', state: st(0) },
+    { name: 'Chỉ số và kỳ', sub: 'Đã tạo', state: st(0), href: '#/meters' },
     { name: 'Tính tiền', sub: p.roomCount ? `${p.roomCount} phòng` : 'Chưa tính', state: st(1) },
     { name: 'Duyệt kỳ', sub: draft ? 'Chờ duyệt' : 'Đã duyệt', state: st(2) },
     { name: 'Phát hành', sub: invoices.length ? `${invoices.length} hóa đơn` : 'Chưa phát hành', state: st(3) },

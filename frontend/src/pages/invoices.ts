@@ -13,7 +13,7 @@ export async function invoicesPage(view: HTMLElement, _p: Record<string, string>
   const state = { q: query.get('q') ?? '', status: query.get('status') ?? '' };
   const holder = h('div');
   const q = input({ type: 'search', value: state.q, placeholder: 'Mã hóa đơn hoặc mã phòng', 'aria-label': 'Tìm hóa đơn' });
-  const status = select([['', 'Mọi trạng thái'], ['UNPAID', 'Chưa trả'], ['PARTIALLY_PAID', 'Trả một phần'], ['OVERDUE', 'Quá hạn'], ['PAID', 'Đã trả']], state.status);
+  const status = select([['', 'Mọi trạng thái'], ['UNPAID', 'Chưa trả'], ['PARTIALLY_PAID', 'Trả một phần'], ['OVERDUE', 'Quá hạn'], ['PAID', 'Đã trả']], state.status, { 'aria-label': 'Lọc theo trạng thái hóa đơn' });
   const total = h('span', { class: 'muted' });
 
   const load = async () => {

@@ -124,20 +124,20 @@ export function skeletonRows(n = 5): HTMLElement {
 }
 
 export function emptyState(title: string, text: string, action?: HTMLElement): HTMLElement {
-  return h('div', { class: 'empty' }, h('h3', null, title), h('p', null, text), action);
+  return h('div', { class: 'empty' }, h('h2', { class: 'empty-title' }, title), h('p', null, text), action);
 }
 
 export function errorState(message: string, retry?: () => void): HTMLElement {
   return h(
     'div',
     { class: 'empty' },
-    h('h3', null, 'Chưa tải được dữ liệu'),
+    h('h2', { class: 'empty-title' }, 'Chưa tải được dữ liệu'),
     h('p', null, message),
     retry ? h('button', { class: 'btn secondary', onclick: retry }, icon('refresh', 16), 'Thử lại') : null,
   );
 }
 
-export function sampleNote(text = 'Dữ liệu mẫu, chờ API của Chi'): HTMLElement {
+export function sampleNote(text = 'Dữ liệu mẫu'): HTMLElement {
   return h('span', { class: 'sample-note' }, icon('info', 14), text);
 }
 
@@ -187,10 +187,13 @@ export function table<T>(cols: Column<T>[], rows: T[], opts: { onRow?: (r: T) =>
       if (opts.onRow) {
         tr.addEventListener('click', () => opts.onRow!(r));
         tr.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter') opts.onRow!(r);
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            opts.onRow!(r);
+          }
         });
       }
-      for (const c of cols) tr.appendChild(h('td', { class: c.num ? 'num' : '' }, c.render(r) as Node));
+      for (const c of cols) tr.appendChild(h('td', { class: c.num ? 'num' : '', 'data-label': c.label }, c.render(r) as Node));
       tbody.appendChild(tr);
     }
     if (opts.footer) tbody.appendChild(h('tr', { class: 'total-row' }, ...opts.footer));

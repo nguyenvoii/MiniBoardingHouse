@@ -24,7 +24,9 @@ const stBadge = (s: string) => { const [l, t] = DEBT_STATUS[s] ?? [s, 'off']; re
 export async function debtsPage(view: HTMLElement): Promise<void> {
   const state = { status: 'ACTIVE_ONLY' };
   const holder = h('div');
-  const status = select([['ACTIVE_ONLY', 'Còn nợ'], ['', 'Tất cả'], ['NORMAL', 'Đang theo dõi'], ['WARNING_OVERDUE', 'Quá hạn cảnh báo'], ['LONG_TERM_DEBT', 'Nợ kéo dài'], ['CLEARED', 'Đã thanh toán hết']], 'ACTIVE_ONLY');
+  const status = select([['ACTIVE_ONLY', 'Còn nợ'], ['', 'Tất cả'], ['NORMAL', 'Đang theo dõi'], ['WARNING_OVERDUE', 'Quá hạn cảnh báo'], ['LONG_TERM_DEBT', 'Nợ kéo dài'], ['CLEARED', 'Đã thanh toán hết']], 'ACTIVE_ONLY', { 'aria-label': 'Lọc theo tình trạng công nợ' });
+  // Bảng công nợ là bảng tổng hợp từ hóa đơn: cập nhật lại mỗi lần mở trang để khớp Tổng quan (tính lại an toàn, không ghi trùng).
+  await api.post('/api/debts/recalculate').catch(() => null);
   const sum = await api.get<DebtSummary>('/api/debts/summary');
   const load = async () => {
     const q = state.status === 'ACTIVE_ONLY' ? '' : `status=${state.status}&`;
@@ -42,9 +44,9 @@ export async function debtsPage(view: HTMLElement): Promise<void> {
   };
   status.addEventListener('change', () => { state.status = status.value; void load(); });
 
-  const recalc = h('button', { class: 'btn secondary' }, icon('refresh', 16), 'Tính lại công nợ');
+  const recalc = h('button', { class: 'btn secondary', title: 'Công nợ tự cập nhật mỗi lần mở trang; bấm để làm mới ngay' }, icon('refresh', 16), 'Làm mới');
   recalc.addEventListener('click', () => busy(recalc, async () => {
-    try { const r = await api.post<{ processed: number; cleared: number; penaltiesLogged: number }>('/api/debts/recalculate'); toast(`Đã xử lý ${r.processed} khoản, tất toán ${r.cleared}, ghi ${r.penaltiesLogged} phạt trễ hạn`); void debtsPage(view); }
+    try { const r = await api.post<{ processed: number; cleared: number; penaltiesLogged: number }>('/api/debts/recalculate'); toast(`Đã cập nhật ${r.processed} khoản công nợ`); void debtsPage(view); }
     catch (e) { toast(errText(e), 'err'); }
   }));
   const remind = h('button', { class: 'btn' }, icon('send', 16), 'Gửi nhắc nợ');

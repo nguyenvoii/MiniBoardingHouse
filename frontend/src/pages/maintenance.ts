@@ -24,7 +24,7 @@ export async function maintenancePage(view: HTMLElement): Promise<void> {
   const holder = h('div');
   const cats = await api.get<Category[]>('/api/incident-categories?type=INCIDENT').catch(() => [] as Category[]);
   const catName = (code: string) => cats.find((c) => c.categoryCode === code)?.categoryName ?? code;
-  const status = select([['', 'Mọi trạng thái'], ...Object.entries(TICKET_STATUS).map(([k, v]) => [k, v[0]] as [string, string])], '');
+  const status = select([['', 'Mọi trạng thái'], ...Object.entries(TICKET_STATUS).map(([k, v]) => [k, v[0]] as [string, string])], '', { 'aria-label': 'Lọc theo trạng thái sự cố' });
   const load = async () => {
     const r = await api.get<Page<Ticket>>(`/api/maintenance-requests?status=${state.status}&size=100`);
     holder.replaceChildren(table<Ticket>([
