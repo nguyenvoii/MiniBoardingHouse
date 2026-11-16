@@ -7,6 +7,7 @@ import com.group7.minihouse.shared.dto.PageResponse;
 import com.group7.minihouse.shared.entity.UserActivityLog;
 import com.group7.minihouse.shared.exception.BusinessException;
 import java.time.LocalDateTime;
+import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -24,6 +25,7 @@ public class ActivityLogService {
 
     private static final int DEFAULT_SIZE = 20;
     private static final int MAX_SIZE = 100;
+    static final int EXPORT_MAX = 5000;
 
     private final UserActivityLogRepository logRepository;
     private final UserRepository userRepository;
@@ -37,10 +39,21 @@ public class ActivityLogService {
     @Transactional(readOnly = true)
     public PageResponse<ActivityLogResponse> search(Integer userId, String actionType, LocalDateTime from,
                                                     LocalDateTime to, int page, int size) {
+        return query(userId, actionType, from, to, page, size < 1 ? DEFAULT_SIZE : Math.min(size, MAX_SIZE));
+    }
+
+    /** Lay toi da EXPORT_MAX dong nhat ky moi nhat de xuat Excel/PDF. */
+    @Transactional(readOnly = true)
+    public List<ActivityLogResponse> exportRows(Integer userId, String actionType, LocalDateTime from,
+                                                LocalDateTime to) {
+        return query(userId, actionType, from, to, 0, EXPORT_MAX).getItems();
+    }
+
+    private PageResponse<ActivityLogResponse> query(Integer userId, String actionType, LocalDateTime from,
+                                                    LocalDateTime to, int page, int s) {
         if (from != null && to != null && from.isAfter(to)) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "Thoi diem bat dau phai truoc thoi diem ket thuc");
         }
-        int s = size < 1 ? DEFAULT_SIZE : Math.min(size, MAX_SIZE);
         PageRequest pageable = PageRequest.of(Math.max(page, 0), s,
                 Sort.by(Sort.Direction.DESC, "createdAt", "logId"));
         Page<UserActivityLog> result = logRepository.search(

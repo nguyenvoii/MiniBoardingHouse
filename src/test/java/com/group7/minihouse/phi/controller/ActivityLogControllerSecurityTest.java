@@ -35,6 +35,7 @@ class ActivityLogControllerSecurityTest {
     @Autowired JwtService jwt;
     @MockBean ActivityLogService service;
     @MockBean UserStatusChecker statusChecker;
+    @MockBean com.group7.minihouse.shared.export.TableExporter exporter;
 
     String dbRole = "MANAGER";
 
@@ -56,6 +57,18 @@ class ActivityLogControllerSecurityTest {
             mvc.perform(get("/api/activity-logs").header("Authorization", bearer(role)))
                     .andExpect(status().isForbidden());
         }
+    }
+
+    @Test
+    void onlyLandlordCanExportLogs() throws Exception {
+        mvc.perform(get("/api/activity-logs/export").header("Authorization", bearer("LANDLORD")))
+                .andExpect(status().isOk());
+        for (String role : List.of("MANAGER", "CASHIER", "TENANT")) {
+            mvc.perform(get("/api/activity-logs/export").header("Authorization", bearer(role)))
+                    .andExpect(status().isForbidden());
+        }
+        mvc.perform(get("/api/activity-logs/export?format=csv").header("Authorization", bearer("LANDLORD")))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
