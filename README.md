@@ -39,8 +39,8 @@ Cập nhật ngày 16/11/2026, theo những gì thực sự có trên GitHub (nh
 |---|---|---|---|
 | Nguyễn Anh Phi | 45 UC | 16 UC: 1-13, 119, 120, 122, cộng khung xuất Excel/PDF | Hợp đồng 41-51, tính tiền tháng 65-77, thanh toán 85-88, 116, 118. Các phần này cần phòng, khách thuê, chỉ số, đơn giá, hóa đơn của Chi và Toàn nên phải chờ họ đẩy code |
 | Nguyễn Trần Bảo Chi | 29 UC | 0 | Chưa có code nào trên GitHub. Phần của Phi và Toàn đang chờ `RoomService`, `TenantService` của Chi |
-| Phạm Khánh Toàn | 24 UC | Một phần (Pull Request #2): hóa đơn, chỉ số điện nước, thu tiền, đơn giá dịch vụ, chi phí vận hành, job nhắc hạn | Chưa có test. Đối chiếu lại các mục còn lại trong `docs/LOI_CAN_SUA_CODE_TOAN.md`. Lưu ý: `BillingJobs` đang TỰ BẬT (thiếu cấu hình = bật), nên đặt `minihouse.scheduler.enabled=false` khi chạy thử trên máy. Phần chi phí vận hành đang trùng với `ExpenseController` của Việt, hai người cần thống nhất ai giữ |
-| Vũ Văn Quốc Việt | 25 UC | 0 (đã làm trên nhánh) | Nhánh `viet/boarding-house-management` đã có công nợ, trả phòng, bảo trì, thiết bị phòng, chi phí vận hành, thông báo. Chưa vào `main`, gộp với `main` không xung đột, cần tạo Pull Request |
+| Phạm Khánh Toàn | 24 UC | Một phần (Pull Request #2): hóa đơn, chỉ số điện nước, thu tiền, đơn giá dịch vụ, job nhắc hạn | Chưa có test. Chi phí vận hành: đã bỏ bản của Toàn, giữ bản của Việt (`/api/expenses`, có phân quyền, tóm tắt, bộ lọc). Đối chiếu lại các mục còn lại trong `docs/LOI_CAN_SUA_CODE_TOAN.md`. Lưu ý: `BillingJobs` đang TỰ BẬT (thiếu cấu hình = bật), nên đặt `minihouse.scheduler.enabled=false` khi chạy thử trên máy. |
+| Vũ Văn Quốc Việt | 25 UC | Đã merge PR #1 | Đã có công nợ, trả phòng, bảo trì, thiết bị phòng, chi phí vận hành, thông báo. |
 
 Phần của Phi chi tiết:
 - Đã làm: UC1 đăng ký chủ trọ, UC2 xác thực email bằng OTP, UC3 đăng nhập/đăng xuất, UC4 quên mật khẩu, UC5 đổi mật khẩu, UC6 hồ sơ cá nhân, UC7 ảnh đại diện, UC8-9 quản lý nhân viên, UC10 cấp tài khoản người thuê, UC11 phân quyền theo vai trò, UC12 bảng quyền chi tiết, UC13 nhật ký thao tác, UC119 tài khoản ngân hàng và QR, UC120 khung job tự động, UC122 sao lưu và phục hồi, khung xuất Excel/PDF.
