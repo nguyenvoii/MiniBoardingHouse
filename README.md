@@ -43,21 +43,20 @@ Quy tắc:
 
 Tài liệu yêu cầu (use case, phân công) nằm trong thư mục `docs/`. Các bản thiết kế (lý do chọn cách làm đăng nhập, tài khoản người thuê, quản lý tài khoản) nằm trong `docs/thiet-ke/`.
 
-## Phân công theo use case (bản chốt mới nhất)
+## Phân công theo use case
 
-Nguồn chính thức là file `docs/Nhom_7_47_usecase_khutro_4MM_PhanCongMoi.xlsx` (sheet "Phân Công", 123 use case, 663.8 giờ). Bảng dưới đây chỉ là bản tóm tắt, nếu lệch thì lấy Excel làm chuẩn.
+Nguồn chính thức là file `docs/Nhom_7_47_usecase_khutro_4MM_PhanCongMoi.xlsx` (sheet "Phân Công", 123 use case, 663.8 giờ). Bảng dưới đây chỉ là bản tóm tắt, nếu lệch thì lấy Excel làm chuẩn. Cách chia này khớp với mục "Phân công theo nhóm bảng" bên dưới.
 
 | Thành viên | Số UC | Giờ | Use case |
 |---|---|---|---|
-| Nguyễn Anh Phi | 41 | 217.1 | 3, 8-12, 14-18, 28, 30-31, 41-46, 54, 65-75, 77, 85-88, 93, 95, 119, 122 |
-| Nguyễn Trần Bảo Chi | 32 | 154.0 | 1-2, 4-7, 13, 19-20, 22-27, 32-40, 47-52, 121, 123 |
-| Phạm Khánh Toàn | 25 | 141.5 | 53, 55-64, 76, 78-84, 89-92, 117, 120 |
-| Vũ Văn Quốc Việt | 25 | 151.2 | 21, 29, 94, 96-116, 118 |
+| Nguyễn Anh Phi | 45 | 235.2 | 1-13, 41-51, 65-75, 77, 85-88, 116, 118-120, 122 |
+| Nguyễn Trần Bảo Chi | 29 | 146.3 | 14-40, 108-109 |
+| Phạm Khánh Toàn | 24 | 137.3 | 53-64, 76, 78-84, 89-92 |
+| Vũ Văn Quốc Việt | 25 | 145.0 | 52, 93-107, 110-115, 117, 121, 123 |
 
-Lưu ý khi làm:
-- UC5 (đổi mật khẩu), UC6 (hồ sơ cá nhân), UC13 (nhật ký thao tác) Excel giao cho Chi, nhưng Phi đã làm xong và có sẵn trên `main` (`AccountController`, `ActivityLogController`). Chi chỉ cần làm UC1, 2, 4, 7 trong nhóm tài khoản, có thể dùng lại `ActivityLogService` để ghi nhật ký.
-- UC12 (phân quyền chi tiết cho nhân viên thu tiền, ghi điện nước) của Phi chưa làm. UC14-18, 28, 30-31, 54, 93, 95, 119, 122 cũng chưa làm.
-- Các mục "Phân công theo nhóm bảng" bên dưới là cách chia ban đầu theo entity, dùng để biết entity nào thuộc package nào. Nếu một use case nằm trong bảng của người khác thì hai bên tự thống nhất ai viết, nhưng vẫn giữ quy tắc phụ thuộc một chiều giữa các package.
+Tiến độ phần của Phi (nhóm tài khoản - phân quyền):
+- Đã làm: UC3 (đăng nhập, đăng xuất), UC5 (đổi mật khẩu), UC6 (hồ sơ cá nhân), UC8, UC9 (quản lý nhân viên), UC10 (cấp tài khoản người thuê), UC13 (nhật ký thao tác), và phần chính của UC11 (phân quyền theo vai trò).
+- Chưa làm: UC1, 2, 4, 7 (đăng ký, OTP, quên mật khẩu, ảnh đại diện), UC12 (phân quyền chi tiết cho nhân viên thu tiền, ghi điện nước), hợp đồng (UC41-51), tính tiền tháng (UC65-77), thanh toán (UC85-88), UC116, 118-120, 122.
 
 ## Phân công theo nhóm bảng (phân công lại)
 
