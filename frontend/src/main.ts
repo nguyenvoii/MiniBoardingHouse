@@ -7,7 +7,9 @@ import './styles/motion.css';
 import { h } from './lib/dom';
 import { loadSession, isTenant, can, errText } from './lib/api';
 import { route, match, current, navigate } from './lib/router';
-import { onMonth } from './lib/ctx';
+import { onMonth, getMonth } from './lib/ctx';
+import { api, PROPERTY_ID } from './lib/api';
+import type { Period } from './data/types';
 import { enterView, initMotionPref } from './lib/motion';
 import { buildStaffShell, buildTenantShell, StaffShell, TenantShell } from './ui/shell';
 import { errorState, skeletonRows } from './ui/kit';
@@ -24,7 +26,12 @@ import { reportsPage } from './pages/reports';
 import { staffPage } from './pages/staff';
 import { activityPage } from './pages/activity';
 import { profilePage } from './pages/profile';
-import { meHomePage, meInvoicesPage, meContractsPage, meNotificationsPage } from './pages/me';
+import { meHomePage, meInvoicesPage, meContractsPage, meNotificationsPage, meSupportPage } from './pages/me';
+import { metersPage } from './pages/meters';
+import { settingsPage } from './pages/settings';
+import { expensesPage } from './pages/expenses';
+import { debtsPage } from './pages/debts';
+import { maintenancePage } from './pages/maintenance';
 
 const STAFF_ROLES = ['LANDLORD', 'MANAGER', 'CASHIER', 'METER_READER'] as const;
 
@@ -40,7 +47,13 @@ route('/reports', 'staff', reportsPage);
 route('/staff', 'staff', staffPage);
 route('/activity', 'staff', activityPage);
 route('/profile', 'staff', profilePage);
+route('/meters', 'staff', metersPage);
+route('/settings', 'staff', settingsPage);
+route('/expenses', 'staff', expensesPage);
+route('/debts', 'staff', debtsPage);
+route('/maintenance', 'staff', maintenancePage);
 route('/me', 'tenant', meHomePage);
+route('/me/support', 'tenant', meSupportPage);
 route('/me/invoices', 'tenant', meInvoicesPage);
 route('/me/contracts', 'tenant', meContractsPage);
 route('/me/notifications', 'tenant', meNotificationsPage);
@@ -65,7 +78,8 @@ async function render(): Promise<void> {
     return;
   }
   const tenant = isTenant(s);
-  if (path === '/login' || (tenant && !path.startsWith('/me')) || (!tenant && path.startsWith('/me'))) {
+  const inTenantArea = path === '/me' || path.startsWith('/me/');
+  if (path === '/login' || (tenant && !inTenantArea) || (!tenant && inTenantArea)) {
     navigate(tenant ? '/me' : '/');
     return;
   }
@@ -97,7 +111,18 @@ async function render(): Promise<void> {
     }
     if (document.activeElement === document.body) view.focus({ preventScroll: true });
   };
-  if (kind === 'staff') offMonth = onMonth(() => void run());
+  // Chọn tháng chỉ có nghĩa ở các màn tính theo tháng; màn khác thì ẩn đi để khỏi gây hiểu nhầm.
+  const monthPages = ['/', '/billing', '/meters', '/invoices', '/payments', '/expenses', '/reports'];
+  const aware = kind === 'staff' && monthPages.some((p) => (p === '/' ? path === '/' : path === p || path.startsWith(p + '/')));
+  document.body.dataset.monthAware = String(aware);
+  if (kind === 'staff' && path.startsWith('/billing/')) {
+    // đang mở một kỳ: đổi tháng thì chuyển tới kỳ của tháng đó, chưa có kỳ thì về danh sách
+    offMonth = onMonth(async () => {
+      const ps = await api.get<Period[]>(`/api/billing/periods?propertyId=${PROPERTY_ID}`).catch(() => [] as Period[]);
+      const p = ps.find((x) => x.monthYear === getMonth());
+      navigate(p ? `/billing/${p.billingPeriodId}` : '/billing');
+    });
+  } else if (kind === 'staff') offMonth = onMonth(() => void run());
   window.scrollTo({ top: 0 });
   await run();
 }

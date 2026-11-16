@@ -94,3 +94,18 @@ END
 ELSE
     PRINT N'DB đã có khu trọ, bỏ qua dữ liệu mẫu.';
 GO
+
+-- Nhóm sự cố để người thuê chọn khi báo sửa chữa (giao diện người thuê dùng đúng các mã này). Chạy lại an toàn.
+IF NOT EXISTS (SELECT 1 FROM [incident_categories])
+BEGIN
+    INSERT INTO [incident_categories] ([category_code], [category_name], [category_type], [description]) VALUES
+    ('ELECTRIC_ISSUE',   N'Điện: mất điện, chập, nhảy aptomat', 'INCIDENT', NULL),
+    ('WATER_ISSUE',      N'Nước: yếu, rò rỉ, tắc',               'INCIDENT', NULL),
+    ('AIR_CONDITIONER',  N'Máy lạnh',                            'INCIDENT', NULL),
+    ('DOOR_LOCK',        N'Cửa, ổ khóa',                         'INCIDENT', NULL),
+    ('INTERNET',         N'Mạng Internet',                       'INCIDENT', NULL),
+    ('METER_CHECK',      N'Nghi ngờ công tơ điện/nước tính sai', 'INCIDENT', NULL),
+    ('OTHER_INCIDENT',   N'Sự cố khác',                          'INCIDENT', NULL);
+    PRINT N'Đã nạp 7 nhóm sự cố.';
+END
+GO

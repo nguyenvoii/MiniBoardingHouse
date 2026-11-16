@@ -1,5 +1,6 @@
 package com.group7.minihouse.phi.service;
 
+import com.group7.minihouse.phi.dto.TenantAccountInfo;
 import com.group7.minihouse.phi.dto.TenantAccountResponse;
 import com.group7.minihouse.phi.repository.RoleRepository;
 import com.group7.minihouse.phi.repository.TenantReadRepository;
@@ -78,6 +79,21 @@ public class TenantAccountService {
                     "Cap tai khoan nguoi thue cho khach thue " + tenantId + " (user " + saved.getUserId() + ")", ip);
         }
         return new TenantAccountResponse(saved.getUserId(), phone, tempPassword);
+    }
+
+    /** Xem khach thue da co tai khoan dang nhap chua (cung quy tac nhan dien tai khoan nhu khi khoa/mo khoa). */
+    @Transactional(readOnly = true)
+    public TenantAccountInfo accountInfo(Integer tenantId) {
+        Tenant tenant = tenantRepository.findById(tenantId)
+                .orElseThrow(() -> BusinessException.notFound("Khach thue"));
+        String phone = tenant.getPhoneNumber() == null ? "" : tenant.getPhoneNumber().trim();
+        User account = phone.isEmpty() ? null : userRepository.findByPhoneNumber(phone).orElse(null);
+        boolean mine = account != null
+                && userRoleRepository.findRoleCodesByUserId(account.getUserId()).contains("TENANT")
+                && !(account.getCreatedAt() != null && tenant.getCreatedAt() != null
+                        && account.getCreatedAt().isBefore(tenant.getCreatedAt()));
+        return mine ? new TenantAccountInfo(true, account.getUserId(), account.getPhoneNumber(), account.getStatus())
+                : new TenantAccountInfo(false, null, phone, null);
     }
 
     /**

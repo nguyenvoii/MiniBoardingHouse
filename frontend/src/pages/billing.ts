@@ -15,8 +15,15 @@ export async function billingPage(view: HTMLElement): Promise<void> {
   const has = periods.some((p) => p.monthYear === month);
   const create = h('button', { class: 'btn', disabled: has, title: has ? `${monthLabel(month)} đã có kỳ tính tiền, đổi tháng ở thanh trên để tạo kỳ mới` : null, onclick: () => createPeriod(month) }, icon('plus', 16), `Tạo kỳ ${monthLabel(month)}`);
 
-  view.replaceChildren(
+  const mine = periods.find((p) => p.monthYear === month);
+  const callout = mine
+    ? h('div', { class: 'route-next', style: 'margin:0' }, icon('route', 20),
+        h('p', null, h('b', null, `${monthLabel(month)}: `), `kỳ đã có, ${mine.roomCount ? `${mine.roomCount} phòng, ${money(mine.totalAmount)} ₫` : 'chưa tính tiền'}.`),
+        statusBadge(mine.status), h('a', { class: 'btn plate', href: `#/billing/${mine.billingPeriodId}` }, 'Mở kỳ này', icon('arrowRight', 16)))
+    : null;
+  mount(view,
     pageHead('Tính tiền tháng', has ? `${monthLabel(month)} đã có kỳ tính tiền (mở ở bảng dưới). Đổi tháng ở thanh trên để tạo kỳ tháng khác.` : 'Mỗi tháng một kỳ: kiểm tra chỉ số, tính tiền, duyệt, rồi phát hành hóa đơn.', [create]),
+    callout,
     panel('Các kỳ tính tiền', table<Period>([
       { key: 'm', label: 'Tháng', render: (p) => h('b', null, monthLabel(p.monthYear)), sort: (a, b) => a.monthYear.localeCompare(b.monthYear) },
       { key: 's', label: 'Trạng thái', render: (p) => statusBadge(p.status) },

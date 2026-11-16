@@ -327,4 +327,60 @@ class TenantAccountServiceTest {
         assertNull(u.getValue().getEmail());
         verify(userRepository, never()).existsByEmail(any());
     }
+
+    // ------------------------------------------------------------------ xem tinh trang tai khoan
+
+    private User account(int id, String status, LocalDateTime createdAt) {
+        User u = new User();
+        u.setUserId(id);
+        u.setPhoneNumber("0901112223");
+        u.setStatus(status);
+        u.setCreatedAt(createdAt);
+        return u;
+    }
+
+    @Test
+    void accountInfoSaysNoAccountWhenNobodyUsesThePhone() {
+        when(tenantRepository.findById(42)).thenReturn(Optional.of(tenant("0901112223", null)));
+        when(userRepository.findByPhoneNumber("0901112223")).thenReturn(Optional.empty());
+        var info = service.accountInfo(42);
+        assertEquals(false, info.exists());
+        assertNull(info.status());
+    }
+
+    @Test
+    void accountInfoReturnsStatusOfTheTenantsOwnAccount() {
+        when(tenantRepository.findById(42)).thenReturn(Optional.of(tenant("0901112223", null)));
+        when(userRepository.findByPhoneNumber("0901112223")).thenReturn(Optional.of(account(7, "LOCKED", null)));
+        when(userRoleRepository.findRoleCodesByUserId(7)).thenReturn(List.of("TENANT"));
+        var info = service.accountInfo(42);
+        assertTrue(info.exists());
+        assertEquals("LOCKED", info.status());
+        assertEquals(7, info.userId());
+    }
+
+    @Test
+    void accountInfoIgnoresStaffAccountUsingTheSamePhone() {
+        when(tenantRepository.findById(42)).thenReturn(Optional.of(tenant("0901112223", null)));
+        when(userRepository.findByPhoneNumber("0901112223")).thenReturn(Optional.of(account(7, "ACTIVE", null)));
+        when(userRoleRepository.findRoleCodesByUserId(7)).thenReturn(List.of("MANAGER"));
+        assertEquals(false, service.accountInfo(42).exists());
+    }
+
+    @Test
+    void accountInfoIgnoresAccountCreatedBeforeThisTenantProfile() {
+        Tenant t = tenant("0901112223", null);
+        t.setCreatedAt(LocalDateTime.of(2026, 11, 1, 0, 0));
+        when(tenantRepository.findById(42)).thenReturn(Optional.of(t));
+        when(userRepository.findByPhoneNumber("0901112223"))
+                .thenReturn(Optional.of(account(7, "ACTIVE", LocalDateTime.of(2026, 3, 1, 0, 0))));
+        when(userRoleRepository.findRoleCodesByUserId(7)).thenReturn(List.of("TENANT"));
+        assertEquals(false, service.accountInfo(42).exists());
+    }
+
+    @Test
+    void accountInfoThrowsNotFoundForUnknownTenant() {
+        when(tenantRepository.findById(42)).thenReturn(Optional.empty());
+        assertThrows(BusinessException.class, () -> service.accountInfo(42));
+    }
 }

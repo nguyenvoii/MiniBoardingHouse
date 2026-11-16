@@ -1,5 +1,6 @@
 package com.group7.minihouse.phi.controller;
 
+import com.group7.minihouse.phi.dto.TenantAccountInfo;
 import com.group7.minihouse.phi.dto.TenantAccountResponse;
 import com.group7.minihouse.phi.dto.UpdateStatusRequest;
 import com.group7.minihouse.phi.service.TenantAccountService;
@@ -8,6 +9,7 @@ import com.group7.minihouse.shared.security.AuthUser;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -33,6 +35,13 @@ public class TenantAccountController {
 
     public TenantAccountController(TenantAccountService service) {
         this.service = service;
+    }
+
+    /** Xem khach thue da co tai khoan dang nhap chua va dang hoat dong hay bi khoa. */
+    @GetMapping("/{tenantId}/account")
+    @PreAuthorize("hasAnyRole('LANDLORD','MANAGER')")
+    public ApiResponse<TenantAccountInfo> accountInfo(@PathVariable Integer tenantId) {
+        return ApiResponse.ok(service.accountInfo(tenantId));
     }
 
     /** Cap tai khoan dang nhap cho khach thue; tra ve mat khau tam (chi hien 1 lan). */

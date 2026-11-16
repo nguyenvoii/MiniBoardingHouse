@@ -2,7 +2,8 @@ import { h, busy } from '../lib/dom';
 import { icon } from '../lib/icons';
 import { api, errText, Page } from '../lib/api';
 import { date, dateTime, money } from '../lib/format';
-import { SAMPLE_ROOMS, SAMPLE_TENANTS } from '../data/sample';
+import { SAMPLE_TENANTS } from '../data/sample';
+import { loadLive } from '../data/live';
 import type { Contract, ContractDetail } from '../data/types';
 import { confirmDialog, dl, emptyState, field, formError, input, openDialog, pageHead, plate, sampleNote, select, statusBadge, table, toast } from '../ui/kit';
 
@@ -45,10 +46,11 @@ export async function contractsPage(view: HTMLElement, _p: Record<string, string
   else if (nw) createContract(Number(nw), load);
 }
 
-function createContract(roomId: number | null, done: () => void): void {
+async function createContract(roomId: number | null, done: () => void): Promise<void> {
+  const { rooms: liveRooms } = await loadLive();
   const d = openDialog('Lập hợp đồng thuê', { width: 640 });
   const err = h('div');
-  const vacant = SAMPLE_ROOMS.filter((r) => r.status === 'VACANT');
+  const vacant = liveRooms.filter((r) => r.status === 'VACANT');
   const room = select(vacant.map((r) => [String(r.roomId), `${r.code} · ${money(r.price)} ₫/tháng`] as [string, string]), roomId ? String(roomId) : '');
   const tenant = select(SAMPLE_TENANTS.map((t) => [String(t.tenantId), `${t.name} · ${t.phone}`] as [string, string]));
   const start = input({ type: 'date', value: new Date().toISOString().slice(0, 10) });
@@ -58,7 +60,7 @@ function createContract(roomId: number | null, done: () => void): void {
   const cycle = select([['1', 'Mỗi tháng'], ['2', '2 tháng một lần'], ['3', '3 tháng một lần'], ['6', '6 tháng một lần']]);
   const due = input({ type: 'number', min: '1', max: '28', value: '5', class: 'input num-in' });
   const late = input({ type: 'number', min: '0', step: '1000', value: '10000', class: 'input num-in' });
-  d.body.append(err, sampleNote('Danh sách phòng và khách lấy từ dữ liệu mẫu, chờ API của Chi'),
+  d.body.append(err, sampleNote('Danh sách khách là dữ liệu mẫu, chờ API của Chi. Phòng trống lấy theo hợp đồng thật'),
     h('div', { class: 'form-grid' }, field('Phòng (chỉ phòng trống)', room), field('Người thuê', tenant),
       field('Ngày bắt đầu', start), field('Ngày kết thúc', end),
       field('Giá thuê (₫/tháng)', rent), field('Tiền cọc (₫)', dep),
@@ -161,14 +163,15 @@ function extend(c: Contract, done: () => void): void {
   }));
 }
 
-function transfer(c: Contract, done: () => void): void {
+async function transfer(c: Contract, done: () => void): Promise<void> {
+  const { rooms: liveRooms } = await loadLive();
   const d = openDialog('Đổi phòng cho khách');
   const err = h('div');
-  const room = select(SAMPLE_ROOMS.filter((r) => r.status === 'VACANT' && r.roomId !== c.roomId).map((r) => [String(r.roomId), `${r.code} · ${money(r.price)} ₫`] as [string, string]));
+  const room = select(liveRooms.filter((r) => r.status === 'VACANT' && r.roomId !== c.roomId).map((r) => [String(r.roomId), `${r.code} · ${money(r.price)} ₫`] as [string, string]));
   const period = input({ type: 'number', placeholder: 'Mã kỳ ghi chỉ số (tùy chọn)' });
   const e = input({ type: 'number', placeholder: 'Số điện chốt phòng cũ', class: 'input num-in' });
   const w = input({ type: 'number', placeholder: 'Số nước chốt phòng cũ', class: 'input num-in' });
-  d.body.append(err, sampleNote('Danh sách phòng trống lấy từ dữ liệu mẫu'), field('Phòng mới', room),
+  d.body.append(err, sampleNote('Phòng trống lấy theo hợp đồng thật'), field('Phòng mới', room),
     h('p', { class: 'muted' }, 'Muốn chốt chỉ số phòng cũ thì nhập đủ cả ba ô dưới.'),
     h('div', { class: 'form-grid' }, field('Kỳ ghi chỉ số', period), field('Số điện chốt', e), field('Số nước chốt', w)));
   const ok = h('button', { class: 'btn' }, 'Đổi phòng');

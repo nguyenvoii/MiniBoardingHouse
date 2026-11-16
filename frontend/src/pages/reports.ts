@@ -2,6 +2,7 @@ import { h } from '../lib/dom';
 import { icon } from '../lib/icons';
 import { api, errText, PROPERTY_ID } from '../lib/api';
 import { money } from '../lib/format';
+import { getMonth } from '../lib/ctx';
 import type { RevenueReport } from '../data/types';
 import { emptyState, pageHead, panel, select, table, toast } from '../ui/kit';
 
@@ -43,7 +44,7 @@ function niceStep(raw: number): number {
 }
 
 export async function reportsPage(view: HTMLElement): Promise<void> {
-  const year = new Date().getFullYear();
+  const year = Number(getMonth().slice(0, 4));
   const yearSel = select([-2, -1, 0].map((d) => [String(year + d), `Năm ${year + d}`] as [string, string]), String(year));
   const holder = h('div', { class: 'stack' });
   const load = async () => {

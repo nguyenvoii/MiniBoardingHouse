@@ -221,6 +221,7 @@ Mọi API đều xem được trong Swagger.
 | `GET /api/staff?keyword=&status=&page=&size=` | LANDLORD, MANAGER | UC9: tìm nhân viên |
 | `PUT /api/staff/{id}` | LANDLORD | UC9: sửa thông tin và thay vai trò |
 | `PATCH /api/staff/{id}/status` | LANDLORD | UC9: khóa/mở khóa, body `{"status":"LOCKED"}` hoặc `{"status":"ACTIVE"}` |
+| `GET /api/tenants/{tenantId}/account` | LANDLORD, MANAGER | Xem khách thuê đã có tài khoản đăng nhập chưa (`exists`) và đang `ACTIVE` hay `LOCKED` |
 | `POST /api/tenants/{tenantId}/account` | LANDLORD, MANAGER | UC10: cấp tài khoản người thuê |
 | `PATCH /api/tenants/{tenantId}/account/status` | LANDLORD, MANAGER | Khóa/mở khóa tài khoản người thuê (ví dụ khách trả phòng) |
 | `GET /api/permissions` | Nhân viên | UC11-12: danh mục quyền |
@@ -372,8 +373,10 @@ Giao diện web nằm trong `frontend/` (Vite + TypeScript, không dùng framewo
 
 Thư mục `src/main/resources/static` và `frontend/node_modules` bị git ignore: ai muốn thấy giao diện trên bản backend của mình thì chạy `npm run build`.
 
-- Màn hình nhân viên: Tổng quan (có "Tuyến tháng" 5 chặng), Tính tiền tháng, Hóa đơn, Thanh toán, Hợp đồng, Báo cáo, Nhân viên, Nhật ký thao tác, Tài khoản của tôi.
-- Màn hình người thuê: Trang chủ (số tiền cần trả, trả bằng QR), Hóa đơn, Hợp đồng (ký tay trên màn hình), Thông báo.
+- Màn hình nhân viên: Tổng quan (có "Tuyến tháng" 5 chặng), Chỉ số điện nước, Tính tiền tháng, Hóa đơn, Thanh toán, Công nợ, Sửa chữa, Hợp đồng, Phòng, Khách thuê (kèm cấp, khóa, mở khóa tài khoản đăng nhập), Doanh thu và chi phí, Chi phí vận hành, Nhân viên, Cài đặt (đơn giá điện nước, dịch vụ, phụ thu và giảm trừ, tài khoản ngân hàng và ảnh QR), Nhật ký thao tác, Tài khoản của tôi. Chuông thông báo ở thanh trên.
+- Màn hình người thuê: Trang chủ (số tiền cần trả, trả bằng QR), Hóa đơn, Hợp đồng (ký tay trên màn hình), Hỗ trợ (báo sự cố, đánh giá xử lý), Thông báo.
+- Chọn tháng ở thanh trên chỉ áp dụng cho Tổng quan, Chỉ số điện nước, Tính tiền tháng, Hóa đơn, Thanh toán, Chi phí vận hành và Báo cáo; các màn khác ẩn nó.
+- Trạng thái thuê của phòng và người đang ở lấy từ hợp đồng thật (danh sách phòng, khách gốc vẫn là dữ liệu mẫu cho tới khi Chi có API).
 - Phần của Chi: màn hình Phòng và Khách thuê, cùng danh sách chọn phòng/khách khi lập hợp đồng, đang dùng dữ liệu mẫu trong `frontend/src/data/sample.ts` và có nhãn "Dữ liệu mẫu". Khi Chi có API, chỉ cần thay dữ liệu trong file đó bằng lời gọi API.
 - Giao diện đang dùng một khu trọ (`PROPERTY_ID = 1` trong `frontend/src/lib/api.ts`).
 - Hóa đơn và chỉ số của Toàn trả JSON thô (không bọc `{success, data}`), client đã xử lý cả hai kiểu.

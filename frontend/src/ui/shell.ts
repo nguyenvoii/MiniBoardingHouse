@@ -3,6 +3,7 @@ import { icon, IconName } from '../lib/icons';
 import { Role, Session, can, logout } from '../lib/api';
 import { getMonth, setMonth, onMonth } from '../lib/ctx';
 import { monthLabel, shiftMonth, initials } from '../lib/format';
+import { notificationBell } from './bell';
 
 export function logo(size = 32): HTMLElement {
   // Biển vàng bo góc: dấu hiệu của Stayly
@@ -17,9 +18,12 @@ const GROUPS: Array<{ title: string; items: NavItem[] }> = [
     title: 'Vận hành',
     items: [
       { href: '#/', label: 'Tổng quan', icon: 'dash', roles: ['LANDLORD', 'MANAGER', 'CASHIER'] },
+      { href: '#/meters', label: 'Chỉ số điện nước', icon: 'water', roles: ['LANDLORD', 'MANAGER', 'METER_READER'] },
       { href: '#/billing', label: 'Tính tiền tháng', icon: 'calc', roles: ['LANDLORD', 'MANAGER'] },
       { href: '#/invoices', label: 'Hóa đơn', icon: 'receipt', roles: ['LANDLORD', 'MANAGER', 'CASHIER'], badge: true },
       { href: '#/payments', label: 'Thanh toán', icon: 'wallet', roles: ['LANDLORD', 'MANAGER', 'CASHIER'] },
+      { href: '#/debts', label: 'Công nợ', icon: 'alert', roles: ['LANDLORD', 'MANAGER', 'CASHIER'] },
+      { href: '#/maintenance', label: 'Sửa chữa', icon: 'settings', roles: ['LANDLORD', 'MANAGER'] },
     ],
   },
   {
@@ -30,13 +34,20 @@ const GROUPS: Array<{ title: string; items: NavItem[] }> = [
       { href: '#/tenants', label: 'Khách thuê', icon: 'users', roles: ['LANDLORD', 'MANAGER'] },
     ],
   },
-  { title: 'Báo cáo', items: [{ href: '#/reports', label: 'Doanh thu và chi phí', icon: 'chart', roles: ['LANDLORD', 'MANAGER'] }] },
+  {
+    title: 'Báo cáo',
+    items: [
+      { href: '#/reports', label: 'Doanh thu và chi phí', icon: 'chart', roles: ['LANDLORD', 'MANAGER'] },
+      { href: '#/expenses', label: 'Chi phí vận hành', icon: 'banknote', roles: ['LANDLORD', 'MANAGER'] },
+    ],
+  },
   {
     title: 'Hệ thống',
     items: [
       { href: '#/staff', label: 'Nhân viên', icon: 'user', roles: ['LANDLORD', 'MANAGER'] },
+      { href: '#/settings', label: 'Cài đặt giá và ngân hàng', icon: 'bank', roles: ['LANDLORD', 'MANAGER'] },
       { href: '#/activity', label: 'Nhật ký thao tác', icon: 'history', roles: ['LANDLORD'] },
-      { href: '#/profile', label: 'Tài khoản của tôi', icon: 'settings' },
+      { href: '#/profile', label: 'Tài khoản của tôi', icon: 'key' },
     ],
   },
 ];
@@ -53,17 +64,19 @@ export function buildStaffShell(s: Session): StaffShell {
   const rail = h('aside', { class: 'rail', 'aria-label': 'Điều hướng chính' },
     h('a', { class: 'brand', href: '#/' }, logo(36), h('div', null, h('b', null, 'Stayly'), h('small', null, 'Quản lý nhà trọ'))),
   );
+  const nav = h('nav', { class: 'rail-nav', 'aria-label': 'Menu' });
   for (const g of GROUPS) {
     const items = g.items.filter((i) => !i.roles || can(...i.roles));
     if (!items.length) continue;
-    rail.appendChild(h('div', { class: 'nav-group' }, g.title));
+    nav.appendChild(h('div', { class: 'nav-group' }, g.title));
     for (const it of items) {
       const a = h('a', { class: 'nav-link', href: it.href }, icon(it.icon), h('span', null, it.label),
         it.badge ? h('span', { class: 'count', 'data-overdue-count': '', hidden: true, title: 'Hóa đơn quá hạn' }, '0') : null) as HTMLAnchorElement;
       links.push(a);
-      rail.appendChild(a);
+      nav.appendChild(a);
     }
   }
+  rail.appendChild(nav);
   rail.appendChild(h('div', { class: 'rail-foot' },
     h('div', { class: 'rail-user' }, h('span', { class: 'avatar' }, initials(s.name)), h('div', null, h('b', null, s.name), h('span', null, s.roles.map((r) => ROLE_NAMES[r] ?? r).join(', ')))),
     h('button', { class: 'nav-link', style: 'border:0;background:none;width:100%;text-align:left;font:inherit', onclick: logout }, icon('logout'), h('span', null, 'Đăng xuất')),
@@ -71,11 +84,12 @@ export function buildStaffShell(s: Session): StaffShell {
 
   const out = h('output', null, monthLabel(getMonth()));
   onMonth(() => (out.textContent = monthLabel(getMonth())));
+  const bell = notificationBell();
   const topbar = h('header', { class: 'topbar' },
     h('button', { class: 'icon-btn menu-btn', 'aria-label': 'Mở menu', onclick: () => rail.classList.toggle('open') }, icon('menu')),
     h('div', { class: 'ctx' },
       h('span', { class: 'ctx-chip', title: 'Khu trọ đang quản lý' }, icon('building'), 'Khu trọ chính'),
-      h('div', { class: 'month-switch', role: 'group', 'aria-label': 'Chọn tháng' },
+      h('div', { class: 'month-switch', role: 'group', 'aria-label': 'Chọn tháng', title: 'Tháng làm việc: áp dụng cho Tổng quan, Tính tiền, Hóa đơn, Thanh toán và Báo cáo' },
         h('button', { 'aria-label': 'Tháng trước', onclick: () => setMonth(shiftMonth(getMonth(), -1)) }, icon('left', 16)), out,
         h('button', { 'aria-label': 'Tháng sau', onclick: () => setMonth(shiftMonth(getMonth(), 1)) }, icon('right', 16))),
     ),
@@ -84,6 +98,7 @@ export function buildStaffShell(s: Session): StaffShell {
         const v = (e.target as HTMLInputElement).value.trim();
         if (e.key === 'Enter' && v) location.hash = `#/invoices?q=${encodeURIComponent(v)}`;
       } })),
+    bell,
   );
 
   const root = h('div', { class: 'app' }, rail, h('div', { class: 'main' }, topbar, view));
@@ -114,6 +129,7 @@ export function buildTenantShell(s: Session): TenantShell {
     ['#/me', 'Trang chủ', 'home'],
     ['#/me/invoices', 'Hóa đơn', 'receipt'],
     ['#/me/contracts', 'Hợp đồng', 'file'],
+    ['#/me/support', 'Hỗ trợ', 'settings'],
     ['#/me/notifications', 'Thông báo', 'bell'],
   ];
   const links = tabs.map(([href, label, ic]) => h('a', { href }, icon(ic, 22), label) as HTMLAnchorElement);

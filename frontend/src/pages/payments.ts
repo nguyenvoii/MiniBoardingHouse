@@ -1,9 +1,10 @@
 import { h, busy } from '../lib/dom';
 import { icon } from '../lib/icons';
 import { api, errText, Page } from '../lib/api';
-import { dateTime, money } from '../lib/format';
+import { dateTime, money, monthLabel } from '../lib/format';
+import { getMonth } from '../lib/ctx';
 import type { Invoice, Payment, QrInfo } from '../data/types';
-import { emptyState, field, formError, input, openDialog, pageHead, panel, plate, select, statusBadge, table, toast } from '../ui/kit';
+import { confirmDialog, emptyState, field, formError, input, openDialog, pageHead, panel, plate, select, statusBadge, table, toast } from '../ui/kit';
 
 const METHODS: Record<string, string> = { CASH: 'Tiền mặt', BANK_TRANSFER: 'Chuyển khoản', QR_CODE: 'Mã QR', GATEWAY: 'Cổng thanh toán' };
 
@@ -56,12 +57,16 @@ function showQr(q: QrInfo, done: () => void): void {
 }
 
 export async function paymentsPage(view: HTMLElement): Promise<void> {
-  const state = { status: '', keyword: '' };
+  const month = getMonth();
+  const state = { status: '', keyword: '', all: false };
   const holder = h('div');
   const status = select([['', 'Mọi trạng thái'], ['FAILED', 'Chờ xác nhận'], ['SUCCESS', 'Thành công'], ['REVERSED', 'Đã hủy giao dịch']], '');
   const kw = input({ type: 'search', placeholder: 'Mã giao dịch hoặc mã hóa đơn', 'aria-label': 'Tìm giao dịch' });
+  const scope = select([['month', monthLabel(month)], ['all', 'Mọi tháng']], 'month');
+  scope.addEventListener('change', () => { state.all = scope.value === 'all'; void load(); });
   const load = async () => {
-    const r = await api.get<Page<Payment>>(`/api/payments?status=${state.status}&keyword=${encodeURIComponent(state.keyword)}&size=50`);
+    const r = await api.get<Page<Payment>>(`/api/payments?status=${state.status}&keyword=${encodeURIComponent(state.keyword)}&size=200`);
+    if (!state.all) r.items = r.items.filter((x) => x.paymentDate.startsWith(month));
     holder.replaceChildren(table<Payment>([
       { key: 'd', label: 'Thời điểm', render: (p) => dateTime(p.paymentDate) },
       { key: 'i', label: 'Hóa đơn', render: (p) => h('span', { class: 'plate ghost' }, p.invoiceCode) },
@@ -70,8 +75,17 @@ export async function paymentsPage(view: HTMLElement): Promise<void> {
       { key: 'a', label: 'Số tiền (₫)', num: true, render: (p) => h('b', null, money(p.amountPaid)) },
       { key: 'u', label: 'Người nhận', render: (p) => p.receivedByName ?? '–' },
       { key: 's', label: 'Trạng thái', render: (p) => statusBadge(p.status) },
-      { key: 'x', label: '', render: (p) => p.status === 'FAILED' ? confirmBtn(p) : '' },
-    ], r.items, { empty: emptyState('Chưa có giao dịch', 'Khi ghi nhận thanh toán hoặc tạo mã QR, giao dịch hiện ở đây.') }));
+      { key: 'x', label: '', render: (p) => p.status === 'FAILED' ? confirmBtn(p) : p.status === 'SUCCESS' ? reverseBtn(p) : '' },
+    ], r.items, { empty: emptyState(state.all ? 'Chưa có giao dịch' : `Không có giao dịch trong ${monthLabel(month).toLowerCase()}`, state.all ? 'Khi ghi nhận thanh toán hoặc tạo mã QR, giao dịch hiện ở đây.' : 'Đổi tháng ở thanh trên, hoặc chọn «Mọi tháng» ở bộ lọc.') }));
+  };
+  const reverseBtn = (p: Payment) => {
+    const b = h('button', { class: 'btn secondary sm' }, 'Hủy giao dịch');
+    b.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (!(await confirmDialog('Hủy giao dịch thanh toán', `Hủy giao dịch ${money(p.amountPaid)} ₫ của hóa đơn ${p.invoiceCode}? Số tiền sẽ bị trừ khỏi hóa đơn. Dùng khi ghi nhầm.`, 'Hủy giao dịch', true))) return;
+      try { await api.post(`/api/payment-transactions/${p.transactionId}/reverse`); toast('Đã hủy giao dịch'); void load(); } catch (x) { toast(errText(x), 'err'); }
+    });
+    return b;
   };
   const confirmBtn = (p: Payment) => {
     const b = h('button', { class: 'btn sm' }, icon('check', 14), 'Xác nhận');
@@ -86,7 +100,7 @@ export async function paymentsPage(view: HTMLElement): Promise<void> {
     pageHead('Thanh toán', 'Đối chiếu tiền vào tài khoản với hóa đơn. Giao dịch chờ xác nhận chưa được cộng vào hóa đơn.', [
       h('button', { class: 'btn', onclick: () => matchDialog(load) }, icon('search', 16), 'Đối chiếu chuyển khoản'),
     ]),
-    h('section', { class: 'panel panel-flush' }, h('div', { class: 'toolbar' }, h('div', { class: 'grow' }, kw), status), holder),
+    h('section', { class: 'panel panel-flush' }, h('div', { class: 'toolbar' }, h('div', { class: 'grow' }, kw), scope, status), holder),
   );
   await load();
 }

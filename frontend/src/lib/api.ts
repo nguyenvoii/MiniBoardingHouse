@@ -128,10 +128,10 @@ export const api = {
   put: <T>(p: string, b?: unknown) => request<T>('PUT', p, b ?? {}),
   patch: <T>(p: string, b?: unknown) => request<T>('PATCH', p, b ?? {}),
   del: <T>(p: string) => request<T>('DELETE', p),
-  upload: <T>(p: string, file: Blob) => {
+  upload: <T>(p: string, file: Blob, method: 'POST' | 'PUT' = 'POST') => {
     const f = new FormData();
-    f.append('file', file, 'file.png');
-    return request<T>('POST', p, undefined, true, f);
+    f.append('file', file, (file as File).name || 'file.png');
+    return request<T>(method, p, undefined, true, f);
   },
   /** Tải file nhị phân (PDF, Excel) kèm token rồi mở/lưu. */
   async download(path: string, filename: string): Promise<void> {

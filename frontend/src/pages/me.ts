@@ -3,7 +3,7 @@ import { icon } from '../lib/icons';
 import { api, errText, loadSession, Page } from '../lib/api';
 import { date, dateTime, money, monthLabel } from '../lib/format';
 import type { Contract, ContractDetail, Notification, QrInfo } from '../data/types';
-import { dl, emptyState, openDialog, plate, statusBadge, toast } from '../ui/kit';
+import { dl, emptyState, field, formError, openDialog, plate, select, statusBadge, toast } from '../ui/kit';
 import { signPad } from './contracts';
 import { routeLine } from '../ui/route';
 
@@ -103,3 +103,59 @@ export async function meNotificationsPage(view: HTMLElement): Promise<void> {
 }
 
 void monthLabel;
+
+// ------------------------------------------------------------------ hỗ trợ: báo sự cố, theo dõi, đánh giá
+const SUPPORT_CATEGORIES: Array<[string, string]> = [
+  ['ELECTRIC_ISSUE', 'Điện: mất điện, chập, nhảy aptomat'], ['WATER_ISSUE', 'Nước: yếu, rò rỉ, tắc'], ['AIR_CONDITIONER', 'Máy lạnh'],
+  ['DOOR_LOCK', 'Cửa, ổ khóa'], ['INTERNET', 'Mạng Internet'], ['METER_CHECK', 'Nghi ngờ công tơ tính sai'], ['OTHER_INCIDENT', 'Sự cố khác'],
+];
+const TICKET_LABEL: Record<string, [string, string]> = {
+  OPEN: ['Đã gửi, chờ tiếp nhận', 'warn'], ASSIGNED: ['Đã phân công', 'info'], IN_PROGRESS: ['Đang xử lý', 'info'], RESOLVED: ['Đã xử lý xong', 'ok'], CLOSED: ['Đã đóng', 'off'],
+};
+
+interface MyTicket { requestId: number; roomCode: string; category: string; description: string; priority: string; status: string; createdAt: string; log: { resolutionNotes: string | null; tenantRating: number | null } | null }
+
+export async function meSupportPage(view: HTMLElement): Promise<void> {
+  const list = await api.get<MyTicket[]>('/api/me/maintenance-requests');
+  const send = h('button', { class: 'btn lg block', onclick: () => newTicket(() => void meSupportPage(view)) }, icon('plus', 20), 'Báo sự cố');
+  mount(view,
+    h('h2', null, 'Hỗ trợ'),
+    send,
+    list.length
+      ? h('section', { class: 'panel panel-flush' }, ...list.map((t) => h('div', { class: 'inv-row' },
+          h('div', { class: 'inv-top' }, h('b', null, SUPPORT_CATEGORIES.find((c) => c[0] === t.category)?.[1] ?? t.category), (() => { const [l, tone] = TICKET_LABEL[t.status] ?? [t.status, 'off']; return h('span', { class: `st ${tone}` }, l); })()),
+          h('span', null, t.description),
+          h('span', { class: 'muted' }, `Phòng ${t.roomCode} · ${dateTime(t.createdAt)}`),
+          t.log?.resolutionNotes ? h('span', { class: 'muted' }, `Kết quả: ${t.log.resolutionNotes}`) : null,
+          t.status === 'RESOLVED' || t.status === 'CLOSED'
+            ? (t.log?.tenantRating ? h('span', { class: 'st ok', style: 'align-self:flex-start' }, `Bạn đã đánh giá ${t.log.tenantRating}/5 sao`) : h('button', { class: 'btn secondary', onclick: () => rate(t.requestId, () => void meSupportPage(view)) }, 'Đánh giá chất lượng xử lý'))
+            : null)))
+      : h('section', { class: 'panel' }, emptyState('Chưa có yêu cầu nào', 'Điện nước hư, máy lạnh, ổ khóa... bấm Báo sự cố, chủ trọ sẽ phân công người xử lý.')),
+  );
+}
+
+function newTicket(done: () => void): void {
+  const d = openDialog('Báo sự cố');
+  const err = h('div');
+  const cat = select(SUPPORT_CATEGORIES);
+  const desc = h('textarea', { class: 'textarea', placeholder: 'Mô tả sự cố để chủ trọ xử lý nhanh' }) as HTMLTextAreaElement;
+  const urgent = h('input', { type: 'checkbox' }) as HTMLInputElement;
+  d.body.append(err, field('Loại sự cố', cat), field('Mô tả', desc), h('label', { style: 'display:flex;gap:8px;align-items:center;font-weight:500' }, urgent, 'Khẩn cấp (nguy hiểm hoặc mất điện nước hoàn toàn)'));
+  const ok = h('button', { class: 'btn' }, 'Gửi');
+  d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Hủy'), ok);
+  ok.addEventListener('click', () => busy(ok, async () => {
+    try { await api.post('/api/me/maintenance-requests', { category: cat.value, description: desc.value.trim(), priority: urgent.checked ? 'URGENT' : 'NORMAL' }); d.close(); toast('Đã gửi yêu cầu'); done(); }
+    catch (e) { err.replaceChildren(formError(errText(e))); }
+  }));
+}
+
+function rate(id: number, done: () => void): void {
+  const d = openDialog('Đánh giá chất lượng xử lý');
+  const stars = select([['5', '5 sao: rất hài lòng'], ['4', '4 sao'], ['3', '3 sao'], ['2', '2 sao'], ['1', '1 sao: không hài lòng']]);
+  d.body.append(field('Mức độ hài lòng', stars));
+  const ok = h('button', { class: 'btn' }, 'Gửi đánh giá');
+  d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Hủy'), ok);
+  ok.addEventListener('click', () => busy(ok, async () => {
+    try { await api.post(`/api/me/maintenance-requests/${id}/rating`, { rating: Number(stars.value) }); d.close(); toast('Cảm ơn bạn đã đánh giá'); done(); } catch (e) { toast(errText(e), 'err'); }
+  }));
+}
