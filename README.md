@@ -68,6 +68,8 @@ Nguồn chính thức là file `docs/Nhom_7_47_usecase_khutro_4MM_PhanCongMoi.xl
 
 ### 3.2. Theo nhóm bảng
 
+Ngoài ra, Phi làm toàn bộ frontend (giao diện web Stayly trong `frontend/`, xem mục 9).
+
 Nguyên tắc: Phi giữ toàn bộ khung xương của dự án và các phần khó nhất (tính tiền tháng, hợp đồng, thanh toán, phân quyền). Ba người còn lại chia đều số bảng, mỗi người một cụm nghiệp vụ độc lập để làm đồng thời được. Phi 13 + Chi 14 + Toàn 15 + Việt 14 = 56 bảng, bằng số entity trong `shared/entity`.
 
 | Thành viên | Mã SV | Số bảng | Vai trò |
@@ -378,6 +380,8 @@ LANDLORD, MANAGER. `propertyId` bỏ trống là gộp mọi khu trọ.
 ---
 
 ## 9. Giao diện Stayly
+
+Người làm toàn bộ giao diện (frontend): Nguyễn Anh Phi (TH08326).
 
 Giao diện web nằm trong `frontend/` (Vite + TypeScript, không dùng framework UI). Nhân viên (chủ trọ, quản lý, thu ngân) dùng trên máy tính; người thuê dùng trên điện thoại. Cùng một ứng dụng, tự chọn khu vực theo vai trò khi đăng nhập.
 
