@@ -1,0 +1,42 @@
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body {
+  margin: 0;
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink);
+  background: var(--ground);
+  font-feature-settings: 'tnum' 1;
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, h4, p { margin: 0; }
+h1 { font-size: 24px; line-height: 1.25; font-weight: 700; letter-spacing: -0.01em; text-wrap: balance; }
+h2 { font-size: 17px; line-height: 1.3; font-weight: 650; letter-spacing: -0.005em; text-wrap: balance; }
+h3 { font-size: 14px; font-weight: 650; }
+a { color: var(--primary); text-underline-offset: 3px; }
+a:hover { color: var(--primary-hover); }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+img, svg { display: block; max-width: 100%; }
+table { border-collapse: collapse; width: 100%; }
+ul, ol { margin: 0; padding: 0; list-style: none; }
+.num, .money, td.num, th.num { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; }
+.num, td.num, th.num, .money { text-align: right; white-space: nowrap; }
+.muted { color: var(--ink-3); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Phần trình duyệt không vẽ: chọn chữ, con trỏ, thanh cuộn, vòng tiêu điểm */
+::selection { background: var(--plate); color: var(--plate-ink); }
+input, textarea { caret-color: var(--primary); accent-color: var(--primary); }
+:focus-visible { outline: 3px solid var(--plate); outline-offset: 2px; border-radius: var(--r-sm); box-shadow: 0 0 0 5px var(--plate-ink); }
+.rail :focus-visible, .m-top :focus-visible { box-shadow: none; outline-color: var(--plate); }
+* { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 10px; border: 2px solid var(--ground); }
+a { text-decoration-thickness: 1px; }
+
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion='full']) { scroll-behavior: auto; }
+  :root:not([data-motion='full']) *, :root:not([data-motion='full']) *::before, :root:not([data-motion='full']) *::after { transition-duration: 120ms !important; }
+}

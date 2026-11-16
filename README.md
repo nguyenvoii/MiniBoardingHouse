@@ -12,6 +12,7 @@ Website quản lý nhà trọ mini. Công nghệ: Java 17, Spring Boot 3, Spring
 6. [Hướng dẫn viết API cho mọi người](#6-hướng-dẫn-viết-api-cho-mọi-người)
 7. [Các API đã có (phần của Phi)](#7-các-api-đã-có-phần-của-phi)
 8. [Cấu hình](#8-cấu-hình)
+9. [Giao diện Stayly](#9-giao-diện-stayly)
 
 Tài liệu khác trong thư mục `docs/`: file Excel phân công, `HUONG_DAN_GIT.md` (cách đẩy code và mở Pull Request), `LOI_CAN_SUA_CODE_TOAN.md`, và `docs/thiet-ke/` (lý do chọn cách làm đăng nhập, tài khoản người thuê, quản lý tài khoản).
 
@@ -26,8 +27,10 @@ Tài liệu khác trong thư mục `docs/`: file Excel phân công, `HUONG_DAN_G
    spring.datasource.password=...
    ```
 3. Chạy `db/seed.sql` để nạp 5 vai trò (LANDLORD, MANAGER, CASHIER, METER_READER, TENANT), 22 quyền và tài khoản `admin@minihouse.local` / `Admin@123` (chỉ dùng dev/demo).
+3b. (Tùy chọn, dev/demo) Chạy `db/sample-data.sql` để nạp 1 khu trọ, 12 phòng, 8 khách thuê, đơn giá và chỉ số điện nước mẫu. File chỉ chạy khi DB chưa có khu trọ. Hợp đồng, hóa đơn, thanh toán thì tạo bằng giao diện.
 4. Chạy `mvn spring-boot:run`. Ứng dụng đặt `ddl-auto=validate` nên sẽ báo lỗi ngay nếu entity lệch với DB.
 5. Thử: `http://localhost:8080/api/ping`. Xem toàn bộ API tại Swagger: `http://localhost:8080/swagger-ui.html`.
+6. Giao diện Stayly (thư mục `frontend/`): xem mục 9. Chạy nhanh: `cd frontend`, `npm install`, `npm run build`, rồi mở `http://localhost:8080/` (cần bật `app.security.enabled=true` để đăng nhập).
 
 ---
 
@@ -354,3 +357,23 @@ LANDLORD, MANAGER. `propertyId` bỏ trống là gộp mọi khu trọ.
 | `app.payment.callback-secret` | trống (tắt) | Bí mật cổng thanh toán gọi `/api/payments/callback` |
 | `app.backup.dir` | thư mục sao lưu của SQL Server | Nơi ghi file `.bak` |
 | `app.export.pdf-font` | tự tìm Arial/DejaVu | Đường dẫn font `.ttf` cho PDF |
+
+---
+
+## 9. Giao diện Stayly
+
+Giao diện web nằm trong `frontend/` (Vite + TypeScript, không dùng framework UI). Nhân viên (chủ trọ, quản lý, thu ngân) dùng trên máy tính; người thuê dùng trên điện thoại. Cùng một ứng dụng, tự chọn khu vực theo vai trò khi đăng nhập.
+
+| Lệnh (chạy trong `frontend/`) | Việc |
+|---|---|
+| `npm install` | Cài thư viện (một lần) |
+| `npm run dev` | Chạy thử ở `http://localhost:5173`, tự chuyển `/api` sang backend cổng 8080 (backend phải đang chạy, không cần CORS) |
+| `npm run build` | Build vào `src/main/resources/static`, Spring Boot phục vụ chung cổng 8080 tại `/` |
+
+Thư mục `src/main/resources/static` và `frontend/node_modules` bị git ignore: ai muốn thấy giao diện trên bản backend của mình thì chạy `npm run build`.
+
+- Màn hình nhân viên: Tổng quan (có "Tuyến tháng" 5 chặng), Tính tiền tháng, Hóa đơn, Thanh toán, Hợp đồng, Báo cáo, Nhân viên, Nhật ký thao tác, Tài khoản của tôi.
+- Màn hình người thuê: Trang chủ (số tiền cần trả, trả bằng QR), Hóa đơn, Hợp đồng (ký tay trên màn hình), Thông báo.
+- Phần của Chi: màn hình Phòng và Khách thuê, cùng danh sách chọn phòng/khách khi lập hợp đồng, đang dùng dữ liệu mẫu trong `frontend/src/data/sample.ts` và có nhãn "Dữ liệu mẫu". Khi Chi có API, chỉ cần thay dữ liệu trong file đó bằng lời gọi API.
+- Giao diện đang dùng một khu trọ (`PROPERTY_ID = 1` trong `frontend/src/lib/api.ts`).
+- Hóa đơn và chỉ số của Toàn trả JSON thô (không bọc `{success, data}`), client đã xử lý cả hai kiểu.

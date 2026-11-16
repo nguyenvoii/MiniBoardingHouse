@@ -1,0 +1,64 @@
+/* Stayly: Bảng tuyến xe buýt. Xanh lá biển trạm, biển số phòng vàng, số tabular. */
+@import '@fontsource/be-vietnam-pro/vietnamese-400.css';
+@import '@fontsource/be-vietnam-pro/vietnamese-500.css';
+@import '@fontsource/be-vietnam-pro/vietnamese-600.css';
+@import '@fontsource/be-vietnam-pro/vietnamese-700.css';
+@import '@fontsource/be-vietnam-pro/latin-400.css';
+@import '@fontsource/be-vietnam-pro/latin-500.css';
+@import '@fontsource/be-vietnam-pro/latin-600.css';
+@import '@fontsource/be-vietnam-pro/latin-700.css';
+@import '@fontsource/be-vietnam-pro/latin-ext-400.css';
+@import '@fontsource/be-vietnam-pro/latin-ext-600.css';
+
+:root {
+  /* Biển trạm */
+  --rail: #0b5b40;
+  --rail-2: #0f6b4c;
+  --rail-ink: #e6f2ea;
+  --rail-ink-2: #a9cdb9;
+  --primary: #0e6b4a;
+  --primary-hover: #0a5a3e;
+  --primary-press: #084a33;
+  --primary-soft: #dcebe2;
+  --primary-faint: #eaf3ee;
+
+  /* Biển số phòng */
+  --plate: #f4c20d;
+  --plate-ink: #16231d;
+
+  /* Mặt phẳng */
+  --ground: #f1f5f1;
+  --panel: #ffffff;
+  --panel-2: #f7faf7;
+  --line: #dae3dc;
+  --line-strong: #bccabf;
+
+  /* Mực */
+  --ink: #14231c;
+  --ink-2: #3f5147;
+  --ink-3: #596b61;
+
+  /* Trạng thái (luôn đi kèm biểu tượng và chữ) */
+  --ok: #0e6b4a;
+  --ok-bg: #dff1e7;
+  --warn: #7d5200;
+  --warn-bg: #fff0c2;
+  --danger: #b4291c;
+  --danger-bg: #fbe8e5;
+  --info: #1d5aa0;
+  --info-bg: #e3edf8;
+  --wait: #4a5a7a;
+  --wait-bg: #e8ecf4;
+
+  --font: 'Be Vietnam Pro', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  --r-sm: 5px;
+  --r: 8px;
+  --r-lg: 12px;
+  --shadow-1: 0 1px 2px rgb(20 35 28 / 0.06), 0 1px 1px rgb(20 35 28 / 0.04);
+  --shadow-2: 0 8px 24px rgb(20 35 28 / 0.12), 0 2px 6px rgb(20 35 28 / 0.08);
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --rail-w: 244px;
+  --top-h: 60px;
+}

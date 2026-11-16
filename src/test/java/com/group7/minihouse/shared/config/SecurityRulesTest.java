@@ -150,6 +150,15 @@ class SecurityRulesTest {
         mvc.perform(get("/api/probe/staff")).andExpect(status().isUnauthorized());
     }
 
+    /** Giao dien Stayly (index.html + /assets/**) phai tai duoc khi chua dang nhap, neu khong thi khong ai dang nhap duoc. */
+    @Test
+    void staylyFrontendFilesArePublic() throws Exception {
+        for (String path : new String[] {"/", "/index.html", "/assets/index-abc.js", "/favicon.ico"}) {
+            int s = mvc.perform(get(path)).andReturn().getResponse().getStatus();
+            org.junit.jupiter.api.Assertions.assertTrue(s != 401 && s != 403, path + " bi chan, status = " + s);
+        }
+    }
+
     @Test
     void noTokenGets401() throws Exception {
         mvc.perform(get("/api/probe/staff")).andExpect(status().isUnauthorized());

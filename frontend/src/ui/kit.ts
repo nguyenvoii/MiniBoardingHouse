@@ -1,0 +1,243 @@
+import { h, append } from '../lib/dom';
+import { icon, IconName } from '../lib/icons';
+import { money } from '../lib/format';
+import { reducedMotion } from '../lib/motion';
+
+// ---------- Thông báo nổi ----------
+let toastHost: HTMLElement | null = null;
+export function toast(message: string, kind: 'ok' | 'err' = 'ok'): void {
+  if (!toastHost) {
+    toastHost = h('div', { class: 'toasts', role: 'status', 'aria-live': 'polite' });
+    document.body.appendChild(toastHost);
+  }
+  const t = h('div', { class: `toast ${kind === 'err' ? 'err' : ''}` }, icon(kind === 'err' ? 'warn' : 'check'), h('span', null, message));
+  toastHost.appendChild(t);
+  const life = kind === 'err' ? 7000 : 4000;
+  setTimeout(() => t.classList.add('leaving'), life - 180);
+  setTimeout(() => t.remove(), life);
+}
+
+// ---------- Hộp thoại / ngăn kéo (dùng <dialog>, không bị cắt bởi overflow) ----------
+export interface DialogHandle {
+  close(): void;
+  body: HTMLElement;
+  foot: HTMLElement;
+}
+
+export function openDialog(title: string, opts: { drawer?: boolean; width?: number } = {}): DialogHandle {
+  const dlg = h('dialog', { class: `dlg ${opts.drawer ? 'drawer' : ''}`, 'aria-labelledby': 'dlg-title' }) as HTMLDialogElement;
+  if (opts.width) dlg.style.width = `min(${opts.width}px, calc(100vw - 16px))`;
+  const body = h('div', { class: 'dlg-body' });
+  const foot = h('div', { class: 'dlg-foot' });
+  let closing = false;
+  const close = () => {
+    if (closing) return;
+    closing = true;
+    const done = () => {
+      dlg.close();
+      dlg.remove();
+    };
+    if (reducedMotion()) return done();
+    dlg.classList.add('closing');
+    setTimeout(done, 170);
+  };
+  dlg.append(
+    h('div', { class: 'dlg-head' }, h('h2', { id: 'dlg-title' }, title), h('button', { class: 'icon-btn', 'aria-label': 'Đóng', onclick: close }, icon('x'))),
+    body,
+    foot,
+  );
+  dlg.addEventListener('cancel', (e) => {
+    e.preventDefault();
+    close();
+  });
+  dlg.addEventListener('click', (e) => {
+    if (e.target === dlg) close();
+  });
+  document.body.appendChild(dlg);
+  dlg.showModal();
+  return { close, body, foot };
+}
+
+export function confirmDialog(title: string, message: string, okLabel: string, danger = false): Promise<boolean> {
+  return new Promise((resolve) => {
+    const d = openDialog(title);
+    d.body.append(h('p', null, message));
+    d.foot.append(
+      h('button', { class: 'btn secondary', onclick: () => { d.close(); resolve(false); } }, 'Hủy'),
+      h('button', { class: `btn ${danger ? 'danger' : ''}`, onclick: () => { d.close(); resolve(true); } }, okLabel),
+    );
+  });
+}
+
+// ---------- Trạng thái ----------
+type Tone = 'ok' | 'warn' | 'danger' | 'info' | 'wait' | 'off';
+interface StatusDef { label: string; tone: Tone; icon: IconName }
+
+const STATUS: Record<string, StatusDef> = {
+  // hợp đồng
+  ACTIVE: { label: 'Đang hiệu lực', tone: 'ok', icon: 'check' },
+  EXPIRING_SOON: { label: 'Sắp hết hạn', tone: 'warn', icon: 'clock' },
+  EXPIRED: { label: 'Đã hết hạn', tone: 'off', icon: 'clock' },
+  TERMINATED: { label: 'Đã chấm dứt', tone: 'off', icon: 'x' },
+  // hóa đơn
+  UNPAID: { label: 'Chưa trả', tone: 'wait', icon: 'clock' },
+  PARTIALLY_PAID: { label: 'Trả một phần', tone: 'info', icon: 'wallet' },
+  PAID: { label: 'Đã trả', tone: 'ok', icon: 'check' },
+  OVERDUE: { label: 'Quá hạn', tone: 'danger', icon: 'alert' },
+  CANCELLED: { label: 'Đã hủy', tone: 'off', icon: 'x' },
+  // kỳ tính tiền
+  DRAFT: { label: 'Nháp', tone: 'wait', icon: 'edit' },
+  APPROVED: { label: 'Đã duyệt', tone: 'info', icon: 'check' },
+  PUBLISHED: { label: 'Đã phát hành', tone: 'ok', icon: 'send' },
+  CLOSED: { label: 'Đã đóng', tone: 'off', icon: 'lock' },
+  // giao dịch
+  SUCCESS: { label: 'Thành công', tone: 'ok', icon: 'check' },
+  FAILED: { label: 'Chờ xác nhận', tone: 'warn', icon: 'clock' },
+  REVERSED: { label: 'Đã hủy giao dịch', tone: 'off', icon: 'x' },
+  // phòng, tài khoản
+  RENTED: { label: 'Đang thuê', tone: 'ok', icon: 'key' },
+  VACANT: { label: 'Trống', tone: 'wait', icon: 'bed' },
+  REPAIRING: { label: 'Đang sửa', tone: 'warn', icon: 'settings' },
+  SUSPENDED: { label: 'Tạm ngưng', tone: 'off', icon: 'lock' },
+  LOCKED: { label: 'Đã khóa', tone: 'danger', icon: 'lock' },
+  INACTIVE: { label: 'Chưa kích hoạt', tone: 'wait', icon: 'clock' },
+};
+
+export function statusBadge(code: string | null | undefined): HTMLElement {
+  const d = (code && STATUS[code]) || { label: code ?? '–', tone: 'off' as Tone, icon: 'info' as IconName };
+  return h('span', { class: `st ${d.tone}` }, icon(d.icon, 14), d.label);
+}
+
+export function statusLabel(code: string): string {
+  return STATUS[code]?.label ?? code;
+}
+
+export function plate(code: string, cls = ''): HTMLElement {
+  return h('span', { class: `plate ${cls}` }, code);
+}
+
+// ---------- Khung chờ, rỗng, lỗi ----------
+export function skeletonRows(n = 5): HTMLElement {
+  const box = h('div', { class: 'panel-body', 'aria-busy': 'true', 'aria-label': 'Đang tải' });
+  for (let i = 0; i < n; i++) box.appendChild(h('div', { class: 'skel', style: `height:18px;margin:14px 0;width:${96 - ((i * 13) % 40)}%` }));
+  return box;
+}
+
+export function emptyState(title: string, text: string, action?: HTMLElement): HTMLElement {
+  return h('div', { class: 'empty' }, h('h3', null, title), h('p', null, text), action);
+}
+
+export function errorState(message: string, retry?: () => void): HTMLElement {
+  return h(
+    'div',
+    { class: 'empty' },
+    h('h3', null, 'Chưa tải được dữ liệu'),
+    h('p', null, message),
+    retry ? h('button', { class: 'btn secondary', onclick: retry }, icon('refresh', 16), 'Thử lại') : null,
+  );
+}
+
+export function sampleNote(text = 'Dữ liệu mẫu, chờ API của Chi'): HTMLElement {
+  return h('span', { class: 'sample-note' }, icon('info', 14), text);
+}
+
+// ---------- Biểu mẫu ----------
+export function field(label: string, input: HTMLElement, hint?: string): HTMLElement {
+  const id = input.id || `f${Math.random().toString(36).slice(2, 8)}`;
+  input.id = id;
+  return h('div', { class: 'field' }, h('label', { for: id }, label), input, hint ? h('span', { class: 'hint' }, hint) : null);
+}
+
+export function input(attrs: Record<string, unknown> = {}): HTMLInputElement {
+  return h('input', { class: 'input', ...attrs }) as HTMLInputElement;
+}
+
+export function select(options: Array<[string, string]>, value = '', attrs: Record<string, unknown> = {}): HTMLSelectElement {
+  const s = h('select', { class: 'select', ...attrs }) as HTMLSelectElement;
+  for (const [v, l] of options) s.appendChild(h('option', { value: v, selected: v === value }, l));
+  return s;
+}
+
+export function formError(msg: string): HTMLElement {
+  return h('div', { class: 'form-error', role: 'alert' }, icon('alert'), h('span', null, msg));
+}
+
+// ---------- Bảng ----------
+export interface Column<T> {
+  key: string;
+  label: string;
+  num?: boolean;
+  render: (row: T) => Node | string | number;
+  sort?: (a: T, b: T) => number;
+}
+
+export function table<T>(cols: Column<T>[], rows: T[], opts: { onRow?: (r: T) => void; footer?: Node[]; empty?: HTMLElement } = {}): HTMLElement {
+  if (!rows.length && opts.empty) return opts.empty;
+  let sortKey: string | null = null;
+  let dir = 1;
+  const tbody = h('tbody');
+  const headRow = h('tr');
+  const paint = () => {
+    tbody.replaceChildren();
+    const data = [...rows];
+    const col = cols.find((c) => c.key === sortKey);
+    if (col?.sort) data.sort((a, b) => dir * col.sort!(a, b));
+    for (const r of data) {
+      const tr = h('tr', { class: opts.onRow ? 'clickable' : '', tabindex: opts.onRow ? 0 : null });
+      if (opts.onRow) {
+        tr.addEventListener('click', () => opts.onRow!(r));
+        tr.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') opts.onRow!(r);
+        });
+      }
+      for (const c of cols) tr.appendChild(h('td', { class: c.num ? 'num' : '' }, c.render(r) as Node));
+      tbody.appendChild(tr);
+    }
+    if (opts.footer) tbody.appendChild(h('tr', { class: 'total-row' }, ...opts.footer));
+  };
+  for (const c of cols) {
+    const th = h('th', { class: c.num ? 'num' : '', scope: 'col', 'aria-sort': 'none' });
+    if (c.sort) {
+      const b = h('button', { type: 'button', onclick: () => {
+        dir = sortKey === c.key ? -dir : 1;
+        sortKey = c.key;
+        headRow.querySelectorAll('th').forEach((x) => x.setAttribute('aria-sort', 'none'));
+        th.setAttribute('aria-sort', dir === 1 ? 'ascending' : 'descending');
+        paint();
+      } }, c.label, icon('arrowRight', 12));
+      b.querySelector('svg')!.style.transform = 'rotate(90deg)';
+      th.appendChild(b);
+    } else th.textContent = c.label;
+    headRow.appendChild(th);
+  }
+  paint();
+  return h('div', { class: 'tbl-wrap' }, h('table', { class: 'tbl' }, h('thead', null, headRow), tbody));
+}
+
+export function panel(title: string | null, body: Node | Node[], opts: { sub?: string; actions?: Node[]; flush?: boolean } = {}): HTMLElement {
+  return h(
+    'section',
+    { class: `panel ${opts.flush ? 'panel-flush' : ''}` },
+    title ? h('div', { class: 'panel-head' }, h('div', null, h('h2', null, title), opts.sub ? h('p', null, opts.sub) : null), opts.actions ? h('div', { class: 'page-actions' }, ...opts.actions) : null) : null,
+    ...(Array.isArray(body) ? body : [body]),
+  );
+}
+
+export function pageHead(title: string, sub?: string, actions: Node[] = []): HTMLElement {
+  return h('div', { class: 'page-head' }, h('div', null, h('h1', null, title), sub ? h('p', null, sub) : null), actions.length ? h('div', { class: 'page-actions' }, ...actions) : null);
+}
+
+export function dl(pairs: Array<[string, Node | string | number | null | undefined]>): HTMLElement {
+  const el = h('dl', { class: 'dl' });
+  for (const [k, v] of pairs) {
+    el.appendChild(h('dt', null, k));
+    const dd = h('dd');
+    append(dd, [v ?? '–']);
+    el.appendChild(dd);
+  }
+  return el;
+}
+
+export function moneyCell(v: number | string | null | undefined, strong = false): HTMLElement {
+  return h('span', { class: 'money', style: strong ? 'font-weight:700' : '' }, money(v));
+}

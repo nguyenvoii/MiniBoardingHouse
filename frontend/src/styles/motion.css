@@ -1,0 +1,105 @@
+/* Chuyển động của Stayly: mỗi hiệu ứng giải thích một trạng thái hoặc một quan hệ.
+   Nhân vật chính là Tuyến tháng: đường tuyến vẽ tới trạm, biển vàng "chạy tới" trạm hiện tại.
+   Mọi thứ hiển thị sẵn khi không có script; phần giảm chuyển động ở cuối file. */
+
+:root { --ease-out: cubic-bezier(0.16, 1, 0.3, 1); --ease-in: cubic-bezier(0.5, 0, 0.75, 0); }
+
+/* ---------- Trang đổi: nội dung vào theo nhịp, ngắn và có trần ---------- */
+.view-enter > * { animation: rise 260ms var(--ease-out) both; animation-delay: calc(min(var(--vi, 0), 5) * 45ms); }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } }
+
+/* ---------- Tuyến tháng ---------- */
+.stop::before { animation: draw 620ms var(--ease-out) both; animation-delay: calc(var(--i, 0) * 120ms + 120ms); }
+.stop.done .node { animation: node-pop 320ms var(--ease-out) backwards; animation-delay: calc(var(--i, 0) * 120ms + 120ms); }
+.stop.current .node { animation: plate-arrive 560ms var(--ease-out) backwards; animation-delay: calc(var(--i, 0) * 120ms + 260ms); }
+.stop .name, .stop .sub { animation: fade 300ms ease-out both; animation-delay: calc(var(--i, 0) * 120ms + 220ms); }
+@keyframes node-pop { from { opacity: 0; transform: scale(0.55); } }
+/* biển vàng đi từ trạm trước tới trạm này (theo chiều đường tuyến), rồi đặt xuống */
+@keyframes plate-arrive { 0% { opacity: 0; transform: translateX(calc(-1 * var(--arrive, 140%))) scale(0.9); } 70% { opacity: 1; } 100% { transform: none; } }
+@keyframes plate-arrive-y { 0% { opacity: 0; transform: translateY(calc(-1 * var(--arrive, 60px))) scale(0.92); } 70% { opacity: 1; } 100% { transform: none; } }
+@keyframes fade { from { opacity: 0; } }
+.stop a .name { transition: color 150ms; }
+.stop a:hover .node { transform: translateY(-2px); }
+.stop .node { transition: transform 200ms var(--ease-out), box-shadow 200ms; }
+.stop.current .node { will-change: transform; }
+
+/* ---------- Số liệu: đếm lên (script), thanh trên các ô nổi nhẹ khi rê chuột ---------- */
+.figure { transition: background 180ms; }
+.figure:hover { background: var(--panel-2); }
+a .figure, .figure a { transition: opacity 150ms; }
+
+/* ---------- Bảng: hàng vào lần đầu theo nhịp, rê chuột đổi nền mượt ---------- */
+.tbl.enter tbody tr { animation: row-in 220ms var(--ease-out) both; animation-delay: calc(min(var(--ri, 0), 12) * 28ms); }
+@keyframes row-in { from { opacity: 0; transform: translateX(-6px); } }
+.tbl tbody tr.clickable:active { background: var(--primary-soft); }
+.tbl th button svg { transition: transform 200ms var(--ease-out); }
+
+/* ---------- Biểu đồ: cột mọc từ đường 0 ---------- */
+.chart .bar-rev, .chart .bar-exp { transform-box: fill-box; transform-origin: 50% 100%; animation: grow 560ms var(--ease-out) both; animation-delay: calc(var(--i, 0) * 38ms + 120ms); }
+@keyframes grow { from { transform: scaleY(0); } }
+.chart rect { transition: opacity 150ms, filter 150ms; }
+.chart:hover rect { opacity: 0.55; }
+.chart rect:hover { opacity: 1; filter: brightness(1.05); }
+
+/* ---------- Nút và liên kết: bước lên khi rê, nhấn xuống khi bấm ---------- */
+.btn { transition: background 150ms var(--ease-out), border-color 150ms var(--ease-out), transform 150ms var(--ease-out), box-shadow 150ms var(--ease-out); }
+.btn:hover:not([disabled]) { transform: translateY(-1px); box-shadow: 0 3px 8px rgb(20 35 28 / 0.16); }
+.btn:active:not([disabled]) { transform: translateY(1px); box-shadow: none; }
+.btn > svg { transition: transform 200ms var(--ease-out); }
+.btn:hover:not([disabled]) > svg:last-child { transform: translateX(2px); }
+.btn.ghost:hover:not([disabled]), .btn.secondary:hover:not([disabled]) { box-shadow: none; }
+.link-btn { text-decoration: none; background: linear-gradient(currentColor, currentColor) 0 100% / 0 1.5px no-repeat; transition: background-size 220ms var(--ease-out); }
+.link-btn:hover { background-size: 100% 1.5px; }
+.nav-link svg { transition: transform 200ms var(--ease-out); }
+.nav-link:hover svg { transform: translateX(2px); }
+.nav-link { transition: background 160ms var(--ease-out), color 160ms; }
+.icon-btn { transition: background 150ms, transform 150ms var(--ease-out); }
+.icon-btn:active { transform: scale(0.94); }
+.seg button, .tabs button { transition: background 160ms var(--ease-out), color 160ms, box-shadow 160ms; }
+.room-tile, .list-row, .panel { transition: border-color 150ms, transform 180ms var(--ease-out), box-shadow 180ms; }
+.room-tile:hover { box-shadow: 0 6px 14px rgb(20 35 28 / 0.1); }
+.room-tile:active { transform: translateY(0) scale(0.99); }
+.m-tabs a { transition: color 160ms, box-shadow 200ms var(--ease-out); }
+.m-tabs a svg { transition: transform 200ms var(--ease-out); }
+.m-tabs a[aria-current='page'] svg { transform: translateY(-1px) scale(1.06); }
+.input, .select, .textarea { transition: border-color 150ms var(--ease-out), box-shadow 150ms, background 150ms; }
+
+/* ---------- Trạng thái đổi: ô trạng thái bật nhẹ để mắt thấy sự thay đổi ---------- */
+.st.pop { animation: st-pop 420ms var(--ease-out); }
+@keyframes st-pop { 0% { transform: scale(0.8); } 55% { transform: scale(1.08); } 100% { transform: none; } }
+
+/* ---------- Hộp thoại, ngăn kéo: vào chậm hơn ra ---------- */
+dialog.dlg[open]::backdrop { animation: fade 200ms ease-out both; }
+dialog.dlg.closing { animation: dlg-out 160ms var(--ease-in) both; }
+dialog.dlg.closing::backdrop { animation: fade-out 160ms ease-in both; }
+dialog.drawer.closing { animation: drawer-out 180ms var(--ease-in) both; }
+@keyframes dlg-out { to { opacity: 0; transform: translateY(6px) scale(0.99); } }
+@keyframes drawer-out { to { opacity: 0; transform: translateX(28px); } }
+@keyframes fade-out { to { opacity: 0; } }
+
+/* ---------- Thông báo nổi: dấu tích tự vẽ, ra bằng trượt xuống ---------- */
+.toast.leaving { animation: toast-out 180ms var(--ease-in) both; }
+@keyframes toast-out { to { opacity: 0; transform: translateY(8px); } }
+.toast:not(.err) svg path { stroke-dasharray: 26; stroke-dashoffset: 26; animation: tick 380ms 120ms var(--ease-out) forwards; }
+@keyframes tick { to { stroke-dashoffset: 0; } }
+
+/* ---------- Biển vàng ở đăng nhập: lăn vào lần lượt như các trạm ---------- */
+.login-side .plate { animation: plate-roll 480ms var(--ease-out) both; }
+.login-side .plate:nth-child(2) { animation-delay: 70ms; } .login-side .plate:nth-child(3) { animation-delay: 140ms; }
+.login-side .plate:nth-child(4) { animation-delay: 210ms; } .login-side .plate:nth-child(5) { animation-delay: 280ms; }
+@keyframes plate-roll { from { opacity: 0; transform: translateX(-18px); } }
+.login-card .btn.lg:hover:not([disabled]) { box-shadow: 0 6px 14px rgb(11 91 64 / 0.28); }
+
+/* ---------- Khung chờ -> nội dung: mượt, không giật ---------- */
+.skel { animation-duration: 1.4s; }
+
+/* ---------- Giảm chuyển động: bỏ dịch chuyển và đếm, giữ đổi màu và đổi trạng thái ---------- */
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion='full']) .view-enter > *,:root:not([data-motion='full']) .tbl.enter tbody tr,:root:not([data-motion='full']) .stop::before,:root:not([data-motion='full']) .stop .name,:root:not([data-motion='full']) .stop .sub,:root:not([data-motion='full']) .login-side .plate,:root:not([data-motion='full']) .chart .bar-rev,:root:not([data-motion='full']) .chart .bar-exp { animation: none !important; }
+  :root:not([data-motion='full']) .stop.done .node,:root:not([data-motion='full']) .stop.current .node { animation: fade 200ms ease-out both !important; animation-delay: 0s !important; }
+  :root:not([data-motion='full']) .btn:hover:not([disabled]),:root:not([data-motion='full']) .room-tile:hover,:root:not([data-motion='full']) .stop a:hover .node { transform: none !important; }
+  :root:not([data-motion='full']) .btn:hover:not([disabled]) > svg:last-child,:root:not([data-motion='full']) .nav-link:hover svg { transform: none !important; }
+  :root:not([data-motion='full']) .toast:not(.err) svg path { animation: none; stroke-dashoffset: 0; }
+  :root:not([data-motion='full']) dialog.dlg[open],:root:not([data-motion='full']) dialog.drawer { animation: fade 150ms ease-out !important; }
+  :root:not([data-motion='full']) dialog.dlg.closing,:root:not([data-motion='full']) dialog.drawer.closing { animation: fade-out 120ms ease-in both !important; }
+}

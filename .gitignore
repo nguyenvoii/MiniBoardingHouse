@@ -19,3 +19,12 @@ docs/superpowers/
 # File nguoi dung upload va ban sao luu DB (tao luc chay)
 uploads/
 backups/
+
+# Giao dien Stayly (frontend/): thu vien va ban build (chay `npm run build` trong frontend/ de tao lai)
+frontend/node_modules/
+src/main/resources/static/
+
+# Ghi chu thiet ke cua AI: chi giu tren may (hoi truoc khi dua len GitHub)
+PRODUCT.md
+DESIGN.md
+.impeccable/
