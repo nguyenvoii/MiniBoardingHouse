@@ -1,6 +1,6 @@
 import { h, busy } from '../lib/dom';
 import { icon } from '../lib/icons';
-import { api, errText, Page } from '../lib/api';
+import { api, errText, loadSession, Page } from '../lib/api';
 import { dateTime, money } from '../lib/format';
 import { liveContracts } from '../data/live';
 import type { Staff } from '../data/types';
@@ -91,8 +91,14 @@ async function assign(t: Ticket, done: () => void): Promise<void> {
   const staff = await api.get<Page<Staff>>('/api/staff?size=100').catch(() => ({ items: [] as Staff[] }));
   const d = openDialog('Phân công xử lý');
   const err = h('div');
-  const who = select(staff.items.filter((s) => s.status === 'ACTIVE').map((s) => [String(s.userId), s.fullName] as [string, string]));
-  d.body.append(err, field('Nhân viên xử lý', who, staff.items.length ? undefined : 'Chưa có nhân viên nào, hãy thêm ở mục Nhân viên'));
+  // Chủ nhà, quản lý tự nhận xử lý cũng được: người đang đăng nhập luôn có trong danh sách, kẻo chưa có nhân viên nào thì không phân công được
+  const me = loadSession();
+  const options: Array<[string, string]> = me ? [[String(me.userId), `${me.name} (tôi)`]] : [];
+  for (const s of staff.items) {
+    if (s.status === 'ACTIVE' && (!me || s.userId !== me.userId)) options.push([String(s.userId), s.fullName]);
+  }
+  const who = select(options);
+  d.body.append(err, field('Người xử lý', who, staff.items.length ? undefined : 'Chưa có nhân viên nào. Bạn có thể tự nhận xử lý, hoặc thêm nhân viên ở mục Nhân viên'));
   const ok = h('button', { class: 'btn' }, 'Phân công');
   d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Hủy'), ok);
   ok.addEventListener('click', () => busy(ok, async () => {
