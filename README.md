@@ -38,14 +38,16 @@ Tài liệu khác trong thư mục `docs/`: file Excel phân công, `HUONG_DAN_G
 
 ## 2. Tiến độ từng người
 
-Cập nhật ngày 16/11/2026, theo những gì thực sự có trên GitHub (nhánh `main` và các nhánh con). Ai đẩy code mới thì tự sửa dòng của mình trong bảng này.
+Cập nhật ngày 17/11/2026, theo những gì thực sự có trên GitHub (nhánh `main`). **Danh sách chi tiết từng use case còn thiếu của từng người nằm ở `docs/TIEN_DO_VA_CON_THIEU.md`.** Ai đẩy code mới thì tự sửa dòng của mình trong bảng này và trong file đó.
+
+Tổng quan 132 use case: Phi 45 xong; Chi, Toàn, Việt (87 use case) có 33 xong cả backend lẫn giao diện, 7 làm một phần, 32 chỉ có backend (chờ màn giao diện), 15 chưa làm.
 
 | Thành viên | Được giao | Đã có trên `main` | Đang chờ / việc tiếp theo |
 |---|---|---|---|
 | Nguyễn Anh Phi | 45 UC | 45 UC: 1-13, 41-51, 65-75, 85-88, 116, 118, 119, 120, 122, cộng khung xuất Excel/PDF | Đã xong hết phần được giao (UC76, UC77 do Toàn làm). Phần Phi đọc phòng và khách thuê trực tiếp qua EntityManager vì Chi chưa có service |
-| Nguyễn Trần Bảo Chi | 31 UC | 29 UC trong package `chi` (API `/api/chi/**`): phòng, tầng, ảnh phòng, nội thất, khách thuê, xe, người ở cùng, đặt phòng, mẫu hợp đồng, yêu cầu thiết bị, phụ phí, biên bản nhận phòng (UC124) | Đã gộp vào main, đã rà soát và sửa (kiểm tra dữ liệu vào, luồng trạng thái, phân quyền, upload ảnh an toàn, 21 test). Giao diện riêng của Chi đã bỏ, dùng giao diện Stayly. Chưa có: UC125 xuất danh sách phòng/khách ra Excel. Phần của Phi vẫn đọc phòng, khách qua EntityManager, chưa đổi sang `RoomService`/`TenantService` của Chi |
-| Phạm Khánh Toàn | 28 UC | Một phần (Pull Request #2): hóa đơn, chỉ số điện nước, thu tiền, đơn giá dịch vụ, job nhắc hạn | Chưa có test. Chi phí vận hành: đã bỏ bản của Toàn, giữ bản của Việt (`/api/expenses`, có phân quyền, tóm tắt, bộ lọc). Đối chiếu lại các mục còn lại trong `docs/LOI_CAN_SUA_CODE_TOAN.md`. Lưu ý: `BillingJobs` đang TỰ BẬT (thiếu cấu hình = bật), nên đặt `minihouse.scheduler.enabled=false` khi chạy thử trên máy. |
-| Vũ Văn Quốc Việt | 28 UC | Đã merge PR #1 | Đã có công nợ, trả phòng, bảo trì, thiết bị phòng, chi phí vận hành, thông báo. |
+| Nguyễn Trần Bảo Chi | 31 UC | Xong 6, một phần 5, chỉ có backend 12, chưa làm 8. API `/api/chi/**` (phòng, ảnh, nội thất, khách thuê, xe, người ở cùng, đặt phòng, mẫu hợp đồng, thiết bị, phụ phí, biên bản nhận phòng) đã gộp vào `main` | Chưa làm: UC14, 15, 16, 18 (sửa phòng), 24, 29, 31 (sửa hồ sơ khách), 125 (xuất Excel). Cần chốt với Việt phần trùng yêu cầu thiết bị (UC108, 109). Cần `git pull origin main` vì nhánh `chi` có lịch sử tách rời |
+| Phạm Khánh Toàn | 28 UC | Xong 14, một phần 1, chỉ có backend 9, chưa làm 4. Đã có: chỉ số điện nước, đơn giá, hóa đơn, thu tiền, job nhắc hạn | Chưa làm: UC126 (hủy hóa đơn), 127 (đối soát thu tiền ngày), 128 (lịch sử thao tác hóa đơn), 129 (xuất bảng kê). **Việc gấp: gắn `@PreAuthorize` cho mọi API của Toàn** (hiện thu ngân gọi được API đổi giá, sửa hóa đơn). Chưa có test. `BillingJobs` tự bật khi thiếu cấu hình, đặt `minihouse.scheduler.enabled=false` khi chạy thử. Xem `docs/LOI_CAN_SUA_CODE_TOAN.md` |
+| Vũ Văn Quốc Việt | 28 UC | Xong 13, một phần 1, chỉ có backend 11, chưa làm 3. Đã có: công nợ, nhắc nợ, trả phòng (API), bảo trì, thiết bị phòng, chi phí vận hành, thông báo | Chưa làm: UC130 (thông báo chung), 131 (thống kê sự cố), 132 (báo cáo hoàn cọc). Chưa có test. Cần chốt với Phi hai đường chấm dứt hợp đồng (UC51 và UC107) và với Chi phần trùng thiết bị phòng |
 
 Phần của Phi chi tiết:
 - Đã làm: UC1 đăng ký chủ trọ, UC2 xác thực email bằng OTP, UC3 đăng nhập/đăng xuất, UC4 quên mật khẩu, UC5 đổi mật khẩu, UC6 hồ sơ cá nhân, UC7 ảnh đại diện, UC8-9 quản lý nhân viên, UC10 cấp tài khoản người thuê, UC11 phân quyền theo vai trò, UC12 bảng quyền chi tiết, UC13 nhật ký thao tác, UC119 tài khoản ngân hàng và QR, UC120 khung job tự động, UC122 sao lưu và phục hồi, khung xuất Excel/PDF.
