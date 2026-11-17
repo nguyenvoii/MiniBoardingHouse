@@ -1,0 +1,94 @@
+HƯỚNG DẪN SỬ DỤNG STAYLY (MINIBOARDINGHOUSE)
+Phần mềm quản lý nhà trọ: phòng, khách thuê, hợp đồng, điện nước, hóa đơn, thu tiền.
+
+
+1. PHẦN MỀM HOẠT ĐỘNG THẾ NÀO
+
+Có 3 phần nối với nhau:
+- Giao diện web (Stayly): nơi người dùng bấm và nhập.
+- Backend Spring Boot: nhận yêu cầu từ giao diện, tính toán, kiểm tra quyền.
+- Cơ sở dữ liệu SQL Server: lưu mọi thứ (phòng, khách, hợp đồng, hóa đơn...).
+
+Vòng đời một tháng của nhà trọ, đi theo thứ tự:
+  Hợp đồng -> Ghi chỉ số điện nước -> Tính tiền tháng -> Phát hành hóa đơn -> Thu tiền -> Báo cáo
+Thanh "Tuyến tháng" ở đầu các màn chốt tháng cho biết đang ở chặng nào.
+
+
+2. AI DÙNG ĐƯỢC GÌ
+
+- Chủ trọ: dùng tất cả, kể cả quản lý nhân viên, nhật ký, sao lưu.
+- Quản lý: vận hành hằng ngày (phòng, hợp đồng, tính tiền, hóa đơn).
+- Thu ngân: thu tiền, xem hóa đơn và công nợ.
+- Người ghi điện nước: ghi chỉ số.
+- Người thuê: xem hóa đơn, hợp đồng, trả tiền, báo sự cố (dùng trên điện thoại).
+Đăng nhập xong, phần mềm tự hiện đúng màn hình theo vai trò.
+
+
+3. CHẠY PHẦN MỀM (MÁY DEV)
+
+1. Chạy db/group-7.sql, rồi db/seed.sql (và db/sample-data.sql nếu muốn dữ liệu mẫu).
+2. Tạo src/main/resources/application-local.properties, ghi tài khoản SQL Server.
+   Muốn đăng nhập thì thêm dòng: app.security.enabled=true
+3. Vào thư mục frontend: npm install, rồi npm run build (làm một lần, build lại khi sửa giao diện).
+4. Ở thư mục gốc: mvn spring-boot:run
+5. Mở trình duyệt: http://localhost:8080/
+   Tài khoản thử: admin@minihouse.local / Admin@123
+   Xem danh sách API: http://localhost:8080/swagger-ui.html
+
+
+4. DÙNG HẰNG THÁNG (NHÂN VIÊN, TRÊN MÁY TÍNH)
+
+Bước 0 - Cài đặt (làm một lần, hoặc khi giá đổi)
+  Menu Cài đặt: nhập đơn giá điện, nước, dịch vụ, phụ thu, tài khoản ngân hàng và ảnh QR.
+
+Bước 1 - Phòng, khách, hợp đồng
+  Menu Khách thuê: thêm khách. Muốn khách tự xem hóa đơn thì bấm cấp tài khoản
+  (hệ thống tạo mật khẩu tạm, đưa cho khách; khách có thể bị khóa hoặc mở lại).
+  Menu Hợp đồng: tạo hợp đồng chọn phòng + khách + tiền thuê + tiền cọc.
+  Khách ký tay trên màn hình, có thể tải hợp đồng PDF.
+
+Bước 2 - Chỉ số điện nước
+  Chọn tháng ở thanh trên, vào Chỉ số điện nước, nhập số điện/nước mới của từng phòng.
+
+Bước 3 - Tính tiền tháng
+  Vào Tính tiền tháng, tạo kỳ của tháng. Hệ thống tự tính: tiền phòng, điện, nước,
+  dịch vụ, xe, phụ thu. Có thể xem từng phòng, thêm/xóa khoản tay.
+  Kiểm tra xong thì bấm Duyệt kỳ (kỳ chỉ số cùng tháng tự đóng).
+
+Bước 4 - Hóa đơn
+  Vào Hóa đơn, phát hành hóa đơn từ kỳ đã duyệt. Mỗi phòng một hóa đơn.
+
+Bước 5 - Thu tiền
+  Vào Thanh toán:
+  - Tiền mặt: chọn hóa đơn, nhập số tiền, ghi nhận.
+  - Chuyển khoản QR: người thuê quét mã, ngân hàng báo về thì hóa đơn tự chuyển thành đã trả.
+  Hóa đơn chưa trả hết sẽ nằm ở mục Công nợ.
+
+Bước 6 - Theo dõi
+  Tổng quan: số liệu cả tháng. Doanh thu và chi phí: báo cáo, xuất Excel hoặc PDF.
+  Chi phí vận hành: ghi các khoản chi của chủ trọ. Sửa chữa: xử lý sự cố khách báo.
+  Nhật ký thao tác: xem ai làm gì. Chuông thông báo ở thanh trên.
+
+Lưu ý: ô chọn tháng ở thanh trên chỉ có tác dụng ở các màn chốt tháng
+(Tổng quan, Chỉ số, Tính tiền, Hóa đơn, Thanh toán, Chi phí vận hành, Báo cáo).
+Các nút nguy hiểm (hủy giao dịch, chấm dứt hợp đồng) được giấu trong hộp chi tiết để tránh bấm nhầm.
+
+
+5. DÙNG CHO NGƯỜI THUÊ (TRÊN ĐIỆN THOẠI)
+
+Đăng nhập bằng số điện thoại (hoặc email) và mật khẩu chủ trọ cấp. Có 5 màn:
+- Trang chủ: số tiền cần trả, nút trả bằng QR.
+- Hóa đơn: xem các hóa đơn của mình.
+- Hợp đồng: xem và ký tay trên màn hình.
+- Hỗ trợ: báo sự cố trong phòng, theo dõi xử lý, đánh giá.
+- Thông báo.
+Nên đổi mật khẩu tạm ở lần đăng nhập đầu (menu Tài khoản của tôi).
+
+
+6. KHI GẶP SỰ CỐ
+
+- Bị đưa về trang đăng nhập: phiên hết hạn (8 giờ), đăng nhập lại.
+- Quên mật khẩu: bấm Quên mật khẩu ở trang đăng nhập, mã OTP 6 số có hiệu lực 10 phút.
+  (Hiện mã OTP chỉ in ra log của backend, chưa gửi email thật.)
+- Giao diện trắng hoặc không thấy màn hình mới: chạy lại npm run build rồi tải lại trang.
+- Backend không khởi động: kiểm tra SQL Server đang chạy và application-local.properties đúng.
