@@ -1,4 +1,4 @@
-// Kiểu dữ liệu khớp với DTO của backend (xem README mục 7).
+// Kiểu dữ liệu khớp với DTO của backend (xem docs/API_PHI.md và Swagger).
 export interface Dashboard {
   propertyId: number | null; asOf: string; totalRooms: number; rentedRooms: number; vacantRooms: number; otherRooms: number;
   occupancyPercent: number; revenueThisMonth: number; billedThisMonth: number; expenseThisMonth: number;

@@ -19,7 +19,7 @@ A1. Đưa code vào đúng cấu trúc package.
        minihouse.scheduler.enabled=true
        minihouse.scheduler.meter-grace-days=7
    - Không copy lại db/group-7.sql, MiniBoardingHouseApplication, package-info.java của zip.
-   Quy tắc phụ thuộc: package toan được gọi shared và chi, KHÔNG được gọi phi hay viet (xem README mục quy tắc phụ thuộc một chiều).
+   Quy tắc phụ thuộc: package toan được gọi shared và chi, KHÔNG được gọi phi hay viet (xem `docs/HUONG_DAN_LAP_TRINH.md`, mục Cấu trúc code, quy tắc phụ thuộc một chiều).
 
 A2. Đổi cách báo lỗi sang khung chung.
    Code đang ném ResponseStatusException (13 chỗ). GlobalExceptionHandler của main chưa bắt loại này nên rất có thể lỗi 400/404/409 sẽ biến thành 500. Hãy đổi:

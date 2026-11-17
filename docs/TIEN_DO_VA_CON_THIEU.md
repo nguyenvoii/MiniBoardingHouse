@@ -24,7 +24,7 @@ Ghi chú về Phi: 45 use case của Phi đều đã có code và giao diện. C
 ## 2. Việc ưu tiên trước khi nộp
 
 1. **Toàn**: gắn `@PreAuthorize` cho toàn bộ API của Toàn (xem mục 4, lỗi 1) và làm 4 use case chưa có (126 đến 129).
-2. **Việt**: làm 3 use case chưa có (130, 131, 132).
+2. **Việt**: làm 3 use case chưa có (130, 131, 132), phương án chi tiết ở mục 7.
 3. **Chi**: làm 8 use case chưa có (14, 15, 16, 18, 24, 29, 31, 125), trong đó 18 (sửa phòng) và 31 (sửa hồ sơ khách) là hai thao tác cơ bản người dùng sẽ tìm ngay.
 4. **Cả nhóm**: chốt các điểm trùng và mâu thuẫn ở mục 4 (thiết bị phòng, chấm dứt hợp đồng, phụ phí vào hóa đơn).
 5. **Phi**: dựng các màn giao diện còn thiếu (mục 5), ưu tiên màn trả phòng và biên bản nhận phòng vì là luồng nghiệp vụ chính.
@@ -197,3 +197,45 @@ Giao diện do Phi làm. Các màn dưới đây đã có API, đang chờ làm 
 - Chạy toàn bộ test: `mvn test` (hiện 279 test, 0 lỗi).
 - Sau khi kéo code của người khác về, luôn chạy thử app (`mvn spring-boot:run`) trước khi báo xong. Test đơn vị không bắt được lỗi trùng tên bean hay thiếu bảng, hai lỗi này đã xảy ra ba lần.
 - Dữ liệu để thử nhiều: chạy `db/sample-data-day.sql` (3 khu trọ, 100 phòng, 100 khách thuê), xóa bằng `db/sample-data-day-xoa.sql`.
+
+## 7. Phương án cho phần của Việt
+
+Việt còn 3 use case chưa làm, 11 use case chỉ có API, hai chỗ trùng với người khác và chưa có test. Phương án dưới đây bám vào những gì Việt đã có (`NotificationSender`, `NotificationCenterService`, `MaintenanceService`, `CheckoutService`) và **không thêm bảng DB mới**.
+
+**1. Ba use case chưa làm** (thứ tự làm: 132, 131, 130; tổng 14.8 giờ theo Excel)
+
+- **UC132 Báo cáo hoàn cọc và quyết toán trả phòng theo tháng** (3.7 giờ)
+  - API: `GET /api/checkout-reports?month=YYYY-MM` và `GET /api/checkout-reports/export?month=YYYY-MM&format=xlsx|pdf`. Quyền chủ trọ và quản lý. Đặt trong package `viet`, không sửa `ReportService` của Phi.
+  - Nguồn dữ liệu: `checkout_requests` đã `FINALIZED` có `actual_checkout_date` trong tháng, nối với `deposit_refund_vouchers`. Mỗi dòng gồm phòng, khách, ngày trả, tiền cọc gốc, khấu trừ nợ, khấu trừ hư hỏng, tiền hoàn thực tế, trạng thái phiếu (`PENDING` hoặc `REFUNDED`), ngày hoàn.
+  - Dòng tổng cuối: tổng cọc, tổng khấu trừ, tổng đã hoàn, **số phiếu chưa hoàn** (để nhắc việc còn tồn).
+  - Xuất file bằng `TableData` và `TableExporter` của Phi (xem `docs/API_PHI.md` mục 2), không viết Apache POI tay như `DebtService.exportExcel`.
+- **UC131 Thống kê sự cố và lịch sử bảo trì** (4.5 giờ)
+  - API: `GET /api/maintenance-requests/statistics?from=&to=` (tổng số, theo trạng thái, theo nhóm sự cố, theo tháng, top phòng hay hỏng) và `GET /api/rooms/{roomId}/maintenance-history` (từng sự cố kèm người xử lý, chi phí, điểm đánh giá). Có thêm `.../export` cho Excel.
+  - Nguồn: `maintenance_requests` (nhóm `category`, `status`, `created_at`) nối `maintenance_logs` (`repair_cost`, `completed_at`, `tenant_rating`). Thời gian xử lý trung bình = `completed_at` trừ `created_at`. Gom nhóm bằng JPQL `group by`, viết trong repository có `@Query` để app khởi động là được kiểm tra cú pháp.
+  - Quyền chủ trọ và quản lý.
+- **UC130 Gửi thông báo chung cho người thuê (cả khu hoặc theo tầng) và theo dõi** (6.6 giờ)
+  - API: `POST /api/announcements` (tiêu đề, nội dung, phạm vi `ALL` hoặc `FLOOR` kèm danh sách tầng), `GET /api/announcements` (các lần đã gửi), `GET /api/announcements/{batchId}` (ai đã đọc, ai chưa).
+  - Không cần bảng mới: mỗi thông báo ghi vào `user_notifications` với `reference_type = 'ANNOUNCEMENT'` và `reference_id = batchId` (lấy bằng số giây Unix lúc gửi, vừa kiểu `INT`). "Theo dõi" là đếm `is_read` theo `batchId`.
+  - Người nhận: khách có hợp đồng `ACTIVE` hoặc `EXPIRING_SOON` trong khu, lọc theo tầng qua `rooms.floor_id`. Gửi bằng `NotificationSender.notifyTenant` (đã có, hỗ trợ mẫu `{{biến}}`). Kết quả trả về `sent` và danh sách `chưa có tài khoản` để nhân viên báo trực tiếp.
+  - Chống gửi nhầm hai lần: cùng người, cùng tiêu đề trong 60 giây thì trả 409.
+
+**2. Hai chỗ trùng cần Việt chủ trì chốt với nhóm**
+
+- **Yêu cầu thiết bị và phụ phí (UC108, 109) trùng với Chi.** Phương án đề xuất: luồng của Việt là chuẩn (`PENDING` sang `APPROVED` hoặc `REJECTED`, sang `INSTALLED`, sang `REMOVED`; lúc `install` tự tạo `room_addon_fees`; có phía người thuê `/api/me/equipment-requests`). Chi bỏ `RoomEquipmentRequestController` và `RoomEquipmentRequestService`, chỉ giữ `RoomAddonFeeController` để nhập phụ phí tay. Việt làm: ghi lại luồng trạng thái trong README, thêm kiểm tra không lắp thiết bị cho phòng không có hợp đồng.
+- **Hai đường chấm dứt hợp đồng (UC51 của Phi và UC107 của Việt).** Phương án đề xuất: tách phần dùng chung thành một hàm (hợp đồng sang `TERMINATED`, phòng sang `VACANT`, ghi `contract_adjustments`) đặt trong `shared`, cả `terminate` của Phi lẫn `finalize` của Việt cùng gọi. Việt làm: liệt kê chính xác `finalize` hiện đổi những gì (hợp đồng, phòng, nhật ký), gửi cho Phi để rút phần chung. Quy ước: trả phòng bình thường đi qua `finalize`; `terminate` chỉ cho chấm dứt đặc biệt (không có kiểm tra phòng).
+
+**3. Bổ sung test** (hiện `viet` chưa có test nào; mẫu: `ChiServicesTest`, dùng Mockito)
+
+Tối thiểu 15 test cho các phép tính và luồng dễ sai: tiền phạt chậm thanh toán, quyết toán trả phòng (`refundable = cọc - nợ - hư hỏng`, trường hợp khách còn phải trả thêm), `NotificationSender.render` (biến thiếu giữ nguyên), luồng trạng thái yêu cầu sửa chữa và yêu cầu thiết bị (không nhảy bước), nhắc nợ không gửi trùng trong ngày, và các API mới ở mục 1.
+
+**4. Giao diện cho 11 use case chỉ có API** (Phi làm màn hình, Việt bàn giao ví dụ gọi API; Việt tự làm cũng được, lấy `frontend/src/pages/rooms.ts` hàm `addRoom` làm mẫu)
+
+Thứ tự ưu tiên: (1) trả phòng UC101 đến 107, gồm kiểm tra phòng, quyết toán, phiếu hoàn cọc, biên bản bàn giao, cả phía người thuê; (2) danh sách hợp đồng sắp hết hạn UC52; (3) quản lý nhóm sự cố UC113; (4) mẫu thông báo UC121; (5) điều chỉnh hóa đơn từ sự cố UC111.
+
+**5. Quy tắc khi làm** (giống phần của Chi và Phi)
+
+- Mọi API mới có `@PreAuthorize` (đọc: chủ trọ, quản lý; ghi: tùy nghiệp vụ). Dữ liệu vào sai trả 400 hoặc 409 kèm thông báo rõ, không để thành lỗi 500.
+- Không thêm bảng. Nếu bắt buộc phải thêm thì sửa `db/group-7.sql` và thêm `db/patch_NN_*.sql` trong cùng một commit.
+- Trước khi push: `mvn test` và `mvn spring-boot:run` (khởi động được, không trùng tên bean). Commit bằng tiếng Việt có dấu, cập nhật dòng của mình trong bảng tiến độ và `docs/TIEN_DO_VA_CON_THIEU.md`.
+
+**Tiêu chí xong:** 3 use case có API và test; chốt xong hai chỗ trùng (ghi quyết định vào mục 4 của file này); `viet` có test; ít nhất màn trả phòng chạy được trên giao diện.
