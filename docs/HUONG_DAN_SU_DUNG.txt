@@ -26,7 +26,7 @@ Thanh "Tuyến tháng" ở đầu các màn chốt tháng cho biết đang ở c
 
 3. CHẠY PHẦN MỀM (MÁY DEV)
 
-1. Chạy db/group-7.sql, rồi db/seed.sql (và db/sample-data.sql nếu muốn dữ liệu mẫu).
+1. Chạy db/group-7.sql, rồi db/seed.sql (và db/sample-data.sql nếu muốn dữ liệu mẫu, db/sample-data-day.sql nếu muốn thật nhiều dữ liệu để test).
 2. Tạo src/main/resources/application-local.properties, ghi tài khoản SQL Server.
    Muốn đăng nhập thì thêm dòng: app.security.enabled=true
 3. Vào thư mục frontend: npm install, rồi npm run build (làm một lần, build lại khi sửa giao diện).

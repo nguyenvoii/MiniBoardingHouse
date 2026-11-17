@@ -19,4 +19,6 @@ public interface CheckinInspectionRepository extends JpaRepository<CheckinInspec
 
     @EntityGraph(attributePaths = {"room", "tenant", "contract"})
     Optional<CheckinInspection> findById(Integer id);
+
+    boolean existsByContract_ContractId(Integer contractId);
 }

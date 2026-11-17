@@ -1,5 +1,6 @@
 package com.group7.minihouse.chi.controller;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import com.group7.minihouse.chi.dto.RoomFurnishingDTO;
 import com.group7.minihouse.chi.service.RoomFurnishingService;
 import com.group7.minihouse.shared.dto.ApiResponse;
@@ -10,6 +11,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/chi/furnishings")
 @CrossOrigin(origins = "*")
+@PreAuthorize("hasAnyRole('LANDLORD','MANAGER')")
 public class RoomFurnishingController {
 
     private final RoomFurnishingService furnishingService;

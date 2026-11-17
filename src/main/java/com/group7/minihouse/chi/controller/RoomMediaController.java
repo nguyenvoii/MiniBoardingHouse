@@ -1,5 +1,6 @@
 package com.group7.minihouse.chi.controller;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import com.group7.minihouse.chi.dto.RoomMediaDTO;
 import com.group7.minihouse.chi.service.RoomMediaService;
 import com.group7.minihouse.shared.dto.ApiResponse;
@@ -13,6 +14,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/chi/media")
+@PreAuthorize("hasAnyRole('LANDLORD','MANAGER')")
 public class RoomMediaController {
 
     private final RoomMediaService roomMediaService;

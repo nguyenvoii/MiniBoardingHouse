@@ -1,5 +1,6 @@
 package com.group7.minihouse.chi.controller;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import com.group7.minihouse.chi.dto.RoomDTO;
 import com.group7.minihouse.chi.service.RoomService;
 import com.group7.minihouse.shared.dto.ApiResponse;
@@ -9,6 +10,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/chi/rooms")
+@PreAuthorize("hasAnyRole('LANDLORD','MANAGER')")
 public class RoomController {
 
     private final RoomService roomService;
@@ -17,16 +19,19 @@ public class RoomController {
         this.roomService = roomService;
     }
 
+    @PreAuthorize("hasAnyRole('LANDLORD','MANAGER','CASHIER','METER_READER')")
     @GetMapping
     public ApiResponse<List<RoomDTO>> getAllRooms() {
         return ApiResponse.ok(roomService.getAllRooms());
     }
 
+    @PreAuthorize("hasAnyRole('LANDLORD','MANAGER','CASHIER','METER_READER')")
     @GetMapping("/{id}")
     public ApiResponse<RoomDTO> getRoomById(@PathVariable Integer id) {
         return ApiResponse.ok(roomService.getRoomById(id));
     }
 
+    @PreAuthorize("hasAnyRole('LANDLORD','MANAGER','CASHIER','METER_READER')")
     @GetMapping("/floor/{floorId}")
     public ApiResponse<List<RoomDTO>> getRoomsByFloor(@PathVariable Integer floorId) {
         return ApiResponse.ok(roomService.getRoomsByFloor(floorId));

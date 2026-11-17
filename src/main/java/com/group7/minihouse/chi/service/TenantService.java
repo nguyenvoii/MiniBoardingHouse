@@ -6,6 +6,7 @@ import com.group7.minihouse.chi.dto.TenantVehicleDTO;
 import com.group7.minihouse.chi.repository.*;
 import com.group7.minihouse.shared.entity.*;
 import com.group7.minihouse.shared.exception.BusinessException;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -55,6 +56,9 @@ public class TenantService {
     }
 
     public TenantDTO createTenant(TenantDTO.CreateRequest req) {
+        if (req == null) {
+            throw new BusinessException("Thiếu thông tin khách thuê");
+        }
         if (req.getFullName() == null || req.getFullName().isBlank()) {
             throw new BusinessException("Họ tên không được để trống");
         }
@@ -65,6 +69,12 @@ public class TenantService {
             throw new BusinessException("Số CCCD không được để trống");
         }
 
+        if (req.getFullName().trim().length() > 100) {
+            throw new BusinessException("Họ tên tối đa 100 ký tự");
+        }
+        if (req.getPhoneNumber().trim().length() > 20 || req.getIdentityNumber().trim().length() > 20) {
+            throw new BusinessException("Số điện thoại và số CCCD tối đa 20 ký tự");
+        }
         if (tenantRepository.findByPhoneNumber(req.getPhoneNumber().trim()).isPresent()) {
             throw new BusinessException("Số điện thoại này đã tồn tại trong hệ thống");
         }
@@ -75,7 +85,7 @@ public class TenantService {
         Tenant t = new Tenant();
         t.setFullName(req.getFullName().trim());
         t.setPhoneNumber(req.getPhoneNumber().trim());
-        t.setEmail(req.getEmail());
+        t.setEmail(req.getEmail() == null || req.getEmail().isBlank() ? null : req.getEmail().trim());
         t.setDob(req.getDob());
         t.setIdentityNumber(req.getIdentityNumber().trim());
         t.setPermanentAddress(req.getPermanentAddress());
@@ -96,6 +106,12 @@ public class TenantService {
     }
 
     public void saveIdCard(Integer tenantId, String frontUrl, String backUrl) {
+        if (frontUrl == null || frontUrl.isBlank() || backUrl == null || backUrl.isBlank()) {
+            throw new BusinessException("Cần đủ đường dẫn ảnh CCCD mặt trước (frontUrl) và mặt sau (backUrl)");
+        }
+        if (frontUrl.length() > 500 || backUrl.length() > 500) {
+            throw new BusinessException("Đường dẫn ảnh tối đa 500 ký tự");
+        }
         Tenant tenant = tenantRepository.findById(tenantId)
                 .orElseThrow(() -> BusinessException.notFound("Khách thuê"));
 
@@ -127,14 +143,50 @@ public class TenantService {
                 }).collect(Collectors.toList());
     }
 
+    /** Loại xe hợp lệ theo CHECK của bảng tenant_vehicles; nhận thêm vài tên tiếng Việt quen dùng. */
+    static String normalizeVehicleType(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "MOTORBIKE";
+        }
+        String s = raw.trim().toUpperCase();
+        switch (s) {
+            case "MOTORBIKE": case "BICYCLE": case "ELECTRIC_BIKE": case "CAR": case "OTHER":
+                return s;
+            case "XE MÁY": case "XE MAY":
+                return "MOTORBIKE";
+            case "XE ĐẠP": case "XE DAP":
+                return "BICYCLE";
+            case "XE ĐIỆN": case "XE DIEN": case "XE ĐẠP ĐIỆN": case "XE DAP DIEN":
+                return "ELECTRIC_BIKE";
+            case "Ô TÔ": case "O TO":
+                return "CAR";
+            default:
+                throw new BusinessException("Loại xe không hợp lệ (MOTORBIKE, BICYCLE, ELECTRIC_BIKE, CAR, OTHER)");
+        }
+    }
+
     public TenantVehicleDTO addVehicle(TenantVehicleDTO.CreateRequest req) {
+        if (req == null || req.getTenantId() == null) {
+            throw new BusinessException("Chưa chọn khách thuê");
+        }
+        if (req.getLicensePlate() == null || req.getLicensePlate().isBlank()) {
+            throw new BusinessException("Biển số xe không được để trống");
+        }
+        String plate = req.getLicensePlate().trim().toUpperCase();
+        if (plate.length() > 20) {
+            throw new BusinessException("Biển số xe tối đa 20 ký tự");
+        }
+        String type = normalizeVehicleType(req.getVehicleType());
         Tenant tenant = tenantRepository.findById(req.getTenantId())
                 .orElseThrow(() -> BusinessException.notFound("Khách thuê"));
+        if (tenantVehicleRepository.existsByLicensePlateIgnoreCase(plate)) {
+            throw new BusinessException(HttpStatus.CONFLICT, "Biển số " + plate + " đã được đăng ký");
+        }
 
         TenantVehicle v = new TenantVehicle();
         v.setTenant(tenant);
-        v.setLicensePlate(req.getLicensePlate().trim().toUpperCase());
-        v.setVehicleType(req.getVehicleType() != null ? req.getVehicleType() : "Xe máy");
+        v.setLicensePlate(plate);
+        v.setVehicleType(type);
         v.setBrand(req.getBrand());
         v.setColor(req.getColor());
         v.setIsActive(true);
@@ -175,12 +227,19 @@ public class TenantService {
     }
 
     public RoomResidentDTO addResident(RoomResidentDTO.CreateRequest req) {
+        if (req == null || req.getRoomId() == null) {
+            throw new BusinessException("Chưa chọn phòng");
+        }
+        if (req.getFullName() == null || req.getFullName().isBlank()) {
+            throw new BusinessException("Họ tên người ở cùng không được để trống");
+        }
         Room room = roomRepository.findById(req.getRoomId())
                 .orElseThrow(() -> BusinessException.notFound("Phòng"));
 
         Tenant tenant = null;
         if (req.getTenantId() != null) {
-            tenant = tenantRepository.findById(req.getTenantId()).orElse(null);
+            tenant = tenantRepository.findById(req.getTenantId())
+                    .orElseThrow(() -> BusinessException.notFound("Khách thuê"));
         }
 
         RoomResident resident = new RoomResident();

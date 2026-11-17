@@ -52,7 +52,7 @@ public class SecurityConfig {
                             "/api/auth/resend-verification", "/api/ping",
                             "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html",
                             "/ui/**", "/", "/index.html", "/assets/**", "/favicon.ico").permitAll()
-                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/auth/avatars/*", "/api/bank-accounts/qr/*", "/api/contracts/signatures/*").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/uploads/rooms/**", "/api/auth/avatars/*", "/api/bank-accounts/qr/*", "/api/contracts/signatures/*").permitAll()
                         // cong thanh toan goi ve (tu kiem tra bi mat qua header X-Callback-Secret trong controller)
                         .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/payments/callback").permitAll() // /ui/**: giao dien tinh xem thu (chi co tren may nao dat thu muc demo-ui)
                         .requestMatchers("/api/auth/**").authenticated()

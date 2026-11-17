@@ -8,6 +8,7 @@ import com.group7.minihouse.shared.entity.BookingRequest;
 import com.group7.minihouse.shared.entity.Room;
 import com.group7.minihouse.shared.entity.Tenant;
 import com.group7.minihouse.shared.exception.BusinessException;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,10 +46,21 @@ public class BookingRequestService {
         if (req.getTenantId() == null) throw new BusinessException("Chưa chọn khách thuê");
         if (req.getExpectedStartDate() == null) throw new BusinessException("Chưa chọn ngày dự kiến dọn vào");
 
+        if (req.getOccupantsCount() != null && req.getOccupantsCount() < 1) {
+            throw new BusinessException("Số người ở phải từ 1 trở lên");
+        }
+        if (req.getDepositPaid() != null && req.getDepositPaid().signum() < 0) {
+            throw new BusinessException("Tiền đặt cọc không được âm");
+        }
+
         Room room = roomRepository.findById(req.getRoomId())
                 .orElseThrow(() -> BusinessException.notFound("Phòng"));
         Tenant tenant = tenantRepository.findById(req.getTenantId())
                 .orElseThrow(() -> BusinessException.notFound("Khách thuê"));
+        if (req.getOccupantsCount() != null && room.getMaxOccupants() != null
+                && req.getOccupantsCount() > room.getMaxOccupants()) {
+            throw new BusinessException("Phòng chỉ cho tối đa " + room.getMaxOccupants() + " người ở");
+        }
 
         BookingRequest b = new BookingRequest();
         b.setRoom(room);
@@ -65,6 +77,7 @@ public class BookingRequestService {
     public BookingRequestDTO.Response approve(Integer bookingId) {
         BookingRequest b = bookingRequestRepository.findById(bookingId)
                 .orElseThrow(() -> BusinessException.notFound("Yêu cầu đặt phòng"));
+        requireStatus(b, "duyệt", "PENDING");
         b.setStatus("APPROVED");
         return toResponse(bookingRequestRepository.save(b));
     }
@@ -72,6 +85,7 @@ public class BookingRequestService {
     public BookingRequestDTO.Response reject(Integer bookingId, String reason) {
         BookingRequest b = bookingRequestRepository.findById(bookingId)
                 .orElseThrow(() -> BusinessException.notFound("Yêu cầu đặt phòng"));
+        requireStatus(b, "từ chối", "PENDING");
         b.setStatus("REJECTED");
         b.setRejectionReason(reason != null && !reason.isBlank() ? reason : "Không đủ điều kiện");
         return toResponse(bookingRequestRepository.save(b));
@@ -80,7 +94,11 @@ public class BookingRequestService {
     public BookingRequestDTO.Response updateDeposit(Integer bookingId, BigDecimal depositAmount) {
         BookingRequest b = bookingRequestRepository.findById(bookingId)
                 .orElseThrow(() -> BusinessException.notFound("Yêu cầu đặt phòng"));
+        requireStatus(b, "cập nhật tiền cọc", "PENDING", "APPROVED");
         if (depositAmount != null) {
+            if (depositAmount.signum() < 0) {
+                throw new BusinessException("Tiền đặt cọc không được âm");
+            }
             b.setDepositPaid(depositAmount);
         }
         return toResponse(bookingRequestRepository.save(b));
@@ -89,8 +107,20 @@ public class BookingRequestService {
     public BookingRequestDTO.Response cancel(Integer bookingId) {
         BookingRequest b = bookingRequestRepository.findById(bookingId)
                 .orElseThrow(() -> BusinessException.notFound("Yêu cầu đặt phòng"));
+        requireStatus(b, "hủy", "PENDING", "APPROVED");
         b.setStatus("CANCELLED");
         return toResponse(bookingRequestRepository.save(b));
+    }
+
+    /** Chỉ cho phép chuyển trạng thái khi yêu cầu đang ở một trong các trạng thái hợp lệ. */
+    private static void requireStatus(BookingRequest b, String action, String... allowed) {
+        for (String a : allowed) {
+            if (a.equals(b.getStatus())) {
+                return;
+            }
+        }
+        throw new BusinessException(HttpStatus.CONFLICT,
+                "Không thể " + action + " yêu cầu đang ở trạng thái " + b.getStatus());
     }
 
     private BookingRequestDTO.Response toResponse(BookingRequest b) {

@@ -61,6 +61,17 @@ public class RoomAddonFeeService {
             throw new BusinessException("Số tiền phụ phí không hợp lệ");
         }
 
+        if (req.getFeeName().trim().length() > 100) {
+            throw new BusinessException("Tên phụ phí tối đa 100 ký tự");
+        }
+        if (req.getBillingCycleMonths() != null && req.getBillingCycleMonths() < 1) {
+            throw new BusinessException("Chu kỳ thu phải từ 1 tháng trở lên");
+        }
+        LocalDate start = req.getStartDate() != null ? req.getStartDate() : LocalDate.now();
+        if (req.getEndDate() != null && req.getEndDate().isBefore(start)) {
+            throw new BusinessException("Ngày kết thúc không được trước ngày bắt đầu");
+        }
+
         Room room = roomRepository.findById(req.getRoomId())
                 .orElseThrow(() -> BusinessException.notFound("Phòng #" + req.getRoomId()));
 
@@ -69,12 +80,13 @@ public class RoomAddonFeeService {
         entity.setFeeName(req.getFeeName().trim());
         entity.setAmount(req.getAmount());
         entity.setBillingCycleMonths(req.getBillingCycleMonths() != null ? req.getBillingCycleMonths() : 1);
-        entity.setStartDate(req.getStartDate() != null ? req.getStartDate() : LocalDate.now());
+        entity.setStartDate(start);
         entity.setEndDate(req.getEndDate());
         entity.setIsActive(req.getIsActive() != null ? req.getIsActive() : true);
 
         if (req.getEquipmentRequestId() != null) {
-            RoomEquipmentRequest eq = equipmentRequestRepository.findById(req.getEquipmentRequestId()).orElse(null);
+            RoomEquipmentRequest eq = equipmentRequestRepository.findById(req.getEquipmentRequestId())
+                    .orElseThrow(() -> BusinessException.notFound("Yêu cầu thiết bị #" + req.getEquipmentRequestId()));
             entity.setEquipmentRequest(eq);
         }
 

@@ -37,6 +37,9 @@ public class ContractTemplateService {
         if (req.getTemplateName() == null || req.getTemplateName().isBlank()) {
             throw new BusinessException("Tên mẫu hợp đồng không được để trống");
         }
+        if (req.getTemplateName().trim().length() > 100) {
+            throw new BusinessException("Tên mẫu hợp đồng tối đa 100 ký tự");
+        }
         if (req.getTermsContent() == null || req.getTermsContent().isBlank()) {
             throw new BusinessException("Nội dung điều khoản không được để trống");
         }
@@ -45,8 +48,20 @@ public class ContractTemplateService {
         t.setTemplateName(req.getTemplateName());
         t.setTermsContent(req.getTermsContent());
         t.setIsDefault(req.getIsDefault() != null ? req.getIsDefault() : false);
+        if (Boolean.TRUE.equals(t.getIsDefault())) {
+            clearOtherDefaults(null);
+        }
 
         return toResponse(templateRepository.save(t));
+    }
+
+    /** Chỉ có 1 mẫu mặc định: đặt mẫu mới làm mặc định thì bỏ mặc định ở các mẫu còn lại. */
+    private void clearOtherDefaults(Integer keepId) {
+        for (ContractTemplate other : templateRepository.findAll()) {
+            if (Boolean.TRUE.equals(other.getIsDefault()) && !other.getTemplateId().equals(keepId)) {
+                other.setIsDefault(false);
+            }
+        }
     }
 
     public ContractTemplateDTO.Response update(Integer id, ContractTemplateDTO.Request req) {
@@ -61,6 +76,9 @@ public class ContractTemplateService {
         }
         if (req.getIsDefault() != null) {
             t.setIsDefault(req.getIsDefault());
+            if (req.getIsDefault()) {
+                clearOtherDefaults(t.getTemplateId());
+            }
         }
 
         return toResponse(templateRepository.save(t));

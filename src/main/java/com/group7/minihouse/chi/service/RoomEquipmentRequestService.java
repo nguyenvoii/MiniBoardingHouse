@@ -8,16 +8,20 @@ import com.group7.minihouse.shared.entity.Room;
 import com.group7.minihouse.shared.entity.RoomEquipmentRequest;
 import com.group7.minihouse.shared.entity.Tenant;
 import com.group7.minihouse.shared.exception.BusinessException;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
 public class RoomEquipmentRequestService {
+
+    private static final Set<String> STATUSES = Set.of("PENDING", "APPROVED", "REJECTED", "INSTALLED", "REMOVED");
 
     private final RoomEquipmentRequestRepository requestRepository;
     private final RoomRepository roomRepository;
@@ -58,6 +62,12 @@ public class RoomEquipmentRequestService {
         if (req.getEquipmentName() == null || req.getEquipmentName().trim().isEmpty()) {
             throw new BusinessException("Vui lòng nhập tên thiết bị");
         }
+        if (req.getEquipmentName().trim().length() > 100) {
+            throw new BusinessException("Tên thiết bị tối đa 100 ký tự");
+        }
+        if (req.getEstimatedMonthlyFee() != null && req.getEstimatedMonthlyFee().signum() < 0) {
+            throw new BusinessException("Phí ước tính hàng tháng không được âm");
+        }
 
         Room room = roomRepository.findById(req.getRoomId())
                 .orElseThrow(() -> BusinessException.notFound("Phòng #" + req.getRoomId()));
@@ -83,6 +93,7 @@ public class RoomEquipmentRequestService {
     public RoomEquipmentRequestDTO.Response approve(Integer id) {
         RoomEquipmentRequest entity = requestRepository.findById(id)
                 .orElseThrow(() -> BusinessException.notFound("Yêu cầu thiết bị #" + id));
+        requirePending(entity, "duyệt");
         entity.setStatus("APPROVED");
         return toResponse(requestRepository.save(entity));
     }
@@ -91,6 +102,7 @@ public class RoomEquipmentRequestService {
     public RoomEquipmentRequestDTO.Response reject(Integer id, String reason) {
         RoomEquipmentRequest entity = requestRepository.findById(id)
                 .orElseThrow(() -> BusinessException.notFound("Yêu cầu thiết bị #" + id));
+        requirePending(entity, "từ chối");
         entity.setStatus("REJECTED");
         if (reason != null && !reason.trim().isEmpty()) {
             entity.setNote((entity.getNote() != null ? entity.getNote() + " | " : "") + "Từ chối: " + reason.trim());
@@ -102,8 +114,18 @@ public class RoomEquipmentRequestService {
     public RoomEquipmentRequestDTO.Response updateStatus(Integer id, String newStatus) {
         RoomEquipmentRequest entity = requestRepository.findById(id)
                 .orElseThrow(() -> BusinessException.notFound("Yêu cầu thiết bị #" + id));
+        if (newStatus == null || !STATUSES.contains(newStatus.trim().toUpperCase())) {
+            throw new BusinessException("Trạng thái không hợp lệ (PENDING, APPROVED, REJECTED, INSTALLED, REMOVED)");
+        }
         entity.setStatus(newStatus.trim().toUpperCase());
         return toResponse(requestRepository.save(entity));
+    }
+
+    private static void requirePending(RoomEquipmentRequest e, String action) {
+        if (!"PENDING".equals(e.getStatus())) {
+            throw new BusinessException(HttpStatus.CONFLICT,
+                    "Không thể " + action + " yêu cầu đang ở trạng thái " + e.getStatus());
+        }
     }
 
     private RoomEquipmentRequestDTO.Response toResponse(RoomEquipmentRequest e) {

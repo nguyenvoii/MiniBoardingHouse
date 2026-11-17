@@ -1,5 +1,6 @@
 package com.group7.minihouse.chi.controller;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import com.group7.minihouse.chi.dto.ContractTemplateDTO;
 import com.group7.minihouse.chi.service.ContractTemplateService;
 import com.group7.minihouse.shared.dto.ApiResponse;
@@ -9,6 +10,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/chi/contract-templates")
+@PreAuthorize("hasAnyRole('LANDLORD','MANAGER')")
 public class ContractTemplateController {
 
     private final ContractTemplateService templateService;

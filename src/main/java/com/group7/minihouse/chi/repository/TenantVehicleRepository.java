@@ -9,4 +9,6 @@ import java.util.List;
 @Repository
 public interface TenantVehicleRepository extends JpaRepository<TenantVehicle, Integer> {
     List<TenantVehicle> findByTenantTenantId(Integer tenantId);
+
+    boolean existsByLicensePlateIgnoreCase(String licensePlate);
 }

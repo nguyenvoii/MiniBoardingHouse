@@ -9,6 +9,7 @@ import com.group7.minihouse.shared.entity.Room;
 import com.group7.minihouse.shared.entity.Tenant;
 import com.group7.minihouse.shared.exception.BusinessException;
 import jakarta.persistence.EntityManager;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,7 +47,7 @@ public class CheckinInspectionService {
     @Transactional(readOnly = true)
     public CheckinInspectionDTO getById(Integer id) {
         CheckinInspection inspection = repository.findById(id)
-                .orElseThrow(() -> new BusinessException("Không tìm thấy biên bản nhận phòng #" + id));
+                .orElseThrow(() -> BusinessException.notFound("Biên bản nhận phòng #" + id));
         return toDTO(inspection);
     }
 
@@ -65,17 +66,33 @@ public class CheckinInspectionService {
             throw new BusinessException("Chỉ số nước đầu bàn giao không hợp lệ");
         }
 
+        if (req.getKeyHandedCount() != null && req.getKeyHandedCount() < 0) {
+            throw new BusinessException("Số chìa khóa bàn giao không được âm");
+        }
+
         Room room = roomRepository.findById(req.getRoomId())
-                .orElseThrow(() -> new BusinessException("Không tìm thấy phòng ID " + req.getRoomId()));
+                .orElseThrow(() -> BusinessException.notFound("Phòng ID " + req.getRoomId()));
 
         Tenant tenant = entityManager.find(Tenant.class, req.getTenantId());
         if (tenant == null) {
-            throw new BusinessException("Không tìm thấy khách thuê ID " + req.getTenantId());
+            throw BusinessException.notFound("Khách thuê ID " + req.getTenantId());
         }
 
         RentalContract contract = null;
         if (req.getContractId() != null) {
             contract = entityManager.find(RentalContract.class, req.getContractId());
+            if (contract == null) {
+                throw BusinessException.notFound("Hợp đồng ID " + req.getContractId());
+            }
+            if (!contract.getRoom().getRoomId().equals(room.getRoomId())
+                    || !contract.getTenant().getTenantId().equals(tenant.getTenantId())) {
+                throw new BusinessException("Hợp đồng " + contract.getContractCode()
+                        + " không thuộc phòng và khách thuê đã chọn");
+            }
+            if (repository.existsByContract_ContractId(contract.getContractId())) {
+                throw new BusinessException(HttpStatus.CONFLICT,
+                        "Hợp đồng " + contract.getContractCode() + " đã có biên bản nhận phòng");
+            }
         }
 
         CheckinInspection inspection = new CheckinInspection();
@@ -94,10 +111,16 @@ public class CheckinInspectionService {
                 ? req.getInspectedByName() : "Chủ trọ / Quản lý");
         inspection.setCreatedAt(LocalDateTime.now());
 
-        // Đồng bộ chỉ số điện nước ban đầu cho phòng
-        room.setInitialElectricMeter(req.getInitialElectricMeter());
-        room.setInitialWaterMeter(req.getInitialWaterMeter());
-        roomRepository.save(room);
+        // Đồng bộ chỉ số ban đầu của phòng, nhưng chỉ khi phòng chưa từng ghi chỉ số: đổi chỉ số đầu của phòng
+        // đang vận hành sẽ làm lệch mức tiêu thụ của các kỳ đã tính tiền.
+        boolean hasReadings = entityManager.createQuery(
+                "select count(m) from MeterReading m where m.room.roomId = :r", Long.class)
+                .setParameter("r", room.getRoomId()).getSingleResult() > 0;
+        if (!hasReadings) {
+            room.setInitialElectricMeter(req.getInitialElectricMeter());
+            room.setInitialWaterMeter(req.getInitialWaterMeter());
+            roomRepository.save(room);
+        }
 
         CheckinInspection saved = repository.save(inspection);
         return toDTO(saved);

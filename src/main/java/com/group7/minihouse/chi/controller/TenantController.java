@@ -1,5 +1,6 @@
 package com.group7.minihouse.chi.controller;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import com.group7.minihouse.chi.dto.RoomResidentDTO;
 import com.group7.minihouse.chi.dto.TenantDTO;
 import com.group7.minihouse.chi.dto.TenantVehicleDTO;
@@ -12,6 +13,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/chi/tenants")
+@PreAuthorize("hasAnyRole('LANDLORD','MANAGER')")
 public class TenantController {
 
     private final TenantService tenantService;
@@ -20,11 +22,13 @@ public class TenantController {
         this.tenantService = tenantService;
     }
 
+    @PreAuthorize("hasAnyRole('LANDLORD','MANAGER','CASHIER')")
     @GetMapping
     public ApiResponse<List<TenantDTO>> getAllTenants(@RequestParam(value = "keyword", required = false) String keyword) {
         return ApiResponse.ok(tenantService.getAllTenants(keyword));
     }
 
+    @PreAuthorize("hasAnyRole('LANDLORD','MANAGER','CASHIER')")
     @GetMapping("/{id}")
     public ApiResponse<TenantDTO> getById(@PathVariable Integer id) {
         return ApiResponse.ok(tenantService.getById(id));
@@ -47,6 +51,7 @@ public class TenantController {
         return ApiResponse.ok(null);
     }
 
+    @PreAuthorize("hasAnyRole('LANDLORD','MANAGER','CASHIER')")
     @GetMapping("/{id}/vehicles")
     public ApiResponse<List<TenantVehicleDTO>> getVehicles(@PathVariable Integer id) {
         return ApiResponse.ok(tenantService.getVehiclesByTenant(id));
@@ -57,6 +62,7 @@ public class TenantController {
         return ApiResponse.ok(tenantService.addVehicle(req));
     }
 
+    @PreAuthorize("hasAnyRole('LANDLORD','MANAGER','CASHIER')")
     @GetMapping("/residents/room/{roomId}")
     public ApiResponse<List<RoomResidentDTO>> getResidentsByRoom(@PathVariable Integer roomId) {
         return ApiResponse.ok(tenantService.getResidentsByRoom(roomId));

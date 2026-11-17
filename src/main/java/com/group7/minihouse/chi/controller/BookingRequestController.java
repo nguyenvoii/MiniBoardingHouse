@@ -1,5 +1,6 @@
 package com.group7.minihouse.chi.controller;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import com.group7.minihouse.chi.dto.BookingRequestDTO;
 import com.group7.minihouse.chi.service.BookingRequestService;
 import com.group7.minihouse.shared.dto.ApiResponse;
@@ -9,6 +10,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/chi/bookings")
+@PreAuthorize("hasAnyRole('LANDLORD','MANAGER')")
 public class BookingRequestController {
 
     private final BookingRequestService bookingRequestService;

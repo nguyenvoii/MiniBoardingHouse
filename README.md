@@ -27,7 +27,9 @@ Tài liệu khác trong thư mục `docs/`: file Excel phân công, `HUONG_DAN_G
    spring.datasource.password=...
    ```
 3. Chạy `db/seed.sql` để nạp 5 vai trò (LANDLORD, MANAGER, CASHIER, METER_READER, TENANT), 22 quyền và tài khoản `admin@minihouse.local` / `Admin@123` (chỉ dùng dev/demo).
+3a. Nếu DB đã tạo từ `group-7.sql` cũ (trước khi có bảng `checkin_inspections` của Chi), chạy thêm `db/patch_02_checkin_inspections.sql`. Chạy lại nhiều lần vẫn an toàn.
 3b. (Tùy chọn, dev/demo) Chạy `db/sample-data.sql` để nạp 1 khu trọ, 12 phòng, 8 khách thuê, đơn giá và chỉ số điện nước mẫu. File chỉ chạy khi DB chưa có khu trọ. Hợp đồng, hóa đơn, thanh toán thì tạo bằng giao diện.
+3c. (Tùy chọn, để test nhiều dữ liệu) Chạy `db/sample-data-day.sql` để nạp thêm 3 khu trọ "(DEMO)", 100 phòng, 100 khách thuê, 6 tháng chỉ số điện nước và chi phí vận hành. Không đụng bộ mẫu cũ, chạy lại an toàn. Xóa sạch bằng `db/sample-data-day-xoa.sql`.
 4. Chạy `mvn spring-boot:run`. Ứng dụng đặt `ddl-auto=validate` nên sẽ báo lỗi ngay nếu entity lệch với DB.
 5. Thử: `http://localhost:8080/api/ping`. Xem toàn bộ API tại Swagger: `http://localhost:8080/swagger-ui.html`.
 6. Giao diện Stayly (thư mục `frontend/`): xem mục 9. Chạy nhanh: `cd frontend`, `npm install`, `npm run build`, rồi mở `http://localhost:8080/` (cần bật `app.security.enabled=true` để đăng nhập).
@@ -41,7 +43,7 @@ Cập nhật ngày 16/11/2026, theo những gì thực sự có trên GitHub (nh
 | Thành viên | Được giao | Đã có trên `main` | Đang chờ / việc tiếp theo |
 |---|---|---|---|
 | Nguyễn Anh Phi | 45 UC | 45 UC: 1-13, 41-51, 65-75, 85-88, 116, 118, 119, 120, 122, cộng khung xuất Excel/PDF | Đã xong hết phần được giao (UC76, UC77 do Toàn làm). Phần Phi đọc phòng và khách thuê trực tiếp qua EntityManager vì Chi chưa có service |
-| Nguyễn Trần Bảo Chi | 31 UC | 0 | Chưa có code nào trên GitHub. Phần của Phi và Toàn đang chờ `RoomService`, `TenantService` của Chi |
+| Nguyễn Trần Bảo Chi | 31 UC | 29 UC trong package `chi` (API `/api/chi/**`): phòng, tầng, ảnh phòng, nội thất, khách thuê, xe, người ở cùng, đặt phòng, mẫu hợp đồng, yêu cầu thiết bị, phụ phí, biên bản nhận phòng (UC124) | Đã gộp vào main, đã rà soát và sửa (kiểm tra dữ liệu vào, luồng trạng thái, phân quyền, upload ảnh an toàn, 21 test). Giao diện riêng của Chi đã bỏ, dùng giao diện Stayly. Chưa có: UC125 xuất danh sách phòng/khách ra Excel. Phần của Phi vẫn đọc phòng, khách qua EntityManager, chưa đổi sang `RoomService`/`TenantService` của Chi |
 | Phạm Khánh Toàn | 28 UC | Một phần (Pull Request #2): hóa đơn, chỉ số điện nước, thu tiền, đơn giá dịch vụ, job nhắc hạn | Chưa có test. Chi phí vận hành: đã bỏ bản của Toàn, giữ bản của Việt (`/api/expenses`, có phân quyền, tóm tắt, bộ lọc). Đối chiếu lại các mục còn lại trong `docs/LOI_CAN_SUA_CODE_TOAN.md`. Lưu ý: `BillingJobs` đang TỰ BẬT (thiếu cấu hình = bật), nên đặt `minihouse.scheduler.enabled=false` khi chạy thử trên máy. |
 | Vũ Văn Quốc Việt | 28 UC | Đã merge PR #1 | Đã có công nợ, trả phòng, bảo trì, thiết bị phòng, chi phí vận hành, thông báo. |
 
@@ -128,7 +130,7 @@ Một project duy nhất cho cả nhóm: 1 thư mục dùng chung và mỗi ngư
 ```
 com.group7.minihouse
 ├── shared/            DÙNG CHUNG (không ai tự ý sửa, cần sửa thì báo Phi hoặc tạo PR)
-│   ├── entity/        56 entity map 56 bảng trong db/group-7.sql
+│   ├── entity/        56 entity map 56 bảng trong db/group-7.sql (cộng bảng `checkin_inspections` của Chi, entity ở `chi/entity`, tổng 57 bảng)
 │   ├── dto/           ApiResponse, PageResponse
 │   ├── exception/     BusinessException, GlobalExceptionHandler
 │   ├── config/        SecurityConfig, ClockConfig
