@@ -1,6 +1,6 @@
 # Giao diện Stayly
 
-Người làm toàn bộ giao diện (frontend): Nguyễn Anh Phi (TH08326).
+Người làm toàn bộ giao diện (frontend): Nguyễn Anh Phi (TH08326), gồm mọi màn hình của cả bốn phần (Phi, Chi, Toàn, Việt).
 
 Các màn hình còn thiếu cho phần của Chi, Toàn, Việt: xem `TIEN_DO_VA_CON_THIEU.md` mục 5.
 

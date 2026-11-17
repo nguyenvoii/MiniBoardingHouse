@@ -2,6 +2,8 @@
 
 Phân công theo use case (nguồn chính thức là file Excel) và theo nhóm bảng. Tiến độ hiện tại xem `TIEN_DO_VA_CON_THIEU.md`.
 
+**Giao diện: toàn bộ màn hình do Phi làm**, gồm cả màn hình của các chức năng thuộc phần Chi, Toàn, Việt. Chi, Toàn, Việt chỉ làm backend (API, nghiệp vụ, test) và không cần làm giao diện.
+
 ## 1. Theo use case
 
 Nguồn chính thức là file `docs/Nhom_7_47_usecase_khutro_4MM_PhanCongMoi.xlsx` (sheet "Phân Công", 132 use case, 723.0 giờ). Bảng dưới chỉ là bản tóm tắt, nếu lệch thì lấy Excel làm chuẩn.
@@ -31,7 +33,7 @@ Phi vẫn dư giờ so với mốc 160 (239.8 giờ) vì phần khó nhất và 
 
 ## 2. Theo nhóm bảng
 
-Ngoài ra, Phi làm toàn bộ frontend (giao diện web Stayly trong `frontend/`, xem `docs/GIAO_DIEN_STAYLY.md`).
+Ngoài ra, Phi làm toàn bộ frontend, tức mọi màn hình của giao diện web Stayly trong `frontend/` (xem `docs/GIAO_DIEN_STAYLY.md`), kể cả màn hình của phần Chi, Toàn, Việt.
 
 Nguyên tắc: Phi giữ toàn bộ khung xương của dự án và các phần khó nhất (tính tiền tháng, hợp đồng, thanh toán, phân quyền). Ba người còn lại chia đều số bảng, mỗi người một cụm nghiệp vụ độc lập để làm đồng thời được. Phi 13 + Chi 14 + Toàn 15 + Việt 14 = 56 bảng, bằng số entity trong `shared/entity`.
 

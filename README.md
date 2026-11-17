@@ -169,6 +169,8 @@ Nguồn chính thức là file Excel `docs/Nhom_7_47_usecase_khutro_4MM_PhanCong
 | Phạm Khánh Toàn | TH08433 | 53-64, 76, 78-84, 89-92, 126-129 | 160.6 | Điện nước, đơn giá, hóa đơn, thu tiền |
 | Vũ Văn Quốc Việt | TH08548 | 52, 93-107, 110-115, 117, 121, 123, 130-132 | 161.9 | Công nợ, trả phòng, sửa chữa, thông báo, chi phí |
 
+**Giao diện: toàn bộ màn hình do Phi làm**, gồm cả màn hình của các chức năng thuộc phần Chi, Toàn, Việt. Chi, Toàn, Việt chỉ làm backend (API, nghiệp vụ, test) và không cần làm giao diện.
+
 Chi tiết (giờ các use case thêm sau, bảng DB của từng người): `docs/PHAN_CONG.md`.
 
 ---
