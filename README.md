@@ -414,8 +414,8 @@ Thư mục `src/main/resources/static` và `frontend/node_modules` bị git igno
 - Màn hình nhân viên: Tổng quan (có "Tuyến tháng" 5 chặng), Chỉ số điện nước, Tính tiền tháng, Hóa đơn, Thanh toán, Công nợ, Sửa chữa, Hợp đồng, Phòng, Khách thuê (kèm cấp, khóa, mở khóa tài khoản đăng nhập), Doanh thu và chi phí, Chi phí vận hành, Nhân viên, Cài đặt (đơn giá điện nước, dịch vụ, phụ thu và giảm trừ, tài khoản ngân hàng và ảnh QR), Nhật ký thao tác, Tài khoản của tôi. Chuông thông báo ở thanh trên.
 - Màn hình người thuê: Trang chủ (số tiền cần trả, trả bằng QR), Hóa đơn, Hợp đồng (ký tay trên màn hình), Hỗ trợ (báo sự cố, đánh giá xử lý), Thông báo.
 - Chọn tháng ở thanh trên chỉ áp dụng cho Tổng quan, Chỉ số điện nước, Tính tiền tháng, Hóa đơn, Thanh toán, Chi phí vận hành và Báo cáo; các màn khác ẩn nó.
-- Trạng thái thuê của phòng và người đang ở lấy từ hợp đồng thật (danh sách phòng, khách gốc vẫn là dữ liệu mẫu cho tới khi Chi có API).
-- Phần của Chi: màn hình Phòng và Khách thuê, cùng danh sách chọn phòng/khách khi lập hợp đồng, đang dùng dữ liệu mẫu trong `frontend/src/data/sample.ts` và có nhãn "Dữ liệu mẫu". Khi Chi có API, chỉ cần thay dữ liệu trong file đó bằng lời gọi API.
+- Phòng, khách thuê và danh sách khu trọ lấy từ API của Chi (`/api/chi/**`); trạng thái thuê và người đang ở lấy từ hợp đồng thật. Có thêm phòng và thêm khách thuê ngay trên giao diện.
+- Ô chọn khu trọ ở thanh trên (nhớ lựa chọn trong trình duyệt, đổi thì tải lại trang): mọi màn hình theo khu trọ đã chọn. Dữ liệu DEMO dày (3 khu, 100 phòng) nạp bằng `db/sample-data-day.sql`.
 - Các màn chốt tháng (Chỉ số, Tính tiền, Hóa đơn, Thanh toán, Công nợ) có thanh "Tuyến tháng" thu gọn ở đầu trang, chặng đang xem được gạch chân.
 - Hủy giao dịch nằm trong hộp chi tiết giao dịch, chấm dứt hợp đồng nằm trong "vùng nguy hiểm" của hộp hợp đồng, để tránh bấm nhầm.
 - Duyệt kỳ tính tiền sẽ tự đóng kỳ ghi chỉ số cùng tháng. Công nợ tự cập nhật khi mở trang. Trên điện thoại (≤700px) bảng chuyển thành thẻ.

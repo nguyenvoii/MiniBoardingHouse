@@ -33,8 +33,9 @@ public class RoomService {
         this.em = em;
     }
 
-    public List<RoomDTO> getAllRooms() {
-        return roomRepository.findAll().stream().map(this::toDTO).collect(Collectors.toList());
+    public List<RoomDTO> getAllRooms(Integer propertyId) {
+        List<Room> list = propertyId != null ? roomRepository.findByProperty_PropertyId(propertyId) : roomRepository.findAll();
+        return list.stream().map(this::toDTO).collect(Collectors.toList());
     }
 
     public RoomDTO getRoomById(Integer id) {
@@ -141,6 +142,7 @@ public class RoomService {
         if (r.getFloor() != null) {
             dto.setFloorId(r.getFloor().getFloorId());
             dto.setFloorName(r.getFloor().getFloorName());
+            dto.setFloorNumber(r.getFloor().getFloorNumber());
         }
         dto.setRoomCode(r.getRoomCode());
         dto.setAreaSqm(r.getAreaSqm());

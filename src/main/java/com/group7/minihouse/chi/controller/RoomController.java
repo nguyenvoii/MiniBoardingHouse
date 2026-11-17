@@ -21,8 +21,8 @@ public class RoomController {
 
     @PreAuthorize("hasAnyRole('LANDLORD','MANAGER','CASHIER','METER_READER')")
     @GetMapping
-    public ApiResponse<List<RoomDTO>> getAllRooms() {
-        return ApiResponse.ok(roomService.getAllRooms());
+    public ApiResponse<List<RoomDTO>> getAllRooms(@RequestParam(value = "propertyId", required = false) Integer propertyId) {
+        return ApiResponse.ok(roomService.getAllRooms(propertyId));
     }
 
     @PreAuthorize("hasAnyRole('LANDLORD','MANAGER','CASHIER','METER_READER')")

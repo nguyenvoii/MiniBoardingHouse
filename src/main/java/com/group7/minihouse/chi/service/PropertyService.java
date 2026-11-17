@@ -1,0 +1,46 @@
+package com.group7.minihouse.chi.service;
+
+import com.group7.minihouse.chi.dto.PropertyDTO;
+import com.group7.minihouse.chi.repository.PropertyFloorRepository;
+import com.group7.minihouse.chi.repository.PropertyRepository;
+import com.group7.minihouse.chi.repository.RoomRepository;
+import com.group7.minihouse.shared.entity.Property;
+import java.util.List;
+import java.util.stream.Collectors;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+/** Danh sách khu trọ (chỉ đọc) để giao diện chọn khu đang làm việc. */
+@Service
+@Transactional(readOnly = true)
+public class PropertyService {
+
+    private final PropertyRepository propertyRepository;
+    private final RoomRepository roomRepository;
+    private final PropertyFloorRepository floorRepository;
+
+    public PropertyService(PropertyRepository propertyRepository, RoomRepository roomRepository,
+                           PropertyFloorRepository floorRepository) {
+        this.propertyRepository = propertyRepository;
+        this.roomRepository = roomRepository;
+        this.floorRepository = floorRepository;
+    }
+
+    public List<PropertyDTO> getAll() {
+        return propertyRepository.findAllByOrderByPropertyIdAsc().stream().map(this::toDTO).collect(Collectors.toList());
+    }
+
+    private PropertyDTO toDTO(Property p) {
+        PropertyDTO dto = new PropertyDTO();
+        dto.setPropertyId(p.getPropertyId());
+        dto.setPropertyName(p.getPropertyName());
+        dto.setAddress(p.getAddress());
+        dto.setTotalFloors(p.getTotalFloors());
+        dto.setSupportPhone(p.getSupportPhone());
+        dto.setRoomCount(roomRepository.countByProperty_PropertyId(p.getPropertyId()));
+        dto.setFloors(floorRepository.findByProperty_PropertyIdOrderByFloorNumberAsc(p.getPropertyId()).stream()
+                .map(f -> new PropertyDTO.Floor(f.getFloorId(), f.getFloorNumber(), f.getFloorName()))
+                .collect(Collectors.toList()));
+        return dto;
+    }
+}

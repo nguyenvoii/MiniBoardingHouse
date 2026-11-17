@@ -2,6 +2,8 @@ import { h } from '../lib/dom';
 import { icon, IconName } from '../lib/icons';
 import { Role, Session, can, logout } from '../lib/api';
 import { getMonth, setMonth, onMonth } from '../lib/ctx';
+import { PROPERTY_ID, setProperty } from '../lib/api';
+import { loadProperties } from '../data/live';
 import { monthLabel, shiftMonth, initials } from '../lib/format';
 import { notificationBell } from './bell';
 
@@ -102,7 +104,7 @@ export function buildStaffShell(s: Session): StaffShell {
   const topbar = h('header', { class: 'topbar' },
     h('button', { class: 'icon-btn menu-btn', 'aria-label': 'Mở menu', onclick: () => rail.classList.toggle('open') }, icon('menu')),
     h('div', { class: 'ctx' },
-      h('span', { class: 'ctx-chip', title: 'Khu trọ đang quản lý' }, icon('building'), 'Khu trọ chính'),
+      propertyPicker(),
       h('div', { class: 'month-switch', role: 'group', 'aria-label': 'Chọn tháng', title: 'Tháng làm việc: áp dụng cho Tổng quan, Tính tiền, Hóa đơn, Thanh toán và Báo cáo' },
         h('button', { 'aria-label': 'Tháng trước', onclick: () => setMonth(shiftMonth(getMonth(), -1)) }, icon('left', 16)), out,
         h('button', { 'aria-label': 'Tháng sau', onclick: () => setMonth(shiftMonth(getMonth(), 1)) }, icon('right', 16))),
@@ -164,4 +166,26 @@ export function buildTenantShell(s: Session): TenantShell {
       }
     },
   };
+}
+
+/** Ô chọn khu trọ đang làm việc. Đổi khu thì nhớ lựa chọn rồi tải lại trang để mọi màn lấy dữ liệu của khu mới. */
+function propertyPicker(): HTMLElement {
+  const sel = h('select', { class: 'ctx-chip prop-select', 'aria-label': 'Chọn khu trọ', title: 'Khu trọ đang quản lý' },
+    h('option', { value: String(PROPERTY_ID) }, 'Khu trọ…')) as HTMLSelectElement;
+  sel.addEventListener('change', () => {
+    setProperty(Number(sel.value));
+    location.hash = '#/';
+    location.reload();
+  });
+  loadProperties().then((list) => {
+    if (!list.length) { sel.hidden = true; return; }
+    if (!list.some((p) => p.propertyId === PROPERTY_ID)) { // khu đã lưu không còn: về khu đầu tiên
+      setProperty(list[0].propertyId);
+      location.reload();
+      return;
+    }
+    sel.replaceChildren(...list.map((p) => h('option', { value: String(p.propertyId) }, `${p.propertyName} (${p.roomCount} phòng)`)));
+    sel.value = String(PROPERTY_ID);
+  }).catch(() => { sel.hidden = true; }); // người thuê không có quyền xem danh sách khu
+  return sel;
 }

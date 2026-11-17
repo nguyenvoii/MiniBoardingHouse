@@ -370,6 +370,42 @@ class ChiServicesTest {
         assertThrows(BusinessException.class, () -> s.addMedia(req));
     }
 
+    // ------------------------------------------------------------------ PropertyService + lọc phòng theo khu
+
+    @Test
+    void propertyListHasRoomCountAndFloors() {
+        com.group7.minihouse.chi.repository.PropertyRepository props =
+                mock(com.group7.minihouse.chi.repository.PropertyRepository.class);
+        RoomRepository rooms = mock(RoomRepository.class);
+        PropertyFloorRepository floors = mock(PropertyFloorRepository.class);
+        com.group7.minihouse.shared.entity.Property p = new com.group7.minihouse.shared.entity.Property();
+        p.setPropertyId(7);
+        p.setPropertyName("Khu A");
+        com.group7.minihouse.shared.entity.PropertyFloor f = new com.group7.minihouse.shared.entity.PropertyFloor();
+        f.setFloorId(70);
+        f.setFloorNumber(1);
+        f.setFloorName("Tầng 1");
+        when(props.findAllByOrderByPropertyIdAsc()).thenReturn(List.of(p));
+        when(rooms.countByProperty_PropertyId(7)).thenReturn(12L);
+        when(floors.findByProperty_PropertyIdOrderByFloorNumberAsc(7)).thenReturn(List.of(f));
+
+        var list = new PropertyService(props, rooms, floors).getAll();
+
+        assertEquals(1, list.size());
+        assertEquals(12L, list.get(0).getRoomCount());
+        assertEquals(1, list.get(0).getFloors().size());
+        assertEquals("Tầng 1", list.get(0).getFloors().get(0).getFloorName());
+    }
+
+    @Test
+    void roomListCanBeFilteredByProperty() {
+        RoomRepository rooms = mock(RoomRepository.class);
+        when(rooms.findByProperty_PropertyId(7)).thenReturn(List.of(room(1)));
+        List<RoomDTO> list = roomService(rooms, mock(EntityManager.class)).getAllRooms(7);
+        assertEquals(1, list.size());
+        verify(rooms, never()).findAll();
+    }
+
     // ------------------------------------------------------------------ ContractTemplateService
 
     @Test

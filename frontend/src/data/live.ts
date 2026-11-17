@@ -1,16 +1,54 @@
-// Phòng và khách thuê chưa có API của Chi, nên danh sách gốc lấy từ dữ liệu mẫu; trạng thái thuê và người đang ở
-// được suy ra từ HỢP ĐỒNG THẬT (API hợp đồng), để màn Phòng, Khách thuê và Lập hợp đồng luôn khớp nhau.
-import { api, Page } from '../lib/api';
+// Phòng, khách thuê và khu trọ lấy từ API của Chi (/api/chi/**). Trạng thái thuê và người đang ở được suy ra từ
+// HỢP ĐỒNG THẬT (API hợp đồng), để màn Phòng, Khách thuê và Lập hợp đồng luôn khớp nhau.
+import { api, Page, PROPERTY_ID } from '../lib/api';
 import type { Contract } from './types';
-import { SAMPLE_ROOMS, SAMPLE_TENANTS, SampleRoom, SampleTenant } from './sample';
 
-export interface LiveRoom extends SampleRoom {
+export type RoomStatus = 'RENTED' | 'VACANT' | 'REPAIRING' | 'SUSPENDED';
+
+export interface LiveRoom {
+  roomId: number;
+  code: string;
+  floor: number;
+  area: number;
+  price: number;
+  deposit: number;
+  maxPeople: number;
+  status: RoomStatus;
+  tenantId?: number;
+  amenities: string[];
   contract?: Contract;
   tenantName?: string;
 }
-export interface LiveTenant extends SampleTenant {
+
+export interface LiveTenant {
+  tenantId: number;
+  name: string;
+  phone: string;
+  idNumber: string;
+  email?: string;
+  job: string;
+  roomCode?: string;
+  since?: string;
   contract?: Contract;
 }
+
+export interface PropertyInfo {
+  propertyId: number;
+  propertyName: string;
+  address: string;
+  totalFloors: number | null;
+  roomCount: number;
+  floors: Array<{ floorId: number; floorNumber: number; floorName: string }>;
+}
+
+interface ApiRoom {
+  roomId: number; roomCode: string; floorNumber: number | null; areaSqm: number; baseRentPrice: number;
+  depositAmount: number; maxOccupants: number; status: string;
+}
+interface ApiTenant {
+  tenantId: number; fullName: string; phoneNumber: string; identityNumber: string; email: string | null; occupation: string | null;
+}
+interface ApiFurnishing { roomId: number; itemName: string }
 
 export async function liveContracts(): Promise<Contract[]> {
   const [a, b] = await Promise.all([
@@ -20,24 +58,66 @@ export async function liveContracts(): Promise<Contract[]> {
   return [...a.items, ...b.items];
 }
 
+export function loadProperties(): Promise<PropertyInfo[]> {
+  return api.get<PropertyInfo[]>('/api/chi/properties');
+}
+
+function roomStatus(apiStatus: string, hasContract: boolean): RoomStatus {
+  if (hasContract) return 'RENTED';
+  if (apiStatus === 'REPAIRING' || apiStatus === 'SUSPENDED') return apiStatus;
+  return 'VACANT'; // kể cả khi DB ghi RENTED mà không còn hợp đồng hiệu lực
+}
+
 export async function loadLive(): Promise<{ rooms: LiveRoom[]; tenants: LiveTenant[]; contracts: Contract[] }> {
-  const contracts = await liveContracts().catch(() => [] as Contract[]);
+  const [apiRooms, furnishings, apiTenants, contracts] = await Promise.all([
+    api.get<ApiRoom[]>(`/api/chi/rooms?propertyId=${PROPERTY_ID}`),
+    api.get<ApiFurnishing[]>('/api/chi/furnishings').catch(() => [] as ApiFurnishing[]),
+    api.get<ApiTenant[]>('/api/chi/tenants'),
+    liveContracts().catch(() => [] as Contract[]),
+  ]);
   const byRoom = new Map(contracts.map((c) => [c.roomId, c]));
   const byTenant = new Map<number, Contract>();
   for (const c of contracts) if (!byTenant.has(c.tenantId)) byTenant.set(c.tenantId, c);
-  const rooms: LiveRoom[] = SAMPLE_ROOMS.map((r) => {
-    const c = byRoom.get(r.roomId);
-    return {
-      ...r,
-      contract: c,
-      tenantName: c?.tenantName,
-      tenantId: c?.tenantId,
-      status: c ? 'RENTED' : r.status === 'REPAIRING' ? 'REPAIRING' : 'VACANT',
-    };
-  });
-  const tenants: LiveTenant[] = SAMPLE_TENANTS.map((t) => {
+  const items = new Map<number, string[]>();
+  for (const f of furnishings) {
+    const list = items.get(f.roomId) ?? [];
+    if (!list.includes(f.itemName)) list.push(f.itemName);
+    items.set(f.roomId, list);
+  }
+
+  const rooms: LiveRoom[] = apiRooms
+    .map((r) => {
+      const c = byRoom.get(r.roomId);
+      return {
+        roomId: r.roomId,
+        code: r.roomCode,
+        floor: r.floorNumber ?? 0,
+        area: Number(r.areaSqm),
+        price: Number(r.baseRentPrice),
+        deposit: Number(r.depositAmount),
+        maxPeople: r.maxOccupants,
+        status: roomStatus(r.status, !!c),
+        contract: c,
+        tenantName: c?.tenantName,
+        tenantId: c?.tenantId,
+        amenities: items.get(r.roomId) ?? [],
+      };
+    })
+    .sort((a, b) => a.floor - b.floor || a.code.localeCompare(b.code, 'vi', { numeric: true }));
+
+  const tenants: LiveTenant[] = apiTenants.map((t) => {
     const c = byTenant.get(t.tenantId);
-    return { ...t, contract: c, roomCode: c?.roomCode, since: c?.startDate };
+    return {
+      tenantId: t.tenantId,
+      name: t.fullName,
+      phone: t.phoneNumber,
+      idNumber: t.identityNumber,
+      email: t.email ?? undefined,
+      job: t.occupation ?? '–',
+      contract: c,
+      roomCode: c?.roomCode,
+      since: c?.startDate,
+    };
   });
   return { rooms, tenants, contracts };
 }

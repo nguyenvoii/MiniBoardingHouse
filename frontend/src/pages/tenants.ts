@@ -4,7 +4,7 @@ import { api, errText } from '../lib/api';
 import { date } from '../lib/format';
 import { loadLive, LiveTenant } from '../data/live';
 import { vehiclesBox } from '../ui/occupancy';
-import { confirmDialog, dl, input, openDialog, pageHead, panel, plate, sampleNote, statusBadge, table, toast } from '../ui/kit';
+import { confirmDialog, dl, field, formError, input, openDialog, pageHead, panel, plate, statusBadge, table, toast } from '../ui/kit';
 
 interface AccountInfo { exists: boolean; userId: number | null; phoneNumber: string | null; status: string | null }
 type Accounts = Map<number, AccountInfo | null>;
@@ -34,7 +34,7 @@ export async function tenantsPage(view: HTMLElement): Promise<void> {
   q.addEventListener('input', paint);
   paint();
   view.replaceChildren(
-    pageHead('Khách thuê', 'Hồ sơ người thuê, phòng đang ở và tài khoản đăng nhập để họ xem hóa đơn trên điện thoại.', [sampleNote('Hồ sơ khách là dữ liệu mẫu'), h('button', { class: 'btn', disabled: true, title: 'Chưa có chức năng thêm khách thuê' }, icon('plus', 16), 'Thêm khách thuê')]),
+    pageHead('Khách thuê', 'Hồ sơ người thuê, phòng đang ở và tài khoản đăng nhập để họ xem hóa đơn trên điện thoại.', [h('button', { class: 'btn', onclick: () => addTenant(() => void tenantsPage(view)) }, icon('plus', 16), 'Thêm khách thuê')]),
     panel(null, [h('div', { class: 'toolbar' }, h('div', { class: 'grow' }, q)), holder], { flush: true }),
   );
 }
@@ -49,7 +49,7 @@ function open(t: LiveTenant, accounts: Accounts, refresh: () => void): void {
   const d = openDialog(t.name, { drawer: true });
   const acct = h('div', { class: 'stack', style: 'gap:12px' });
   d.body.append(
-    h('div', { style: 'display:flex;gap:10px;align-items:center;flex-wrap:wrap' }, t.roomCode ? plate(t.roomCode, 'lg') : null, sampleNote('Hồ sơ là dữ liệu mẫu')),
+    h('div', { style: 'display:flex;gap:10px;align-items:center;flex-wrap:wrap' }, t.roomCode ? plate(t.roomCode, 'lg') : null),
     dl([['Điện thoại', t.phone], ['Email', t.email ?? '–'], ['CCCD', t.idNumber], ['Nghề nghiệp', t.job], ['Ở từ', date(t.since)], ['Hợp đồng', t.contract ? t.contract.contractCode : 'Chưa có']]),
     h('div', null, h('h3', { style: 'margin-bottom:10px' }, 'Xe đăng ký (tính tiền gửi xe)'), vehiclesBox(t.tenantId)),
     h('div', null, h('h3', { style: 'margin-bottom:10px' }, 'Tài khoản đăng nhập'), acct),
@@ -57,7 +57,7 @@ function open(t: LiveTenant, accounts: Accounts, refresh: () => void): void {
   const paint = (a: AccountInfo | null | undefined) => {
     acct.replaceChildren();
     if (a === null || a === undefined) {
-      acct.append(h('p', { class: 'muted' }, 'Hồ sơ khách này chưa có trong cơ sở dữ liệu nên chưa cấp được tài khoản. Cần API của Chi để thêm khách thuê.'));
+      acct.append(h('p', { class: 'muted' }, 'Chưa lấy được tình trạng tài khoản của khách này. Hãy đóng cửa sổ và thử lại.'));
       return;
     }
     if (!a.exists) {
@@ -103,4 +103,31 @@ function showPassword(phone: string, password: string): void {
     try { await navigator.clipboard.writeText(password); toast('Đã chép mật khẩu'); } catch { toast('Không chép được, hãy chép tay', 'err'); }
   });
   d.foot.append(copy, h('button', { class: 'btn', onclick: d.close }, 'Xong'));
+}
+
+function addTenant(done: () => void): void {
+  const d = openDialog('Thêm khách thuê', { width: 560 });
+  const err = h('div');
+  const name = input({ placeholder: 'Họ và tên', maxlength: '100' });
+  const phone = input({ type: 'tel', placeholder: '09xx xxx xxx', maxlength: '20' });
+  const cccd = input({ placeholder: 'Số CCCD', maxlength: '20' });
+  const email = input({ type: 'email', placeholder: 'Không bắt buộc' });
+  const job = input({ placeholder: 'Không bắt buộc', maxlength: '100' });
+  d.body.append(err, h('div', { class: 'form-grid' }, field('Họ và tên', name), field('Số điện thoại', phone, 'Dùng làm tài khoản đăng nhập của khách'),
+    field('Số CCCD', cccd), field('Email', email), field('Nghề nghiệp', job)));
+  const ok = h('button', { class: 'btn' }, 'Thêm khách thuê');
+  d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Hủy'), ok);
+  ok.addEventListener('click', () => busy(ok, async () => {
+    err.replaceChildren();
+    if (!name.value.trim() || !phone.value.trim() || !cccd.value.trim()) { err.replaceChildren(formError('Nhập đủ họ tên, số điện thoại và số CCCD.')); return; }
+    try {
+      await api.post('/api/chi/tenants', {
+        fullName: name.value.trim(), phoneNumber: phone.value.trim(), identityNumber: cccd.value.trim(),
+        email: email.value.trim() || null, occupation: job.value.trim() || null,
+      });
+      d.close();
+      toast(`Đã thêm khách ${name.value.trim()}`);
+      done();
+    } catch (e) { err.replaceChildren(formError(errText(e))); }
+  }));
 }

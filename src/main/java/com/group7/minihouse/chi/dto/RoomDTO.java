@@ -7,6 +7,7 @@ public class RoomDTO {
     private Integer propertyId;
     private Integer floorId;
     private String floorName;
+    private Integer floorNumber;
     private String roomCode;
     private BigDecimal areaSqm;
     private Integer maxOccupants;
@@ -26,6 +27,9 @@ public class RoomDTO {
 
     public Integer getFloorId() { return floorId; }
     public void setFloorId(Integer floorId) { this.floorId = floorId; }
+
+    public Integer getFloorNumber() { return floorNumber; }
+    public void setFloorNumber(Integer floorNumber) { this.floorNumber = floorNumber; }
 
     public String getFloorName() { return floorName; }
     public void setFloorName(String floorName) { this.floorName = floorName; }

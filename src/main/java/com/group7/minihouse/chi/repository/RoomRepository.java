@@ -20,7 +20,10 @@ public interface RoomRepository extends JpaRepository<Room, Integer> {
     @EntityGraph(attributePaths = {"property", "floor"})
     List<Room> findByFloor_FloorId(Integer floorId);
 
+    @EntityGraph(attributePaths = {"property", "floor"})
     List<Room> findByProperty_PropertyId(Integer propertyId);
+
+    long countByProperty_PropertyId(Integer propertyId);
     List<Room> findByStatus(String status);
     Optional<Room> findByProperty_PropertyIdAndRoomCode(Integer propertyId, String roomCode);
     boolean existsByProperty_PropertyIdAndRoomCode(Integer propertyId, String roomCode);

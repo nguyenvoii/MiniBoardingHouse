@@ -2,7 +2,24 @@
 
 import { restoreVi } from './vi';
 
-export const PROPERTY_ID = 1; // Hiện chỉ có một khu trọ; đổi khi Chi làm xong API khu trọ.
+const PROPERTY_KEY = 'stayly.property';
+function savedProperty(): number {
+  try {
+    const v = Number(localStorage.getItem(PROPERTY_KEY));
+    return v > 0 ? v : 1;
+  } catch {
+    return 1; // localStorage có thể bị chặn
+  }
+}
+/** Khu trọ đang làm việc: chọn ở thanh trên, nhớ trong trình duyệt, đổi thì tải lại trang. */
+export const PROPERTY_ID = savedProperty();
+export function setProperty(id: number): void {
+  try {
+    localStorage.setItem(PROPERTY_KEY, String(id));
+  } catch {
+    /* không nhớ được thì lần sau về khu mặc định */
+  }
+}
 
 export class ApiError extends Error {
   constructor(message: string, public status: number) {
