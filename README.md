@@ -19,20 +19,20 @@ Công nghệ: Java 17, Spring Boot 3, Spring Data JPA, SQL Server. Giao diện: 
 
 Cập nhật ngày 17/11/2026, theo những gì có trên nhánh `main`. Hệ thống có 132 use case. Bộ test hiện có 279 test, đều đạt.
 
-| Thành viên | Phụ trách | Giao | Xong | Một phần | Chỉ có backend | Chưa làm | Việc gấp |
-|---|---|---|---|---|---|---|---|
-| Nguyễn Anh Phi | Khung xương, tài khoản, hợp đồng, tính tiền, thanh toán, báo cáo, giao diện | 45 | 45 | 0 | 0 | 0 | Dựng các màn giao diện còn thiếu |
-| Nguyễn Trần Bảo Chi | Phòng, khách thuê, đặt phòng, nhận phòng | 31 | 6 | 5 | 12 | 8 | UC18 (sửa phòng), UC31 (sửa hồ sơ khách); chốt với Việt phần trùng thiết bị phòng |
-| Phạm Khánh Toàn | Điện nước, đơn giá, hóa đơn, thu tiền | 28 | 14 | 1 | 9 | 4 | Gắn `@PreAuthorize` cho mọi API; UC126 đến 129 |
-| Vũ Văn Quốc Việt | Công nợ, trả phòng, sửa chữa, thông báo, chi phí | 28 | 13 | 1 | 11 | 3 | UC130 đến 132; bổ sung test; chốt hai chỗ trùng |
+| Thành viên | Phụ trách | Giao | Xong (có API chạy được) | Làm dở | Chưa làm | Việc gấp |
+|---|---|---|---|---|---|---|
+| Nguyễn Anh Phi | Khung xương, tài khoản, hợp đồng, tính tiền, thanh toán, báo cáo, giao diện | 45 | 45 | 0 | 0 | |
+| Nguyễn Trần Bảo Chi | Phòng, khách thuê, đặt phòng, nhận phòng | 31 | 18 | 5 | 8 | UC18 (sửa phòng), UC31 (sửa hồ sơ khách); chốt với Việt phần trùng thiết bị phòng |
+| Phạm Khánh Toàn | Điện nước, đơn giá, hóa đơn, thu tiền | 28 | 23 | 1 | 4 | Gắn `@PreAuthorize` cho mọi API; UC126 đến 129 |
+| Vũ Văn Quốc Việt | Công nợ, trả phòng, sửa chữa, thông báo, chi phí | 28 | 24 | 1 | 3 | UC130 đến 132; bổ sung test; chốt hai chỗ trùng |
 
-- **Xong**: có cả API lẫn giao diện dùng được. **Chỉ có backend**: API đã có, chưa có màn hình.
+- **Xong**: use case đã có API chạy được. Các màn hình giao diện còn thiếu do Phi tự bổ sung sau, không tính là việc của Chi, Toàn, Việt.
 - Danh sách từng use case còn thiếu, các lỗi và chỗ mâu thuẫn giữa các phần, phương án cho phần của Việt: `docs/TIEN_DO_VA_CON_THIEU.md`.
 - Ai đẩy code mới thì tự sửa dòng của mình trong bảng này và trong file trên.
 
 ### Còn thiếu của từng người
 
-Mỗi người nhận đúng các use case dưới đây. "Chưa làm" là chưa có code, "Làm dở" là có nhưng thiếu phần ghi kèm, "Có API, chưa có màn hình" là cần dựng giao diện (có thể nhờ Phi hoặc tự làm theo mẫu trong `frontend/src/pages/`). Làm xong thì xóa dòng đó đi và cập nhật bảng trên.
+Mỗi người nhận đúng các use case dưới đây. "Chưa làm" là chưa có code, "Làm dở" là có nhưng thiếu phần ghi kèm. Làm xong thì xóa dòng đó đi và cập nhật bảng trên.
 
 **Nguyễn Trần Bảo Chi**
 
@@ -51,17 +51,6 @@ Mỗi người nhận đúng các use case dưới đây. "Chưa làm" là chưa
   - UC27 chưa quản lý thiết bị công tơ, đồng hồ
   - UC35 chưa có lịch sử thuê phòng của khách
   - UC37 người thuê chưa tự gửi được yêu cầu thuê
-- Có API, chưa có màn hình (12 use case):
-  - UC22, 23 ảnh phòng
-  - UC25, 26 nội thất và tình trạng
-  - UC28 đổi trạng thái phòng
-  - UC32 CCCD, xác minh khách
-  - UC38 duyệt, từ chối yêu cầu thuê
-  - UC39 tiền đặt cọc
-  - UC40 mẫu hợp đồng
-  - UC108 yêu cầu thiết bị (trùng Việt)
-  - UC109 phụ phí tiện ích (chưa vào hóa đơn)
-  - UC124 biên bản nhận phòng
 
 **Phạm Khánh Toàn**
 
@@ -72,16 +61,6 @@ Mỗi người nhận đúng các use case dưới đây. "Chưa làm" là chưa
   - UC129 xuất bảng kê hóa đơn, phiếu thu ra Excel, PDF
 - Làm dở, cần bổ sung (1 use case):
   - UC92 thanh toán dư: cấn trừ kỳ sau, hoàn tiền mới có API
-- Có API, chưa có màn hình (9 use case):
-  - UC55 ảnh công tơ
-  - UC58 lịch sử tiêu thụ của phòng
-  - UC59 so sánh tiêu thụ các tháng (biểu đồ)
-  - UC60 chỉ số khi nhận, trả phòng
-  - UC64 lịch sử đổi đơn giá
-  - UC81 thông báo hóa đơn trong app, link chia sẻ
-  - UC89 phiếu thu
-  - UC90 biên nhận
-  - UC91 thanh toán một phần
 
 **Vũ Văn Quốc Việt**
 
@@ -91,12 +70,6 @@ Mỗi người nhận đúng các use case dưới đây. "Chưa làm" là chưa
   - UC132 báo cáo hoàn cọc, quyết toán trả phòng theo tháng
 - Làm dở, cần bổ sung (1 use case):
   - UC112 gửi yêu cầu sửa chữa kèm ảnh (phần ảnh chưa kiểm chứng)
-- Có API, chưa có màn hình (11 use case):
-  - UC52 danh sách hợp đồng sắp hết hạn
-  - UC101 đến 107 trả phòng, quyết toán, hoàn cọc, thanh lý (Phi đang dựng màn này)
-  - UC111 điều chỉnh hóa đơn từ sự cố
-  - UC113 quản lý nhóm sự cố
-  - UC121 mẫu thông báo
 
 ---
 

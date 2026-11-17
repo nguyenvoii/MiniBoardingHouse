@@ -27,7 +27,6 @@ Ghi chú về Phi: 45 use case của Phi đều đã có code và giao diện. C
 2. **Việt**: làm 3 use case chưa có (130, 131, 132), phương án chi tiết ở mục 7.
 3. **Chi**: làm 8 use case chưa có (14, 15, 16, 18, 24, 29, 31, 125), trong đó 18 (sửa phòng) và 31 (sửa hồ sơ khách) là hai thao tác cơ bản người dùng sẽ tìm ngay.
 4. **Cả nhóm**: chốt các điểm trùng và mâu thuẫn ở mục 4 (thiết bị phòng, chấm dứt hợp đồng, phụ phí vào hóa đơn).
-5. **Phi**: dựng các màn giao diện còn thiếu (mục 5), ưu tiên màn trả phòng và biên bản nhận phòng vì là luồng nghiệp vụ chính.
 
 ## 3. Chi tiết từng người
 
@@ -184,13 +183,9 @@ Xong 13, một phần 1, chỉ có backend 11, chưa làm 3.
 12. **Bảng mới của Chi.** Bảng `checkin_inspections` đã thêm vào `db/group-7.sql`. DB đã tạo từ trước phải chạy `db/patch_02_checkin_inspections.sql`, nếu không app báo lỗi khi khởi động.
 13. **Chi cần lấy lại `main`.** Nhánh `chi` của Chi có lịch sử Git tách rời `main`. Chi nên `git checkout main`, `git pull origin main` và làm tiếp trên nhánh mới từ `main`.
 
-## 5. Màn hình giao diện còn thiếu
+## 5. Màn hình giao diện
 
-Giao diện do Phi làm. Các màn dưới đây đã có API, đang chờ làm màn hình (mỗi người có thể tự làm màn của mình nếu muốn, xem `frontend/src/pages/` làm mẫu).
-
-- **Phần của Chi:** sửa, xóa phòng và đổi trạng thái phòng; ảnh phòng; chỉnh sửa nội thất; yêu cầu thuê và đặt cọc (duyệt, từ chối); mẫu hợp đồng và chọn mẫu khi lập hợp đồng; biên bản nhận phòng; yêu cầu thiết bị và phụ phí; tải ảnh CCCD.
-- **Phần của Toàn:** ảnh công tơ; lịch sử tiêu thụ và biểu đồ so sánh các tháng; ghi chỉ số khi nhận, trả phòng; lịch sử đơn giá; phiếu thu và biên nhận; thanh toán một phần; cấn trừ và hoàn tiền dư; thông báo hóa đơn trong app và link chia sẻ.
-- **Phần của Việt:** trả phòng (cho nhân viên và cho người thuê) gồm kiểm tra phòng, quyết toán, hoàn cọc, biên bản bàn giao; điều chỉnh hóa đơn từ sự cố; quản lý nhóm sự cố; mẫu thông báo; danh sách hợp đồng sắp hết hạn; yêu cầu thiết bị phía người thuê.
+Các use case đã có API nhưng chưa có màn hình (cột "Chỉ có backend" ở mục 1) không tính là việc còn thiếu của Chi, Toàn, Việt. Phi tự bổ sung màn hình khi có thời gian, mẫu code ở `frontend/src/pages/`.
 
 ## 6. Cách kiểm tra lại
 
@@ -200,7 +195,7 @@ Giao diện do Phi làm. Các màn dưới đây đã có API, đang chờ làm 
 
 ## 7. Phương án cho phần của Việt
 
-Việt còn 3 use case chưa làm, 11 use case chỉ có API, hai chỗ trùng với người khác và chưa có test. Phương án dưới đây bám vào những gì Việt đã có (`NotificationSender`, `NotificationCenterService`, `MaintenanceService`, `CheckoutService`) và **không thêm bảng DB mới**.
+Việt còn 3 use case chưa làm, hai chỗ trùng với người khác và chưa có test. Phương án dưới đây bám vào những gì Việt đã có (`NotificationSender`, `NotificationCenterService`, `MaintenanceService`, `CheckoutService`) và **không thêm bảng DB mới**.
 
 **1. Ba use case chưa làm** (thứ tự làm: 132, 131, 130; tổng 14.8 giờ theo Excel)
 
@@ -228,14 +223,10 @@ Việt còn 3 use case chưa làm, 11 use case chỉ có API, hai chỗ trùng v
 
 Tối thiểu 15 test cho các phép tính và luồng dễ sai: tiền phạt chậm thanh toán, quyết toán trả phòng (`refundable = cọc - nợ - hư hỏng`, trường hợp khách còn phải trả thêm), `NotificationSender.render` (biến thiếu giữ nguyên), luồng trạng thái yêu cầu sửa chữa và yêu cầu thiết bị (không nhảy bước), nhắc nợ không gửi trùng trong ngày, và các API mới ở mục 1.
 
-**4. Giao diện cho 11 use case chỉ có API** (Phi làm màn hình, Việt bàn giao ví dụ gọi API; Việt tự làm cũng được, lấy `frontend/src/pages/rooms.ts` hàm `addRoom` làm mẫu)
-
-Thứ tự ưu tiên: (1) trả phòng UC101 đến 107, gồm kiểm tra phòng, quyết toán, phiếu hoàn cọc, biên bản bàn giao, cả phía người thuê; (2) danh sách hợp đồng sắp hết hạn UC52; (3) quản lý nhóm sự cố UC113; (4) mẫu thông báo UC121; (5) điều chỉnh hóa đơn từ sự cố UC111.
-
-**5. Quy tắc khi làm** (giống phần của Chi và Phi)
+**4. Quy tắc khi làm** (giống phần của Chi và Phi)
 
 - Mọi API mới có `@PreAuthorize` (đọc: chủ trọ, quản lý; ghi: tùy nghiệp vụ). Dữ liệu vào sai trả 400 hoặc 409 kèm thông báo rõ, không để thành lỗi 500.
 - Không thêm bảng. Nếu bắt buộc phải thêm thì sửa `db/group-7.sql` và thêm `db/patch_NN_*.sql` trong cùng một commit.
 - Trước khi push: `mvn test` và `mvn spring-boot:run` (khởi động được, không trùng tên bean). Commit bằng tiếng Việt có dấu, cập nhật dòng của mình trong bảng tiến độ và `docs/TIEN_DO_VA_CON_THIEU.md`.
 
-**Tiêu chí xong:** 3 use case có API và test; chốt xong hai chỗ trùng (ghi quyết định vào mục 4 của file này); `viet` có test; ít nhất màn trả phòng chạy được trên giao diện.
+**Tiêu chí xong:** 3 use case có API và test; chốt xong hai chỗ trùng (ghi quyết định vào mục 4 của file này); `viet` có test.
