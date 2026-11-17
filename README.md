@@ -30,6 +30,74 @@ Cập nhật ngày 17/11/2026, theo những gì có trên nhánh `main`. Hệ th
 - Danh sách từng use case còn thiếu, các lỗi và chỗ mâu thuẫn giữa các phần, phương án cho phần của Việt: `docs/TIEN_DO_VA_CON_THIEU.md`.
 - Ai đẩy code mới thì tự sửa dòng của mình trong bảng này và trong file trên.
 
+### Còn thiếu của từng người
+
+Mỗi người nhận đúng các use case dưới đây. "Chưa làm" là chưa có code, "Làm dở" là có nhưng thiếu phần ghi kèm, "Có API, chưa có màn hình" là cần dựng giao diện (có thể nhờ Phi hoặc tự làm theo mẫu trong `frontend/src/pages/`). Làm xong thì xóa dòng đó đi và cập nhật bảng trên.
+
+**Nguyễn Trần Bảo Chi**
+
+- Chưa làm (8 use case):
+  - UC14 sửa thông tin khu trọ, SĐT hỗ trợ
+  - UC15 thêm, sửa, xóa tầng
+  - UC16 loại phòng và giá theo loại (cần chốt bỏ hay thêm bảng)
+  - UC18 sửa phòng (mã, diện tích, giá, cọc)
+  - UC24 danh mục thiết bị, nội thất chuẩn
+  - UC29 phòng chờ vệ sinh, xác nhận cho thuê lại
+  - UC31 sửa hồ sơ khách, ngày cư trú
+  - UC125 xuất danh sách phòng, khách ra Excel
+- Làm dở, cần bổ sung (5 use case):
+  - UC19 chưa tra phòng theo mã
+  - UC20 chưa lọc theo diện tích, giá
+  - UC27 chưa quản lý thiết bị công tơ, đồng hồ
+  - UC35 chưa có lịch sử thuê phòng của khách
+  - UC37 người thuê chưa tự gửi được yêu cầu thuê
+- Có API, chưa có màn hình (12 use case):
+  - UC22, 23 ảnh phòng
+  - UC25, 26 nội thất và tình trạng
+  - UC28 đổi trạng thái phòng
+  - UC32 CCCD, xác minh khách
+  - UC38 duyệt, từ chối yêu cầu thuê
+  - UC39 tiền đặt cọc
+  - UC40 mẫu hợp đồng
+  - UC108 yêu cầu thiết bị (trùng Việt)
+  - UC109 phụ phí tiện ích (chưa vào hóa đơn)
+  - UC124 biên bản nhận phòng
+
+**Phạm Khánh Toàn**
+
+- Chưa làm (4 use case):
+  - UC126 hủy hóa đơn phát hành nhầm
+  - UC127 báo cáo thu tiền theo ngày, theo người thu
+  - UC128 lịch sử thao tác trên hóa đơn, giao dịch
+  - UC129 xuất bảng kê hóa đơn, phiếu thu ra Excel, PDF
+- Làm dở, cần bổ sung (1 use case):
+  - UC92 thanh toán dư: cấn trừ kỳ sau, hoàn tiền mới có API
+- Có API, chưa có màn hình (9 use case):
+  - UC55 ảnh công tơ
+  - UC58 lịch sử tiêu thụ của phòng
+  - UC59 so sánh tiêu thụ các tháng (biểu đồ)
+  - UC60 chỉ số khi nhận, trả phòng
+  - UC64 lịch sử đổi đơn giá
+  - UC81 thông báo hóa đơn trong app, link chia sẻ
+  - UC89 phiếu thu
+  - UC90 biên nhận
+  - UC91 thanh toán một phần
+
+**Vũ Văn Quốc Việt**
+
+- Chưa làm (3 use case):
+  - UC130 gửi thông báo chung cho cả khu hoặc theo tầng
+  - UC131 thống kê sự cố, lịch sử bảo trì
+  - UC132 báo cáo hoàn cọc, quyết toán trả phòng theo tháng
+- Làm dở, cần bổ sung (1 use case):
+  - UC112 gửi yêu cầu sửa chữa kèm ảnh (phần ảnh chưa kiểm chứng)
+- Có API, chưa có màn hình (11 use case):
+  - UC52 danh sách hợp đồng sắp hết hạn
+  - UC101 đến 107 trả phòng, quyết toán, hoàn cọc, thanh lý (Phi đang dựng màn này)
+  - UC111 điều chỉnh hóa đơn từ sự cố
+  - UC113 quản lý nhóm sự cố
+  - UC121 mẫu thông báo
+
 ---
 
 ## 2. Bắt đầu nhanh
