@@ -708,6 +708,24 @@ CREATE TABLE [user_notifications] (
     [is_read] BIT NOT NULL DEFAULT 0,
     [created_at] DATETIME2 NOT NULL DEFAULT GETDATE()
 );
+
+-- 57. Biên bản nhận phòng / bàn giao khi bắt đầu thuê (Usecase 124)
+CREATE TABLE [checkin_inspections] (
+    [inspection_id] INT IDENTITY(1,1) PRIMARY KEY,
+    [room_id] INT NOT NULL FOREIGN KEY REFERENCES [rooms]([room_id]),
+    [tenant_id] INT NOT NULL FOREIGN KEY REFERENCES [tenants]([tenant_id]),
+    [contract_id] INT NULL FOREIGN KEY REFERENCES [rental_contracts]([contract_id]),
+    [checkin_date] DATE NOT NULL,
+    [initial_electric_meter] INT NOT NULL,
+    [initial_water_meter] INT NOT NULL,
+    [key_handed_count] INT NOT NULL DEFAULT 1,
+    [furnishings_condition] NVARCHAR(MAX) NULL,
+    [inspection_photo_url] NVARCHAR(500) NULL,
+    [notes] NVARCHAR(MAX) NULL,
+    [tenant_confirmed] BIT NOT NULL DEFAULT 1,
+    [inspected_by_name] NVARCHAR(100) NULL,
+    [created_at] DATETIME2 NOT NULL DEFAULT GETDATE()
+);
 GO
 
 -- ============================================================================

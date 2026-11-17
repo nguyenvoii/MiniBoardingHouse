@@ -7,7 +7,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 
-@Repository
+@Repository("chiRoomEquipmentRequestRepository")
 public interface RoomEquipmentRequestRepository extends JpaRepository<RoomEquipmentRequest, Integer> {
 
     @EntityGraph(attributePaths = {"room", "tenant"})
