@@ -114,7 +114,7 @@ export async function billingDetailPage(view: HTMLElement, params: Record<string
   const activeInvoices = invoices.filter((i) => i.paymentStatus !== 'CANCELLED').length;
   const cancelledInvoices = invoices.filter((i) => i.paymentStatus === 'CANCELLED').length;
   const canReopen = p.status === 'APPROVED' && activeInvoices === 0 && can('LANDLORD', 'MANAGER');
-  const issueBtn = h('button', { class: 'btn plate', disabled: p.status === 'DRAFT' || activeInvoices >= calc.fees.length && calc.fees.length > 0 }, icon('send', 16), cancelledInvoices ? 'Phát hành hóa đơn còn thiếu' : 'Phát hành hóa đơn');
+  const issueBtn = h('button', { class: 'btn plate', disabled: p.status === 'DRAFT' || invoices.length >= calc.fees.length && calc.fees.length > 0, title: invoices.length >= calc.fees.length && calc.fees.length > 0 ? 'Mọi phòng đã có hóa đơn (hóa đơn đã hủy thì phát hành lại từng phòng ở bảng bên dưới)' : null }, icon('send', 16), 'Phát hành hóa đơn');
   issueBtn.addEventListener('click', () => busy(issueBtn, async () => {
     try {
       const list = await api.post<Invoice[]>('/api/invoices/batch', { billingPeriodId: Number(id) });
@@ -144,7 +144,9 @@ export async function billingDetailPage(view: HTMLElement, params: Record<string
     pageHead(`Kỳ ${monthLabel(p.monthYear).toLowerCase()}`, why, [statusBadge(p.status), calcBtn, approveBtn, canReopen ? reopenBtn : null, issueBtn].filter(Boolean) as Node[]),
     h('div', { class: 'stack' },
       h('section', { class: 'panel route' }, routeLine(stops)),
+      changeTenantPanel(calc.fees, calc.warnings),
       issues.length || calc.warnings.length ? issuesPanel(issues, calc.warnings) : null,
+      cancelledInvoices && !draft && can('LANDLORD', 'MANAGER') ? reissuePanel(invoices.filter((i) => i.paymentStatus === 'CANCELLED'), reload) : null,
       feesPanel(calc.fees, draft, reload),
       anomalies.length ? panel('Phòng có tiền cao bất thường', table<Anomaly>([
         { key: 'r', label: 'Phòng', render: (a) => plate(a.roomCode) },
@@ -154,6 +156,36 @@ export async function billingDetailPage(view: HTMLElement, params: Record<string
       ], anomalies), { sub: 'Vượt 150% trung bình của chính phòng đó. Kiểm tra chỉ số trước khi duyệt.', flush: true }) : null,
     ),
   );
+}
+
+/** Phòng đổi khách giữa tháng: có từ 2 bảng tính cùng một phòng, mỗi bảng tính theo số ngày của từng hợp đồng. */
+function changeTenantPanel(fees: Fee[], warnings: Issue[]): HTMLElement | null {
+  const byRoom = new Map<string, Fee[]>();
+  for (const f of fees) byRoom.set(f.roomCode, [...(byRoom.get(f.roomCode) ?? []), f]);
+  const multi = [...byRoom.entries()].filter(([, l]) => l.length > 1);
+  const fromWarn = warnings.filter((w) => /doi khach|đổi khách/i.test(w.message)).map((w) => w.roomCode);
+  if (!multi.length && !fromWarn.length) return null;
+  const rooms = [...new Set([...multi.map(([r]) => r), ...fromWarn.filter(Boolean) as string[]])];
+  return h('div', { class: 'route-next', style: 'margin:0;background:var(--warn-bg);border-color:#e8c46a', role: 'alert' }, icon('alert', 20),
+    h('p', { style: 'flex:1' }, h('b', null, `Phòng đổi khách giữa tháng: ${rooms.join(', ')}. `),
+      'Mỗi phòng có hai bảng tính riêng, mỗi bảng chỉ tính tiền phòng theo số ngày của khách đó. Mở từng bảng kiểm tra chỉ số điện nước cuối của khách cũ và đầu của khách mới, rồi hãy duyệt.'));
+}
+
+function reissuePanel(cancelled: Invoice[], reload: () => void): HTMLElement {
+  return panel('Hóa đơn đã hủy, có thể phát hành lại', table<Invoice>([
+    { key: 'r', label: 'Phòng', render: (i) => plate(i.roomCode) },
+    { key: 'c', label: 'Mã hóa đơn', render: (i) => i.invoiceCode },
+    { key: 't', label: 'Người thuê', render: (i) => i.tenantName },
+    { key: 'a', label: 'Tổng (₫)', num: true, render: (i) => money(i.totalAmount) },
+    { key: 'x', label: '', render: (i) => {
+      const b = h('button', { class: 'btn secondary sm' }, icon('send', 14), 'Phát hành lại');
+      b.addEventListener('click', () => busy(b, async () => {
+        try { await api.post('/api/invoices', { calculatedFeeId: i.calculatedFeeId }); toast(`Đã phát hành lại hóa đơn phòng ${i.roomCode}`); reload(); }
+        catch (e) { toast(errText(e), 'err'); }
+      }));
+      return b;
+    } },
+  ], cancelled), { sub: 'Phát hành hàng loạt không lấy lại hóa đơn đã hủy; bấm từng phòng. Nếu số liệu sai, hãy Mở lại kỳ để sửa trước.', flush: true });
 }
 
 function issuesPanel(issues: Issue[], warnings: Issue[]): HTMLElement {
