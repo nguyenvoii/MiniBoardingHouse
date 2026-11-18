@@ -19,6 +19,7 @@ import com.group7.minihouse.toan.service.ReceiptService;
 /** API thu tien: phieu thu, thanh toan mot phan, thanh toan du / huy (UC 89-92). */
 @RestController
 @RequestMapping("/api")
+@PreAuthorize("hasAnyRole('LANDLORD','MANAGER','CASHIER')") // thu ngan va quan ly; METER_READER khong duoc dung vao tien
 public class PaymentController {
 
     private final ReceiptService receiptService;
@@ -35,8 +36,9 @@ public class PaymentController {
     // UC 89
     @PostMapping("/receipts")
     @ResponseStatus(HttpStatus.CREATED)
-    public ReceiptResponse createReceipt(@RequestBody ReceiptRequest req) {
-        return receiptService.create(req);
+    public ReceiptResponse createReceipt(@RequestBody ReceiptRequest req, @AuthenticationPrincipal AuthUser actor,
+                                         HttpServletRequest http) {
+        return receiptService.create(req, actor == null ? null : actor.userId(), http.getRemoteAddr());
     }
 
     @GetMapping("/receipts")
@@ -69,8 +71,9 @@ public class PaymentController {
     @PostMapping("/invoices/{invoiceId}/partial-payments")
     @ResponseStatus(HttpStatus.CREATED)
     public PartialPaymentResponse recordPartial(@PathVariable("invoiceId") Integer invoiceId,
-                                                @RequestBody PartialPaymentRequest req) {
-        return partialService.record(invoiceId, req);
+                                                @RequestBody PartialPaymentRequest req,
+                                                @AuthenticationPrincipal AuthUser actor, HttpServletRequest http) {
+        return partialService.record(invoiceId, req, actor == null ? null : actor.userId(), http.getRemoteAddr());
     }
 
     @GetMapping("/invoices/{invoiceId}/partial-payments")
@@ -80,8 +83,9 @@ public class PaymentController {
 
     @PutMapping("/partial-payments/{id}")
     public PartialPaymentResponse updatePartial(@PathVariable("id") Integer id,
-                                                @RequestBody PartialPaymentRequest req) {
-        return partialService.update(id, req);
+                                                @RequestBody PartialPaymentRequest req,
+                                                @AuthenticationPrincipal AuthUser actor, HttpServletRequest http) {
+        return partialService.update(id, req, actor == null ? null : actor.userId(), http.getRemoteAddr());
     }
 
     // UC 92
@@ -96,19 +100,23 @@ public class PaymentController {
     }
 
     @PostMapping("/invoices/{invoiceId}/overpayment/to-balance")
-    public PrepaymentResponse overpaymentToBalance(@PathVariable("invoiceId") Integer invoiceId) {
-        return prepaymentService.moveOverpaymentToBalance(invoiceId);
+    public PrepaymentResponse overpaymentToBalance(@PathVariable("invoiceId") Integer invoiceId,
+                                                   @AuthenticationPrincipal AuthUser actor, HttpServletRequest http) {
+        return prepaymentService.moveOverpaymentToBalance(invoiceId, actor == null ? null : actor.userId(),
+                http.getRemoteAddr());
     }
 
     @PostMapping("/prepayments/deduct")
     @ResponseStatus(HttpStatus.CREATED)
-    public DeductionResponse deduct(@RequestBody DeductRequest req) {
-        return prepaymentService.deduct(req);
+    public DeductionResponse deduct(@RequestBody DeductRequest req, @AuthenticationPrincipal AuthUser actor,
+                                    HttpServletRequest http) {
+        return prepaymentService.deduct(req, actor == null ? null : actor.userId(), http.getRemoteAddr());
     }
 
     @DeleteMapping("/prepayments/deductions/{id}")
-    public PrepaymentResponse undoDeduction(@PathVariable("id") Integer id) {
-        return prepaymentService.undoDeduction(id);
+    public PrepaymentResponse undoDeduction(@PathVariable("id") Integer id, @AuthenticationPrincipal AuthUser actor,
+                                            HttpServletRequest http) {
+        return prepaymentService.undoDeduction(id, actor == null ? null : actor.userId(), http.getRemoteAddr());
     }
 
     @PostMapping("/prepayments/refund")

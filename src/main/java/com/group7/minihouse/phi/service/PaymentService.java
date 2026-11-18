@@ -84,6 +84,22 @@ public class PaymentService {
         }
         Invoice inv = payableInvoice(req.invoiceId());
         BigDecimal amount = checkAmount(inv, req.amount());
+        if ("BANK_TRANSFER".equals(method)) {
+            // Khach da bam "tra bang QR" (giao dich cho) va chuyen dung so tien: xac nhan chinh giao dich do,
+            // khong tao them mot giao dich thu hai de lai giao dich cho mo coi.
+            for (PaymentTransaction pending : repo.findPendingOfInvoice(inv.getInvoiceId())) {
+                if (pending.getAmountPaid().compareTo(amount) == 0) {
+                    pending.setReceivedByUser(user(actorId));
+                    ConfirmResult r = confirmWith(pending, amount, "Nhan vien doi chieu chuyen khoan");
+                    if (!r.confirmed()) {
+                        throw new BusinessException(HttpStatus.CONFLICT, r.message());
+                    }
+                    audit(actorId, "RECORD_PAYMENT", "Doi chieu chuyen khoan " + amount + " vao giao dich "
+                            + pending.getTransactionCode() + " cua hoa don " + inv.getInvoiceCode(), ip);
+                    return r.payment();
+                }
+            }
+        }
         PaymentTransaction t = newTransaction(inv, method, cleanCode(req.transactionCode()), amount, user(actorId));
         t.setStatus("SUCCESS");
         applyToInvoice(t, "Da nhan " + method);
@@ -177,6 +193,21 @@ public class PaymentService {
         return r;
     }
 
+    /** Dong giao dich cho (khach chuyen sai so tien, bo, hoa don duoc thu cach khac): chuyen sang REVERSED, khong dong den tien. */
+    @Transactional
+    public PaymentResponse cancelPending(Integer transactionId, Integer actorId, String ip) {
+        PaymentTransaction t = load(transactionId);
+        invoiceRepo.findByIdForUpdate(t.getInvoice().getInvoiceId());
+        em.refresh(t);
+        if (!PENDING_METHODS.contains(t.getPaymentMethod()) || !"FAILED".equals(t.getStatus())) {
+            throw new BusinessException(HttpStatus.CONFLICT, "Chi dong duoc giao dich dang cho xac nhan");
+        }
+        t.setStatus("REVERSED");
+        audit(actorId, "CANCEL_PENDING_PAYMENT", "Dong giao dich cho " + t.getTransactionCode() + " cua hoa don "
+                + t.getInvoice().getInvoiceCode(), ip);
+        return toResponse(t);
+    }
+
     // ------------------------------------------------------------------ UC87: tra cuu
 
     @Transactional(readOnly = true)
@@ -203,9 +234,18 @@ public class PaymentService {
         if (!PENDING_METHODS.contains(t.getPaymentMethod())) {
             throw new BusinessException(HttpStatus.CONFLICT, "Giao dich tien mat khong can xac nhan");
         }
+        // khoa hoa don roi doc lai giao dich: hai lan xac nhan dong thoi (callback + nhan vien) khong cong doi
+        invoiceRepo.findByIdForUpdate(t.getInvoice().getInvoiceId());
+        em.refresh(t);
         if (!"FAILED".equals(t.getStatus())) {
             throw new BusinessException(HttpStatus.CONFLICT, "Giao dich dang o trang thai " + t.getStatus()
                     + ", chi xac nhan duoc giao dich dang cho");
+        }
+        String invStatus = t.getInvoice().getPaymentStatus();
+        if ("CANCELLED".equals(invStatus) || "PAID".equals(invStatus)) {
+            return new ConfirmResult(false, "Hoa don " + t.getInvoice().getInvoiceCode() + " dang o trang thai "
+                    + invStatus + ", khong cong tien vao duoc. Dong giao dich cho va hoan tien cho khach neu da chuyen",
+                    toResponse(t));
         }
         if (received.compareTo(t.getAmountPaid()) != 0) {
             return new ConfirmResult(false, "So tien thuc nhan " + received + " khac so tien giao dich "
@@ -225,6 +265,14 @@ public class PaymentService {
     private void applyToInvoice(PaymentTransaction t, String note) {
         Invoice inv = t.getInvoice();
         calculator.setPaid(inv, calculator.paidOf(inv).add(t.getAmountPaid()), LocalDate.now(clock));
+        if ("PAID".equals(inv.getPaymentStatus())) {
+            for (PaymentTransaction other : repo.findPendingOfInvoice(inv.getInvoiceId())) {
+                if (!"FAILED".equals(other.getStatus())) {
+                    continue;
+                }
+                other.setStatus("REVERSED"); // hoa don da thu du: giao dich cho con lai khong con y nghia
+            }
+        }
         invoiceService.notifyPaymentConfirmed(inv, note + ": " + t.getAmountPaid() + " VND");
     }
 
@@ -243,7 +291,7 @@ public class PaymentService {
     }
 
     private Invoice payableInvoice(Integer id) {
-        Invoice inv = invoiceRepo.findById(id).orElseThrow(() -> BusinessException.notFound("Hoa don " + id));
+        Invoice inv = invoiceRepo.findByIdForUpdate(id).orElseThrow(() -> BusinessException.notFound("Hoa don " + id));
         String st = inv.getPaymentStatus();
         if ("PAID".equals(st) || "CANCELLED".equals(st)) {
             throw new BusinessException(HttpStatus.CONFLICT, "Hoa don " + inv.getInvoiceCode() + " dang o trang thai "

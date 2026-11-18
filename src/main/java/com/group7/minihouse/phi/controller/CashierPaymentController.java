@@ -75,6 +75,14 @@ public class CashierPaymentController {
         return ApiResponse.ok(service.confirm(id, req, actor(user), http.getRemoteAddr()));
     }
 
+    /** Dong giao dich cho (khach chuyen sai so tien / bo giua chung). */
+    @PostMapping("/api/payments/{id}/cancel")
+    @PreAuthorize(CASH_STAFF)
+    public ApiResponse<PaymentResponse> cancelPending(@PathVariable Integer id, @AuthenticationPrincipal AuthUser user,
+                                                      HttpServletRequest http) {
+        return ApiResponse.ok(service.cancelPending(id, actor(user), http.getRemoteAddr()));
+    }
+
     @GetMapping("/api/payments")
     @PreAuthorize(CASH_STAFF)
     public ApiResponse<PageResponse<PaymentResponse>> search(@RequestParam(required = false) Integer invoiceId,

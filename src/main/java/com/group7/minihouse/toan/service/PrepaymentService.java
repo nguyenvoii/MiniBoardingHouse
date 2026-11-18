@@ -7,7 +7,7 @@ import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
+import com.group7.minihouse.shared.exception.BusinessException;
 import com.group7.minihouse.toan.dto.PaymentDtos.*;
 import com.group7.minihouse.shared.entity.Invoice;
 import com.group7.minihouse.shared.entity.PaymentTransaction;
@@ -39,13 +39,16 @@ public class PrepaymentService {
     private final InvoiceBalanceCalculator calculator;
     private final ToanUserRepository userRepository;
     private final ToanUserActivityLogRepository activityLogRepository;
+    private final ToanActivityWriter activity;
 
     @PersistenceContext
     private EntityManager em;
 
     public PrepaymentService(TenantPrepaymentRepository prepaymentRepo, PrepaymentDeductionRepository deductionRepo,
                              InvoiceRepository invoiceRepo, InvoiceBalanceCalculator calculator,
-                             ToanUserRepository userRepository, ToanUserActivityLogRepository activityLogRepository) {
+                             ToanUserRepository userRepository, ToanUserActivityLogRepository activityLogRepository,
+                             ToanActivityWriter activity) {
+        this.activity = activity;
         this.prepaymentRepo = prepaymentRepo;
         this.deductionRepo = deductionRepo;
         this.invoiceRepo = invoiceRepo;
@@ -71,25 +74,37 @@ public class PrepaymentService {
     /** Hoa don tra thua: phan vuot qua tong tien duoc chuyen sang tai khoan du cua khach. */
     @Transactional
     public PrepaymentResponse moveOverpaymentToBalance(Integer invoiceId) {
+        return moveOverpaymentToBalance(invoiceId, null, null);
+    }
+
+    @Transactional
+    public PrepaymentResponse moveOverpaymentToBalance(Integer invoiceId, Integer actorId, String ip) {
         Invoice inv = invoiceRepo.findByIdForUpdate(invoiceId)
                 .orElseThrow(() -> notFound("Hoa don " + invoiceId));
         if ("CANCELLED".equals(inv.getPaymentStatus())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Không thể chuyển tiền dư từ hóa đơn đã hủy");
+            throw new BusinessException(HttpStatus.CONFLICT, "Không thể chuyển tiền dư từ hóa đơn đã hủy");
         }
         BigDecimal excess = calculator.paidOf(inv).subtract(inv.getTotalAmount());
         if (excess.signum() <= 0) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Hoa don khong co tien tra thua");
+            throw new BusinessException(HttpStatus.CONFLICT, "Hoa don khong co tien tra thua");
         }
         TenantPrepayment pre = getOrCreate(inv.getTenant().getTenantId());
         pre.setExcessBalance(pre.getExcessBalance().add(excess));
         pre.setUpdatedAt(LocalDateTime.now());
         calculator.setPaid(inv, inv.getTotalAmount(), LocalDate.now());
+        activity.log(actorId, "OVERPAYMENT_TO_BALANCE", "Chuyển tiền trả thừa " + excess + " của hóa đơn "
+                + inv.getInvoiceCode() + " vào số dư khách", ip);
         return toResponse(pre);
     }
 
     /** Can tru tai khoan du vao mot hoa don (UC 92: can tru ky sau). */
     @Transactional
     public DeductionResponse deduct(DeductRequest req) {
+        return deduct(req, null, null);
+    }
+
+    @Transactional
+    public DeductionResponse deduct(DeductRequest req, Integer actorId, String ip) {
         if (req.tenantId() == null || req.targetInvoiceId() == null || req.amount() == null
                 || req.amount().signum() <= 0) {
             throw bad("Can tenantId, targetInvoiceId, amount > 0");
@@ -100,8 +115,11 @@ public class PrepaymentService {
             throw bad("Hoa don khong thuoc khach thue nay");
         }
         TenantPrepayment pre = prepaymentRepo.findByTenantIdForUpdate(req.tenantId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "Khach khong co tien du"));
-        return toResponse(applyDeduction(pre, inv, req.amount()));
+                .orElseThrow(() -> new BusinessException(HttpStatus.CONFLICT, "Khach khong co tien du"));
+        DeductionResponse res = toResponse(applyDeduction(pre, inv, req.amount()));
+        activity.log(actorId, "PREPAYMENT_DEDUCT", "Cấn trừ " + req.amount() + " từ số dư khách vào hóa đơn "
+                + inv.getInvoiceCode(), ip);
+        return res;
     }
 
     /** Tu dong can tru toan bo tien du (toi da bang so con no) vao hoa don moi phat hanh. */
@@ -120,15 +138,24 @@ public class PrepaymentService {
     /** Huy mot lan can tru: hoan lai so du, giam so da tra cua hoa don. */
     @Transactional
     public PrepaymentResponse undoDeduction(Integer deductionId) {
+        return undoDeduction(deductionId, null, null);
+    }
+
+    @Transactional
+    public PrepaymentResponse undoDeduction(Integer deductionId, Integer actorId, String ip) {
         PrepaymentDeduction d = deductionRepo.findById(deductionId)
                 .orElseThrow(() -> notFound("Lan can tru " + deductionId));
-        TenantPrepayment pre = d.getPrepayment();
-        Invoice inv = d.getTargetInvoice();
+        TenantPrepayment pre = prepaymentRepo.findByTenantIdForUpdate(d.getPrepayment().getTenant().getTenantId())
+                .orElse(d.getPrepayment());
+        Invoice inv = invoiceRepo.findByIdForUpdate(d.getTargetInvoice().getInvoiceId())
+                .orElse(d.getTargetInvoice());
         pre.setExcessBalance(pre.getExcessBalance().add(d.getDeductedAmount()));
         pre.setUpdatedAt(LocalDateTime.now());
         calculator.setPaid(inv, calculator.paidOf(inv).subtract(d.getDeductedAmount()).max(BigDecimal.ZERO),
                 LocalDate.now());
         deductionRepo.delete(d);
+        activity.log(actorId, "PREPAYMENT_UNDO_DEDUCT", "Hủy cấn trừ " + d.getDeductedAmount() + " khỏi hóa đơn "
+                + inv.getInvoiceCode(), ip);
         return toResponse(pre);
     }
 
@@ -145,7 +172,7 @@ public class PrepaymentService {
             throw bad("Can tenantId, amount > 0");
         }
         TenantPrepayment pre = prepaymentRepo.findByTenantIdForUpdate(req.tenantId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "Khach khong co tien du"));
+                .orElseThrow(() -> new BusinessException(HttpStatus.CONFLICT, "Khach khong co tien du"));
         if (pre.getExcessBalance().compareTo(req.amount()) < 0) {
             throw bad("So tien hoan lon hon so du hien co (" + pre.getExcessBalance() + ")");
         }
@@ -178,12 +205,16 @@ public class PrepaymentService {
             throw notFound("Giao dich " + transactionId);
         }
         if ("REVERSED".equals(t.getStatus())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Giao dich da duoc huy truoc do");
+            throw new BusinessException(HttpStatus.CONFLICT, "Giao dich da duoc huy truoc do");
         }
         if (!"SUCCESS".equals(t.getStatus())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Chi huy duoc giao dich SUCCESS");
+            throw new BusinessException(HttpStatus.CONFLICT, "Chi huy duoc giao dich SUCCESS");
         }
-        Invoice inv = t.getInvoice();
+        Invoice inv = invoiceRepo.findByIdForUpdate(t.getInvoice().getInvoiceId()).orElse(t.getInvoice());
+        em.refresh(t); // doc lai trang thai sau khi da khoa hoa don, tranh dao hai lan cung luc
+        if (!"SUCCESS".equals(t.getStatus())) {
+            throw new BusinessException(HttpStatus.CONFLICT, "Giao dich da duoc huy truoc do");
+        }
         t.setStatus("REVERSED");
         calculator.setPaid(inv, calculator.paidOf(inv).subtract(t.getAmountPaid()).max(BigDecimal.ZERO),
                 LocalDate.now());
@@ -203,6 +234,10 @@ public class PrepaymentService {
     // ------------------------------------------------------------------ helpers
 
     private PrepaymentDeduction applyDeduction(TenantPrepayment pre, Invoice inv, BigDecimal amount) {
+        if ("CANCELLED".equals(inv.getPaymentStatus()) || "PAID".equals(inv.getPaymentStatus())) {
+            throw new BusinessException(HttpStatus.CONFLICT, "Hoa don dang o trang thai " + inv.getPaymentStatus()
+                    + ", khong can tru duoc");
+        }
         if (pre.getExcessBalance().compareTo(amount) < 0) {
             throw bad("Tien du khong du (con " + pre.getExcessBalance() + ")");
         }
@@ -244,11 +279,11 @@ public class PrepaymentService {
                 d.getTargetInvoice().getInvoiceId(), d.getDeductedAmount(), d.getDeductedAt());
     }
 
-    private static ResponseStatusException bad(String msg) {
-        return new ResponseStatusException(HttpStatus.BAD_REQUEST, msg);
+    private static BusinessException bad(String msg) {
+        return new BusinessException(HttpStatus.BAD_REQUEST, msg);
     }
 
-    private static ResponseStatusException notFound(String what) {
-        return new ResponseStatusException(HttpStatus.NOT_FOUND, "Khong tim thay " + what);
+    private static BusinessException notFound(String what) {
+        return new BusinessException(HttpStatus.NOT_FOUND, "Khong tim thay " + what);
     }
 }

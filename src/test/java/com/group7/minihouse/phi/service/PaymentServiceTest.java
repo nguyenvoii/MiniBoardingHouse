@@ -83,6 +83,7 @@ class PaymentServiceTest {
         invoice.setDueDate(LocalDate.of(2026, 12, 5));
         invoice.setPaymentStatus("UNPAID");
         when(invoiceRepo.findById(50)).thenReturn(Optional.of(invoice));
+        when(invoiceRepo.findByIdForUpdate(50)).thenReturn(Optional.of(invoice)); // moi duong ghi tien khoa dong hoa don
         when(repo.save(any(PaymentTransaction.class))).thenAnswer(i -> {
             PaymentTransaction t = i.getArgument(0);
             t.setTransactionId(900);
@@ -189,6 +190,51 @@ class PaymentServiceTest {
         assertFalse(r.confirmed());
         assertEquals("FAILED", t.getStatus());
         assertEquals(0, BigDecimal.ZERO.compareTo(invoice.getPaidAmount()));
+    }
+
+    /** T3: hoa don da huy sau khi khach bam QR: tien ve khong duoc cong vao hoa don huy. */
+    @Test
+    void confirmDoesNotApplyToCancelledInvoice() {
+        PaymentTransaction t = pending("QR_CODE", "3000000");
+        invoice.setPaymentStatus("CANCELLED");
+        var r = service.confirm(901, new ConfirmRequest(new BigDecimal("3000000")), 5, "ip");
+        assertFalse(r.confirmed());
+        assertEquals("FAILED", t.getStatus());
+        assertEquals(0, BigDecimal.ZERO.compareTo(invoice.getPaidAmount()));
+        assertEquals("CANCELLED", invoice.getPaymentStatus());
+        verify(invoiceService, never()).notifyPaymentConfirmed(any(), any());
+    }
+
+    /** M7: nhan vien ghi chuyen khoan dung so tien cua giao dich QR dang cho thi xac nhan chinh giao dich do. */
+    @Test
+    void bankTransferMatchingPendingQrConfirmsItInsteadOfCreatingNew() {
+        PaymentTransaction t = pending("QR_CODE", "3000000");
+        when(repo.findPendingOfInvoice(50)).thenReturn(List.of(t));
+        var r = service.record(new PaymentRequest(50, "BANK_TRANSFER", new BigDecimal("3000000"), null), 5, "ip");
+        assertEquals(901, r.transactionId());
+        assertEquals("SUCCESS", t.getStatus());
+        assertEquals("PAID", invoice.getPaymentStatus());
+        verify(repo, never()).save(any(PaymentTransaction.class));
+    }
+
+    /** M7/M8: hoa don da thu du thi cac giao dich cho con lai duoc dong lai, khong con mo coi. */
+    @Test
+    void fullyPaidInvoiceClosesOtherPendingTransactions() {
+        PaymentTransaction other = pending("QR_CODE", "1000000");
+        when(repo.findPendingOfInvoice(50)).thenReturn(List.of(other));
+        service.record(new PaymentRequest(50, "CASH", new BigDecimal("3000000"), null), 5, "ip");
+        assertEquals("PAID", invoice.getPaymentStatus());
+        assertEquals("REVERSED", other.getStatus());
+    }
+
+    /** M8: giao dich cho sai so tien / bi bo co duong dong; chi dong duoc giao dich dang cho. */
+    @Test
+    void cancelPendingClosesOnlyWaitingTransaction() {
+        PaymentTransaction t = pending("QR_CODE", "3000000");
+        assertEquals("REVERSED", service.cancelPending(901, 5, "ip").status());
+        assertEquals("REVERSED", t.getStatus());
+        assertEquals(HttpStatus.CONFLICT, assertThrows(BusinessException.class,
+                () -> service.cancelPending(901, 5, "ip")).getStatus());
     }
 
     @Test

@@ -338,10 +338,15 @@ public class CheckoutService {
             if (left.signum() <= 0) {
                 break;
             }
-            BigDecimal remaining = nz(i.getRemainingAmount());
+            em.refresh(i, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE); // khoa + doc lai so da tra moi nhat
+            BigDecimal remaining = nz(i.getTotalAmount()).subtract(nz(i.getPaidAmount()));
+            if ("CANCELLED".equals(i.getPaymentStatus()) || remaining.signum() <= 0) {
+                continue;
+            }
             BigDecimal pay = remaining.min(left);
-            i.setPaidAmount(nz(i.getPaidAmount()).add(pay));
-            i.setPaymentStatus(pay.compareTo(remaining) >= 0 ? "PAID" : "PARTIALLY_PAID");
+            // dung chung quy tac trang thai cua InvoiceBalanceCalculator (PAID / OVERDUE / PARTIALLY_PAID)
+            new com.group7.minihouse.toan.service.InvoiceBalanceCalculator()
+                    .setPaid(i, nz(i.getPaidAmount()).add(pay), LocalDate.now());
             left = left.subtract(pay);
         }
     }

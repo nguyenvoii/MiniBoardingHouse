@@ -15,6 +15,12 @@ public interface ReceiptVoucherRepository extends JpaRepository<ReceiptVoucher, 
 
     long countByVoucherCodeStartingWith(String prefix);
 
+    boolean existsByVoucherCode(String voucherCode);
+
+    /** Tong tien cac phieu thu da lap cho mot giao dich (de khong lap phieu vuot so tien giao dich). */
+    @Query("select coalesce(sum(v.amount), 0) from ReceiptVoucher v where v.transaction.transactionId = :txId")
+    BigDecimal sumByTransaction(@Param("txId") Integer transactionId);
+
     List<ReceiptVoucher> findByTransactionTransactionIdOrderByCreatedAtDesc(Integer transactionId);
 
     @Query("select coalesce(sum(v.amount), 0) from ReceiptVoucher v join v.transaction t "

@@ -11,7 +11,6 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 import com.group7.minihouse.toan.dto.InvoiceDtos.*;
 import com.group7.minihouse.shared.entity.CalculatedMonthlyFee;
 import com.group7.minihouse.shared.entity.FeeItemDetail;
@@ -83,7 +82,7 @@ public class InvoiceService {
     @Transactional
     public InvoiceResponse issue(IssueRequest req, Integer actorUserId, String ipAddress) {
         if (req.calculatedFeeId() == null) throw bad("Thiếu mã bảng tính tiền");
-        Invoice invoice = issueOne(req.calculatedFeeId(), req.issueDate(), req.dueDate());
+        Invoice invoice = issueOne(req.calculatedFeeId(), req.issueDate(), req.dueDate(), true);
         writeActivity(actorUserId, "CREATE_INVOICE", "Phát hành hóa đơn " + invoice.getInvoiceCode(), ipAddress);
         return toResponse(invoice);
     }
@@ -107,31 +106,36 @@ public class InvoiceService {
                 .setParameter("bp", req.billingPeriodId()).getResultList();
         List<InvoiceResponse> out = new ArrayList<>();
         for (Integer id : feeIds) {
-            Invoice invoice = issueOne(id, req.issueDate(), req.dueDate());
+            Invoice invoice = issueOne(id, req.issueDate(), req.dueDate(), false);
             writeActivity(actorUserId, "CREATE_INVOICE", "Phát hành hóa đơn " + invoice.getInvoiceCode(), ipAddress);
             out.add(toResponse(invoice));
         }
         return out;
     }
 
-    private Invoice issueOne(Integer feeId, LocalDate issueDate, LocalDate dueDate) {
+    /**
+     * Phat hanh hoa don cho 1 bang tinh. reissue=true (phat hanh tung phong): neu hoa don truoc cua bang tinh nay da bi
+     * HUY thi dung lai chinh dong hoa don do (UNIQUE calculated_fee_id) de phat hanh lai, khong phai ngo cut.
+     */
+    private Invoice issueOne(Integer feeId, LocalDate issueDate, LocalDate dueDate, boolean reissue) {
         CalculatedMonthlyFee fee = em.find(CalculatedMonthlyFee.class, feeId);
         if (fee == null) {
             throw notFound("Bang tinh tien " + feeId);
         }
         if ("DRAFT".equals(fee.getBillingPeriod().getStatus())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Ky tinh tien chua duoc duyet (dang DRAFT)");
+            throw new BusinessException(HttpStatus.CONFLICT, "Ky tinh tien chua duoc duyet (dang DRAFT)");
         }
-        if (invoiceRepo.existsByCalculatedFeeCalculatedFeeId(feeId)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Bang tinh tien nay da co hoa don");
+        Invoice old = invoiceRepo.findByCalculatedFeeCalculatedFeeId(feeId).orElse(null);
+        if (old != null && !(reissue && "CANCELLED".equals(old.getPaymentStatus()))) {
+            throw new BusinessException(HttpStatus.CONFLICT, "Bang tinh tien nay da co hoa don");
         }
         LocalDate issue = issueDate == null ? LocalDate.now() : issueDate;
         LocalDate due = dueDate != null ? dueDate : defaultDueDate(issue, fee.getContract().getPaymentDueDay());
         if (due.isBefore(issue)) {
             throw bad("Han thanh toan phai sau ngay phat hanh");
         }
-        Invoice inv = new Invoice();
-        inv.setInvoiceCode(buildCode(fee));
+        Invoice inv = old != null ? invoiceRepo.findByIdForUpdate(old.getInvoiceId()).orElse(old) : new Invoice();
+        inv.setInvoiceCode(old != null ? old.getInvoiceCode() : buildCode(fee));
         inv.setCalculatedFee(fee);
         inv.setTenant(fee.getContract().getTenant());
         inv.setIssueDate(issue);
@@ -140,6 +144,7 @@ public class InvoiceService {
         inv.setPaidAmount(BigDecimal.ZERO);
         inv.setPaymentStatus("UNPAID");
         inv.setShareLink(SHARE_PREFIX + UUID.randomUUID());
+        calculator.refreshStatus(inv, LocalDate.now()); // tong <= 0 thi la PAID ngay, khong ket o UNPAID
         inv = invoiceRepo.save(inv);
         invoiceRepo.flush();
         em.refresh(inv);
@@ -173,6 +178,11 @@ public class InvoiceService {
                 .existsByInvoiceInvoiceIdAndStatus(invoiceId, "SUCCESS");
         boolean hasPartialCollection = partialPaymentLogRepo
                 .existsByInvoiceInvoiceIdAndAmountGreaterThan(invoiceId, BigDecimal.ZERO);
+        if (paymentTransactionRepo.existsByInvoiceInvoiceIdAndStatusAndPaymentMethodIn(invoiceId, "FAILED",
+                java.util.List.of("QR_CODE", "GATEWAY", "BANK_TRANSFER"))) {
+            throw new BusinessException(HttpStatus.CONFLICT,
+                    "Hóa đơn còn giao dịch chờ xác nhận. Hãy hủy hoặc xác nhận giao dịch chờ trước khi hủy hóa đơn.");
+        }
         if (paidAmount.signum() > 0 || hasSuccessfulTransaction || hasPartialCollection) {
             throw new BusinessException(HttpStatus.CONFLICT,
                     "Không thể hủy hóa đơn vì đã phát sinh khoản thu. Vui lòng xử lý giao dịch theo quy trình hoàn/đảo tiền.");
@@ -333,7 +343,8 @@ public class InvoiceService {
 
     @Transactional
     public InvoiceResponse adjustTotal(Integer invoiceId, AdjustInvoiceRequest req, Integer actorUserId, String ipAddress) {
-        Invoice inv = find(invoiceId);
+        Invoice inv = invoiceRepo.findByIdForUpdate(invoiceId)
+                .orElseThrow(() -> notFound("Hoa don " + invoiceId));
         if (req.reason() == null || req.reason().isBlank()) {
             throw bad("Phai nhap ly do dieu chinh hoa don");
         }
@@ -341,7 +352,7 @@ public class InvoiceService {
             throw bad("newTotalAmount khong hop le");
         }
         if ("CANCELLED".equals(inv.getPaymentStatus())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Hoa don da huy");
+            throw new BusinessException(HttpStatus.CONFLICT, "Hoa don da huy");
         }
         inv.setTotalAmount(req.newTotalAmount());
         calculator.refreshStatus(inv, LocalDate.now());
@@ -483,7 +494,7 @@ public class InvoiceService {
         return new InvoiceResponse(i.getInvoiceId(), i.getInvoiceCode(), f.getCalculatedFeeId(),
                 i.getTenant().getTenantId(), i.getTenant().getFullName(), f.getRoom().getRoomId(),
                 f.getRoom().getRoomCode(), f.getBillingPeriod().getMonthYear(), i.getIssueDate(),
-                i.getDueDate(), i.getTotalAmount(), paid, i.getTotalAmount().subtract(paid),
+                i.getDueDate(), i.getTotalAmount(), paid, calculator.remainingOf(i),
                 i.getPaymentStatus(), i.getShareLink(), i.getPdfUrl());
     }
 
@@ -520,11 +531,11 @@ public class InvoiceService {
         return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;");
     }
 
-    private static ResponseStatusException bad(String msg) {
-        return new ResponseStatusException(HttpStatus.BAD_REQUEST, msg);
+    private static BusinessException bad(String msg) {
+        return new BusinessException(HttpStatus.BAD_REQUEST, msg);
     }
 
-    private static ResponseStatusException notFound(String what) {
-        return new ResponseStatusException(HttpStatus.NOT_FOUND, "Khong tim thay " + what);
+    private static BusinessException notFound(String what) {
+        return new BusinessException(HttpStatus.NOT_FOUND, "Khong tim thay " + what);
     }
 }

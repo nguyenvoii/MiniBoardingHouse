@@ -211,7 +211,7 @@ public class DebtService {
             BigDecimal total = BigDecimal.ZERO;
             int overdue = 0;
             for (Invoice i : list) {
-                total = total.add(nz(i.getRemainingAmount()));
+                total = total.add(remainingOf(i));
                 if (isLater(i, latest)) {
                     latest = i;
                 }
@@ -227,7 +227,7 @@ public class DebtService {
             Integer roomId = latest.getCalculatedFee().getRoom().getRoomId();
             TenantDebt debt = debtRepository.findFirstByTenant_TenantIdAndRoom_RoomIdOrderByDebtIdDesc(tenantId, roomId)
                     .orElseGet(TenantDebt::new);
-            BigDecimal current = nz(latest.getRemainingAmount());
+            BigDecimal current = remainingOf(latest);
             debt.setTenant(latest.getTenant());
             debt.setRoom(latest.getCalculatedFee().getRoom());
             debt.setInvoice(latest);
@@ -267,6 +267,11 @@ public class DebtService {
         }
         int c = a.getDueDate().compareTo(b.getDueDate());
         return c > 0 || (c == 0 && a.getInvoiceId() > b.getInvoiceId());
+    }
+
+    /** Con no = tong - da tra; khong dung cot tinh remaining_amount vi entity trong cung giao dich co the con so cu. */
+    private static BigDecimal remainingOf(Invoice i) {
+        return nz(i.getTotalAmount()).subtract(nz(i.getPaidAmount()));
     }
 
     static String statusFor(BigDecimal total, int overdueDays) {

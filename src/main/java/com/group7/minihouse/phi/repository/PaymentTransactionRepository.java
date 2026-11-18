@@ -23,6 +23,11 @@ public interface PaymentTransactionRepository extends JpaRepository<PaymentTrans
     Page<PaymentTransaction> search(@Param("invoiceId") Integer invoiceId, @Param("kw") String kw,
                                     @Param("status") String status, Pageable pageable);
 
+    /** Giao dich dang cho xac nhan (luu o FAILED, kenh khong phai tien mat) cua mot hoa don. */
+    @Query("select t from PaymentTransaction t where t.invoice.invoiceId = :invoiceId and t.status = 'FAILED' "
+            + "and t.paymentMethod in ('QR_CODE', 'GATEWAY', 'BANK_TRANSFER') order by t.transactionId")
+    List<PaymentTransaction> findPendingOfInvoice(@Param("invoiceId") Integer invoiceId);
+
     /** Hoa don con phai tra co ma nam trong noi dung chuyen khoan (de doi chieu UC88). */
     @Query("select i from Invoice i where i.paymentStatus in ('UNPAID', 'PARTIALLY_PAID', 'OVERDUE') "
             + "and lower(:content) like concat('%', lower(i.invoiceCode), '%')")

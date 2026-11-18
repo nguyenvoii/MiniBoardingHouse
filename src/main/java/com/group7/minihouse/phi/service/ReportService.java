@@ -21,7 +21,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * UC116 dashboard tong quan va UC118 bao cao doanh thu - chi phi theo thang.
- * Doanh thu = tong cac giao dich thanh toan SUCCESS (khong tinh REVERSED/dang cho) theo ngay thanh toan;
+ * Doanh thu = tien THUC THU trong ky = giao dich thanh toan SUCCESS (khong tinh REVERSED/dang cho) theo ngay thanh toan
+ * + cac dot thanh toan mot phan (partial_payment_logs, hoa don chua huy) theo ngay tra. KHONG gom: tien can tru tu
+ * so du khach (do la tien da thu o lan truoc, cong lai se tinh doi) va tien coc gach no luc tra phong (coc da thu luc
+ * ky hop dong, chi la doi muc dich su dung); hai khoan nay chi lam hoa don PAID chu khong phai dong tien moi vao;
  * chi phi = operating_expenses theo ngay chi. Cong no = phan chua tra cua hoa don chua tat toan (khong tinh da huy).
  * propertyId null = gop tat ca khu tro.
  */
@@ -62,7 +65,11 @@ public class ReportService {
         BigDecimal revenue = money("select sum(t.amountPaid) from PaymentTransaction t where t.status = 'SUCCESS' "
                 + "and t.paymentDate >= :from and t.paymentDate < :to "
                 + "and (:p = 0 or t.invoice.calculatedFee.billingPeriod.property.propertyId = :p)", p,
-                ym.atDay(1).atStartOfDay(), ym.plusMonths(1).atDay(1).atStartOfDay());
+                ym.atDay(1).atStartOfDay(), ym.plusMonths(1).atDay(1).atStartOfDay())
+                .add(money("select sum(l.amount) from PartialPaymentLog l where l.invoice.paymentStatus <> 'CANCELLED' "
+                + "and l.paidDate >= :from and l.paidDate < :to "
+                + "and (:p = 0 or l.invoice.calculatedFee.billingPeriod.property.propertyId = :p)", p,
+                ym.atDay(1).atStartOfDay(), ym.plusMonths(1).atDay(1).atStartOfDay()));
         BigDecimal billed = money("select sum(i.totalAmount) from Invoice i where i.paymentStatus <> 'CANCELLED' "
                 + "and i.issueDate between :from and :to "
                 + "and (:p = 0 or i.calculatedFee.billingPeriod.property.propertyId = :p)", p,
@@ -105,6 +112,10 @@ public class ReportService {
                 + "from PaymentTransaction t where t.status = 'SUCCESS' and year(t.paymentDate) = :y "
                 + "and (:p = 0 or t.invoice.calculatedFee.billingPeriod.property.propertyId = :p) "
                 + "group by month(t.paymentDate)", y, p);
+        byMonth("select month(l.paidDate), sum(l.amount) from PartialPaymentLog l "
+                + "where l.invoice.paymentStatus <> 'CANCELLED' and year(l.paidDate) = :y "
+                + "and (:p = 0 or l.invoice.calculatedFee.billingPeriod.property.propertyId = :p) "
+                + "group by month(l.paidDate)", y, p).forEach((m, v) -> revenue.merge(m, v, BigDecimal::add));
         Map<Integer, BigDecimal> expense = byMonth("select month(e.expenseDate), sum(e.amount) "
                 + "from OperatingExpense e where year(e.expenseDate) = :y "
                 + "and (:p = 0 or e.property.propertyId = :p) group by month(e.expenseDate)", y, p);

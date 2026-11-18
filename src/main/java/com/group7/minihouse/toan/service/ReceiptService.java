@@ -9,7 +9,7 @@ import java.util.Set;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
+import com.group7.minihouse.shared.exception.BusinessException;
 import com.group7.minihouse.toan.dto.PaymentDtos.ReceiptRequest;
 import com.group7.minihouse.toan.dto.PaymentDtos.ReceiptResponse;
 import com.group7.minihouse.shared.entity.PaymentTransaction;
@@ -27,17 +27,29 @@ public class ReceiptService {
 
     private final ReceiptVoucherRepository receiptRepo;
     private final InvoiceService invoiceService;
+    private final ToanActivityWriter activity;
 
     @PersistenceContext
     private EntityManager em;
 
-    public ReceiptService(ReceiptVoucherRepository receiptRepo, InvoiceService invoiceService) {
+    public ReceiptService(ReceiptVoucherRepository receiptRepo, InvoiceService invoiceService,
+                          ToanActivityWriter activity) {
+        this.activity = activity;
         this.receiptRepo = receiptRepo;
         this.invoiceService = invoiceService;
     }
 
     @Transactional
     public ReceiptResponse create(ReceiptRequest req) {
+        return create(req, null, null);
+    }
+
+    /**
+     * Phieu thu tien phong (MONTHLY_RENT) bat buoc gan giao dich thu tien da thanh cong; da gan giao dich thi so tien
+     * phieu khong duoc vuot so tien giao dich (tinh ca cac phieu da lap truoc do).
+     */
+    @Transactional
+    public ReceiptResponse create(ReceiptRequest req, Integer actorId, String ip) {
         if (req.voucherType() == null || !TYPES.contains(req.voucherType().toUpperCase())) {
             throw bad("voucherType phai thuoc " + TYPES);
         }
@@ -50,6 +62,16 @@ public class ReceiptService {
             if (tx == null) {
                 throw notFound("Giao dich " + req.transactionId());
             }
+            if (!"SUCCESS".equals(tx.getStatus())) {
+                throw new BusinessException(HttpStatus.CONFLICT, "Chi lap phieu thu cho giao dich da thu thanh cong");
+            }
+            BigDecimal issued = receiptRepo.sumByTransaction(tx.getTransactionId());
+            if (issued.add(req.amount()).compareTo(tx.getAmountPaid()) > 0) {
+                throw bad("So tien phieu thu vuot so tien giao dich (giao dich " + tx.getAmountPaid()
+                        + ", da lap phieu " + issued + ")");
+            }
+        } else if ("MONTHLY_RENT".equals(req.voucherType().toUpperCase())) {
+            throw bad("Phieu thu tien phong phai gan voi mot giao dich thu tien (transactionId)");
         }
         ReceiptVoucher v = new ReceiptVoucher();
         v.setVoucherCode(nextCode());
@@ -58,7 +80,10 @@ public class ReceiptService {
         v.setAmount(req.amount());
         v.setNote(req.note());
         v.setCreatedAt(LocalDateTime.now());
-        return toResponse(receiptRepo.save(v));
+        ReceiptVoucher saved = receiptRepo.save(v);
+        activity.log(actorId, "CREATE_RECEIPT", "Lập phiếu thu " + saved.getVoucherCode() + " số tiền "
+                + saved.getAmount(), ip);
+        return toResponse(saved);
     }
 
     @Transactional(readOnly = true)
@@ -84,7 +109,7 @@ public class ReceiptService {
     public void sendConfirmation(Integer voucherId) {
         ReceiptVoucher v = find(voucherId);
         if (v.getTransaction() == null) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Phieu thu chua gan voi giao dich/hoa don");
+            throw new BusinessException(HttpStatus.CONFLICT, "Phieu thu chua gan voi giao dich/hoa don");
         }
         invoiceService.notifyPaymentConfirmed(v.getTransaction().getInvoice(),
                 "Da nhan " + v.getAmount().toPlainString() + " - phieu thu " + v.getVoucherCode());
@@ -114,7 +139,12 @@ public class ReceiptService {
 
     private String nextCode() {
         String prefix = "PT-" + LocalDate.now().format(DAY) + "-";
-        return prefix + String.format("%04d", receiptRepo.countByVoucherCodeStartingWith(prefix) + 1);
+        long n = receiptRepo.countByVoucherCodeStartingWith(prefix) + 1;
+        String code = prefix + String.format("%04d", n);
+        while (receiptRepo.existsByVoucherCode(code)) { // dem +1 co the trung khi da co phieu bi xoa / lech so
+            code = prefix + String.format("%04d", ++n);
+        }
+        return code;
     }
 
     private ReceiptVoucher find(Integer id) {
@@ -135,11 +165,11 @@ public class ReceiptService {
         return s == null ? "" : s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }
 
-    private static ResponseStatusException bad(String msg) {
-        return new ResponseStatusException(HttpStatus.BAD_REQUEST, msg);
+    private static BusinessException bad(String msg) {
+        return new BusinessException(HttpStatus.BAD_REQUEST, msg);
     }
 
-    private static ResponseStatusException notFound(String what) {
-        return new ResponseStatusException(HttpStatus.NOT_FOUND, "Khong tim thay " + what);
+    private static BusinessException notFound(String what) {
+        return new BusinessException(HttpStatus.NOT_FOUND, "Khong tim thay " + what);
     }
 }

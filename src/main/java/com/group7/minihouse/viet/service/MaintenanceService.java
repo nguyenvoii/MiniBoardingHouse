@@ -218,7 +218,7 @@ public class MaintenanceService {
             throw new BusinessException("So tien giam phai lon hon 0");
         }
         String reason = VietSupport.requireText(req.reason(), "ly do dieu chinh");
-        Invoice inv = em.find(Invoice.class, req.invoiceId());
+        Invoice inv = em.find(Invoice.class, req.invoiceId(), jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
         if (inv == null) {
             throw BusinessException.notFound("Hoa don");
         }

@@ -10,5 +10,10 @@ public interface PartialPaymentLogRepository extends JpaRepository<PartialPaymen
 
     long countByInvoiceInvoiceId(Integer invoiceId);
 
+    /** So dot lon nhat da ghi cua hoa don (0 neu chua co), de danh so dot tiep theo khong trung khi co dot bi xoa/sua. */
+    @org.springframework.data.jpa.repository.Query(
+            "select coalesce(max(l.installmentNumber), 0) from PartialPaymentLog l where l.invoice.invoiceId = :id")
+    int maxInstallment(@org.springframework.data.repository.query.Param("id") Integer invoiceId);
+
     boolean existsByInvoiceInvoiceIdAndAmountGreaterThan(Integer invoiceId, java.math.BigDecimal amount);
 }

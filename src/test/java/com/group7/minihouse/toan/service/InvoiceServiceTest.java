@@ -2,6 +2,7 @@ package com.group7.minihouse.toan.service;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 import java.math.BigDecimal;
@@ -135,6 +136,80 @@ class InvoiceServiceTest {
                 () -> service.cancel(10, new CancelInvoiceRequest("  "), 7, "127.0.0.1"));
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
         verifyNoInteractions(invoiceRepo);
+    }
+
+    /** T3: con giao dich QR cho xac nhan thi khong huy hoa don (tien co the ve sau khi huy). */
+    @Test
+    void khongChoHuyKhiConGiaoDichChoXacNhan() {
+        Invoice invoice = invoice("UNPAID", BigDecimal.ZERO);
+        when(invoiceRepo.findByIdForUpdate(10)).thenReturn(Optional.of(invoice));
+        when(paymentTransactionRepo.existsByInvoiceInvoiceIdAndStatusAndPaymentMethodIn(eq(10), eq("FAILED"), any()))
+                .thenReturn(true);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.cancel(10, new CancelInvoiceRequest("Nhập nhầm"), 7, "127.0.0.1"));
+
+        assertEquals(HttpStatus.CONFLICT, ex.getStatus());
+        assertEquals("UNPAID", invoice.getPaymentStatus());
+        verifyNoInteractions(activityLogRepo);
+    }
+
+    /** T4: hoa don da huy thi phat hanh lai duoc tren cung bang tinh (dung lai dong hoa don, khong ket UNIQUE). */
+    @Test
+    void phatHanhLaiHoaDonDaHuyTrenCungBangTinh() {
+        com.group7.minihouse.shared.entity.MonthlyBillingPeriod period = new com.group7.minihouse.shared.entity.MonthlyBillingPeriod();
+        period.setStatus("APPROVED");
+        period.setMonthYear("2026-11");
+        com.group7.minihouse.shared.entity.Tenant tenant = new com.group7.minihouse.shared.entity.Tenant();
+        tenant.setTenantId(3);
+        com.group7.minihouse.shared.entity.RentalContract contract = new com.group7.minihouse.shared.entity.RentalContract();
+        contract.setTenant(tenant);
+        contract.setPaymentDueDay(5);
+        com.group7.minihouse.shared.entity.CalculatedMonthlyFee fee = new com.group7.minihouse.shared.entity.CalculatedMonthlyFee();
+        fee.setCalculatedFeeId(20);
+        fee.setBillingPeriod(period);
+        fee.setContract(contract);
+        com.group7.minihouse.shared.entity.Room room = new com.group7.minihouse.shared.entity.Room();
+        room.setRoomId(8);
+        room.setRoomCode("P101");
+        fee.setRoom(room);
+        cancelledTenant(tenant);
+        fee.setTotalCalculatedAmount(new BigDecimal("2500000"));
+        Invoice cancelled = invoice("CANCELLED", BigDecimal.ZERO);
+        cancelled.setCalculatedFee(fee);
+        jakarta.persistence.EntityManager em = mock(jakarta.persistence.EntityManager.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "em", em);
+        when(em.find(com.group7.minihouse.shared.entity.CalculatedMonthlyFee.class, 20)).thenReturn(fee);
+        when(invoiceRepo.findByCalculatedFeeCalculatedFeeId(20)).thenReturn(Optional.of(cancelled));
+        when(invoiceRepo.findByIdForUpdate(10)).thenReturn(Optional.of(cancelled));
+        when(invoiceRepo.save(any(Invoice.class))).thenAnswer(i -> i.getArgument(0));
+
+        service.issue(new com.group7.minihouse.toan.dto.InvoiceDtos.IssueRequest(20, null, null));
+
+        assertEquals("UNPAID", cancelled.getPaymentStatus());
+        assertEquals(0, new BigDecimal("2500000").compareTo(cancelled.getTotalAmount()));
+        assertEquals("INV-202611-P101-2", cancelled.getInvoiceCode());
+    }
+
+    /** Phat hanh theo lo van bo qua bang tinh co hoa don (ke ca da huy): chi phat hanh lai tung phong co chu y. */
+    @Test
+    void phatHanhHoaDonConHieuLucTrenCungBangTinhBiTuChoi() {
+        com.group7.minihouse.shared.entity.MonthlyBillingPeriod period = new com.group7.minihouse.shared.entity.MonthlyBillingPeriod();
+        period.setStatus("APPROVED");
+        com.group7.minihouse.shared.entity.CalculatedMonthlyFee fee = new com.group7.minihouse.shared.entity.CalculatedMonthlyFee();
+        fee.setBillingPeriod(period);
+        jakarta.persistence.EntityManager em = mock(jakarta.persistence.EntityManager.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "em", em);
+        when(em.find(com.group7.minihouse.shared.entity.CalculatedMonthlyFee.class, 20)).thenReturn(fee);
+        when(invoiceRepo.findByCalculatedFeeCalculatedFeeId(20)).thenReturn(Optional.of(invoice("UNPAID", BigDecimal.ZERO)));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.issue(new com.group7.minihouse.toan.dto.InvoiceDtos.IssueRequest(20, null, null)));
+        assertEquals(HttpStatus.CONFLICT, ex.getStatus());
+    }
+
+    private static void cancelledTenant(com.group7.minihouse.shared.entity.Tenant t) {
+        t.setFullName("Khach A");
     }
 
     private Invoice invoice(String status, BigDecimal paid) {

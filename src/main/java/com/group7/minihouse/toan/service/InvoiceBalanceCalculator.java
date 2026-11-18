@@ -13,7 +13,11 @@ public class InvoiceBalanceCalculator {
         return inv.getPaidAmount() == null ? BigDecimal.ZERO : inv.getPaidAmount();
     }
 
+    /** Con phai tra; hoa don da huy khong con khoan nao phai tra (0), nen khong nhan them tien. */
     public BigDecimal remainingOf(Invoice inv) {
+        if ("CANCELLED".equals(inv.getPaymentStatus())) {
+            return BigDecimal.ZERO;
+        }
         return inv.getTotalAmount().subtract(paidOf(inv));
     }
 

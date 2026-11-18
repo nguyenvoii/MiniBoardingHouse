@@ -19,6 +19,8 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Integer> {
 
     boolean existsByCalculatedFeeCalculatedFeeId(Integer calculatedFeeId);
 
+    Optional<Invoice> findByCalculatedFeeCalculatedFeeId(Integer calculatedFeeId);
+
     long countByInvoiceCodeStartingWith(String prefix);
 
     /** UC126: khóa hóa đơn trong lúc kiểm tra và hủy để tránh cập nhật đồng thời. */
