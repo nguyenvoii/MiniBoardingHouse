@@ -51,11 +51,13 @@ interface ApiTenant {
 interface ApiFurnishing { roomId: number; itemName: string }
 
 export async function liveContracts(): Promise<Contract[]> {
-  const [a, b] = await Promise.all([
+  // EXPIRED cũng tính: hết hạn mà chưa trả phòng/thanh lý thì khách vẫn ở, phòng chưa Trống
+  const [a, b, c] = await Promise.all([
     api.get<Page<Contract>>('/api/contracts?status=ACTIVE&size=100'),
     api.get<Page<Contract>>('/api/contracts?status=EXPIRING_SOON&size=100'),
+    api.get<Page<Contract>>('/api/contracts?status=EXPIRED&size=100').catch(() => ({ items: [] as Contract[] })),
   ]);
-  return [...a.items, ...b.items];
+  return [...a.items, ...b.items, ...c.items];
 }
 
 export function loadProperties(): Promise<PropertyInfo[]> {

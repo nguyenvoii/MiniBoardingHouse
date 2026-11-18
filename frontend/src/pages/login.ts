@@ -1,7 +1,7 @@
 import { h } from '../lib/dom';
 import { icon } from '../lib/icons';
-import { api, errText, login } from '../lib/api';
-import { field, formError, input, toast } from '../ui/kit';
+import { api, clearMustChangePassword, errText, login, logout } from '../lib/api';
+import { field, formError, input, openDialog, toast } from '../ui/kit';
 import { logo } from '../ui/shell';
 
 export function renderLogin(root: HTMLElement, onDone: () => void): void {
@@ -72,4 +72,38 @@ export function renderLogin(root: HTMLElement, onDone: () => void): void {
     ),
   );
   id.focus();
+}
+
+let forceOpen = false;
+/** Tài khoản đang dùng mật khẩu tạm: hộp thoại không đóng được cho tới khi đổi mật khẩu (hoặc đăng xuất). */
+export function forcePasswordChange(): void {
+  if (forceOpen) return;
+  forceOpen = true;
+  const d = openDialog('Đổi mật khẩu trước khi làm việc', { locked: true });
+  const err = h('div');
+  const cur = input({ type: 'password', autocomplete: 'current-password' });
+  const nw = input({ type: 'password', autocomplete: 'new-password' });
+  d.body.append(err, h('p', null, 'Bạn đang dùng mật khẩu tạm do chủ trọ cấp. Hãy đặt mật khẩu của riêng bạn.'),
+    field('Mật khẩu tạm hiện tại', cur), field('Mật khẩu mới', nw, 'Từ 8 ký tự, có cả chữ và số'));
+  const ok = h('button', { class: 'btn' }, 'Đổi mật khẩu');
+  const out = h('button', { class: 'btn secondary' }, 'Đăng xuất');
+  out.addEventListener('click', () => { d.close(); forceOpen = false; logout(); });
+  d.foot.append(out, ok);
+  ok.addEventListener('click', async () => {
+    err.replaceChildren();
+    if (!cur.value || !nw.value) { err.append(formError('Nhập mật khẩu tạm và mật khẩu mới.')); return; }
+    ok.setAttribute('disabled', '');
+    try {
+      await api.post('/api/auth/password', { currentPassword: cur.value, newPassword: nw.value });
+      clearMustChangePassword();
+      d.close();
+      forceOpen = false;
+      toast('Đã đổi mật khẩu');
+    } catch (e) {
+      err.append(formError(errText(e)));
+    } finally {
+      ok.removeAttribute('disabled');
+    }
+  });
+  cur.focus();
 }

@@ -1,13 +1,12 @@
 import { h, busy, mount } from '../lib/dom';
 import { icon } from '../lib/icons';
-import { api, errText, loadSession, PROPERTY_ID } from '../lib/api';
+import { api, ApiError, errText, loadSession, PROPERTY_ID } from '../lib/api';
 import { getMonth } from '../lib/ctx';
 import { date, monthLabel } from '../lib/format';
-import { liveContracts } from '../data/live';
-import type { Contract } from '../data/types';
 import { emptyState, field, formError, input, openDialog, pageHead, panel, plate, select, statusBadge, table, toast } from '../ui/kit';
 
 interface MeterPeriod { periodId: number; propertyId: number; periodName: string; startDate: string; endDate: string; closed: boolean }
+interface MissingRoom { roomId: number; roomCode: string; floorNumber: number | null; contractId: number; tenantName: string; contractStatus: string }
 interface Reading {
   readingId: number; periodId: number; roomId: number; roomCode: string; oldElectric: number; newElectric: number; usedElectric: number;
   oldWater: number; newWater: number; usedWater: number; readingDate: string; verified: boolean;
@@ -33,25 +32,28 @@ export async function metersPage(view: HTMLElement): Promise<void> {
     return;
   }
 
-  const [readings, contracts, alerts] = await Promise.all([
+  let missingError: string | null = null;
+  const [readings, missing, alerts] = await Promise.all([
     api.get<Reading[]>(`/api/meter-periods/${sel.periodId}/readings`),
-    liveContracts().catch(() => [] as Contract[]),
+    api.get<MissingRoom[]>(`/api/meter-periods/${sel.periodId}/missing-rooms`).catch((e) => {
+      missingError = e instanceof ApiError && e.status === 403 ? 'Tài khoản này không có quyền xem danh sách phòng cần ghi chỉ số.' : errText(e);
+      return [] as MissingRoom[];
+    }),
     api.get<Alert[]>(`/api/meter-alerts?propertyId=${PROPERTY_ID}&resolved=false`).catch(() => [] as Alert[]),
   ]);
   const reload = () => void metersPage(view);
-  const done = new Set(readings.map((r) => r.roomId));
-  const missing = contracts.filter((c) => !done.has(c.roomId));
 
   const closeBtn = h('button', { class: 'btn secondary' }, icon('lock', 16), sel.closed ? 'Mở lại kỳ' : 'Đóng kỳ');
   closeBtn.addEventListener('click', () => busy(closeBtn, async () => {
     try { await api.patch(`/api/meter-periods/${sel.periodId}/closed?value=${!sel.closed}`); toast(sel.closed ? 'Đã mở lại kỳ' : 'Đã đóng kỳ'); reload(); }
     catch (e) { toast(errText(e), 'err'); }
   }));
-  const recordBtn = h('button', { class: 'btn', disabled: sel.closed || !missing.length, title: sel.closed ? 'Kỳ đã đóng' : !missing.length ? 'Mọi phòng đã có chỉ số' : null, onclick: () => record(sel, missing, null, reload) }, icon('plus', 16), 'Ghi chỉ số');
+  const recordBtn = h('button', { class: 'btn', disabled: sel.closed || !missing.length, title: sel.closed ? 'Kỳ đã đóng' : missingError ? missingError : !missing.length ? 'Mọi phòng đã có chỉ số' : null, onclick: () => record(sel, missing, null, reload) }, icon('plus', 16), 'Ghi chỉ số');
 
   mount(view,
     pageHead(`Chỉ số điện nước · ${sel.periodName}`, `${date(sel.startDate)} – ${date(sel.endDate)}`, [sel.closed ? statusBadge('CLOSED') : h('span', { class: 'st ok' }, icon('check', 14), 'Đang mở'), closeBtn, recordBtn]),
     h('div', { class: 'stack' },
+      missingError ? formError(missingError) : null,
       missing.length && !sel.closed ? panel(`Còn ${missing.length} phòng chưa ghi chỉ số`, h('div', { class: 'panel-body', style: 'display:flex;gap:8px;flex-wrap:wrap' },
         ...missing.map((c) => h('button', { class: 'btn secondary sm', onclick: () => record(sel, missing, c, reload) }, plate(c.roomCode), 'Ghi'))), { sub: 'Phòng có hợp đồng còn hiệu lực nhưng chưa có chỉ số trong kỳ. Thiếu chỉ số thì tiền điện nước của phòng đó tính bằng 0.' }) : null,
       alerts.length ? alertPanel(alerts, reload) : null,
@@ -84,7 +86,7 @@ function rowActions(r: Reading, closed: boolean, reload: () => void): HTMLElemen
   return box;
 }
 
-function record(period: MeterPeriod, missing: Contract[], pre: Contract | null, done: () => void): void {
+function record(period: MeterPeriod, missing: MissingRoom[], pre: MissingRoom | null, done: () => void): void {
   const d = openDialog('Ghi chỉ số điện nước');
   const err = h('div');
   const room = select(missing.map((c) => [String(c.roomId), `${c.roomCode} · ${c.tenantName}`] as [string, string]), pre ? String(pre.roomId) : '');

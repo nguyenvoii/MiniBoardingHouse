@@ -24,7 +24,7 @@ export interface DialogHandle {
   foot: HTMLElement;
 }
 
-export function openDialog(title: string, opts: { drawer?: boolean; width?: number } = {}): DialogHandle {
+export function openDialog(title: string, opts: { drawer?: boolean; width?: number; locked?: boolean } = {}): DialogHandle {
   const dlg = h('dialog', { class: `dlg ${opts.drawer ? 'drawer' : ''}`, 'aria-labelledby': 'dlg-title' }) as HTMLDialogElement;
   if (opts.width) dlg.style.width = `min(${opts.width}px, calc(100vw - 16px))`;
   const body = h('div', { class: 'dlg-body' });
@@ -42,16 +42,16 @@ export function openDialog(title: string, opts: { drawer?: boolean; width?: numb
     setTimeout(done, 170);
   };
   dlg.append(
-    h('div', { class: 'dlg-head' }, h('h2', { id: 'dlg-title' }, title), h('button', { class: 'icon-btn', 'aria-label': 'Đóng', onclick: close }, icon('x'))),
+    h('div', { class: 'dlg-head' }, h('h2', { id: 'dlg-title' }, title), opts.locked ? null : h('button', { class: 'icon-btn', 'aria-label': 'Đóng', onclick: close }, icon('x'))),
     body,
     foot,
   );
   dlg.addEventListener('cancel', (e) => {
     e.preventDefault();
-    close();
+    if (!opts.locked) close();
   });
   dlg.addEventListener('click', (e) => {
-    if (e.target === dlg) close();
+    if (e.target === dlg && !opts.locked) close();
   });
   document.body.appendChild(dlg);
   dlg.showModal();

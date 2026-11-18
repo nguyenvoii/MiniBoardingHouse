@@ -5,7 +5,7 @@ import './styles/components.css';
 import './styles/motion.css';
 
 import { h } from './lib/dom';
-import { loadSession, isTenant, can, errText } from './lib/api';
+import { loadSession, isTenant, isMeterReaderOnly, mustChangePassword, can, errText } from './lib/api';
 import { route, match, current, navigate } from './lib/router';
 import { onMonth, getMonth } from './lib/ctx';
 import { api, PROPERTY_ID } from './lib/api';
@@ -14,7 +14,7 @@ import { enterView, initMotionPref } from './lib/motion';
 import { monthRouteBar } from './ui/monthRoute';
 import { buildStaffShell, buildTenantShell, StaffShell, TenantShell } from './ui/shell';
 import { errorState, skeletonRows } from './ui/kit';
-import { renderLogin } from './pages/login';
+import { renderLogin, forcePasswordChange } from './pages/login';
 
 import { dashboardPage } from './pages/dashboard';
 import { billingPage, billingDetailPage } from './pages/billing';
@@ -106,7 +106,7 @@ async function render(): Promise<void> {
     shellKind = null;
     if (path !== '/login') history.replaceState(null, '', '#/login');
     renderLogin(app, () => {
-      history.replaceState(null, '', isTenant(loadSession()) ? '#/me' : '#/');
+      history.replaceState(null, '', isTenant(loadSession()) ? '#/me' : isMeterReaderOnly(loadSession()) ? '#/meters' : '#/');
       void render();
     });
     return;
@@ -117,12 +117,17 @@ async function render(): Promise<void> {
     navigate(tenant ? '/me' : '/');
     return;
   }
+  if (path === '/' && isMeterReaderOnly(s)) {
+    navigate('/meters'); // người ghi chỉ số không có Tổng quan: vào thẳng màn họ dùng được
+    return;
+  }
   const kind = tenant ? 'tenant' : 'staff';
   if (shellKind !== kind || !shell) {
     shell = tenant ? buildTenantShell(s) : buildStaffShell(s);
     shellKind = kind;
     app.replaceChildren(shell.root);
   }
+  if (mustChangePassword()) forcePasswordChange();
   const m = match(path);
   document.title = `${TITLES[path] ?? (path.startsWith('/billing/') ? 'Kỳ tính tiền' : 'Stayly')} · Stayly`.replace('Stayly · Stayly', 'Stayly');
   const view = shell.view;

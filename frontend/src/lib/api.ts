@@ -83,10 +83,15 @@ export function logout(): void {
   session = null;
   try {
     sessionStorage.removeItem(KEY);
+    sessionStorage.removeItem(MUST_KEY);
   } catch {
     /* bỏ qua */
   }
   location.hash = '#/login';
+}
+
+export function isMeterReaderOnly(s: Session | null): boolean {
+  return !!s && s.roles.includes('METER_READER') && !s.roles.some((r) => r === 'LANDLORD' || r === 'MANAGER' || r === 'CASHIER' || r === 'TENANT');
 }
 
 export function isTenant(s: Session | null): boolean {
@@ -98,9 +103,21 @@ export function can(...roles: Role[]): boolean {
   return !!s && roles.some((r) => s.roles.includes(r));
 }
 
+const MUST_KEY = 'stayly.mustChangePassword';
+/** Đang dùng mật khẩu tạm (backend báo ở LoginResponse): giao diện bắt đổi trước khi làm việc. */
+export function mustChangePassword(): boolean {
+  try { return sessionStorage.getItem(MUST_KEY) === '1'; } catch { return false; }
+}
+export function clearMustChangePassword(): void {
+  try { sessionStorage.removeItem(MUST_KEY); } catch { /* bỏ qua */ }
+}
+
 export async function login(identifier: string, password: string): Promise<Session> {
-  const r = await request<{ accessToken: string }>('POST', '/api/auth/login', { identifier, password }, false);
+  const r = await request<{ accessToken: string; mustChangePassword?: boolean }>('POST', '/api/auth/login', { identifier, password }, false);
   session = fromToken(r.accessToken);
+  try {
+    if (r.mustChangePassword) sessionStorage.setItem(MUST_KEY, '1'); else sessionStorage.removeItem(MUST_KEY);
+  } catch { /* bỏ qua */ }
   try {
     sessionStorage.setItem(KEY, r.accessToken);
   } catch {

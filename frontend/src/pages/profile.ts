@@ -1,5 +1,5 @@
 import { h, busy } from '../lib/dom';
-import { api, errText, loadSession } from '../lib/api';
+import { api, clearMustChangePassword, errText, loadSession } from '../lib/api';
 import { dl, field, formError, input, pageHead, panel, toast } from '../ui/kit';
 import { ROLE_NAMES } from '../ui/shell';
 
@@ -22,7 +22,7 @@ export async function profilePage(view: HTMLElement): Promise<void> {
   const err2 = h('div');
   const chg = h('button', { class: 'btn' }, 'Đổi mật khẩu');
   chg.addEventListener('click', () => busy(chg, async () => {
-    try { await api.post('/api/auth/password', { currentPassword: cur.value, newPassword: nw.value }); err2.replaceChildren(); cur.value = nw.value = ''; toast('Đã đổi mật khẩu'); }
+    try { await api.post('/api/auth/password', { currentPassword: cur.value, newPassword: nw.value }); err2.replaceChildren(); cur.value = nw.value = ''; clearMustChangePassword(); toast('Đã đổi mật khẩu'); }
     catch (e) { err2.replaceChildren(formError(errText(e))); }
   }));
 
