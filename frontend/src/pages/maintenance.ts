@@ -82,7 +82,11 @@ async function openTicket(t: Ticket, catLabel: string, reload: () => void): Prom
     h('div', null, h('h3', { style: 'margin-bottom:6px' }, 'Mô tả'), h('p', null, t.description)),
     h('p', { class: 'muted' }, NEXT[t.status] ?? ''),
   );
-  const act = (label: string, fn: () => void, cls = '') => h('button', { class: `btn ${cls}`, onclick: fn }, label);
+  const act = (label: string, fn: () => void, cls = '') => {
+    const b = h('button', { class: `btn ${cls}` }, label);
+    b.addEventListener('click', () => { b.setAttribute('disabled', ''); setTimeout(() => b.removeAttribute('disabled'), 1500); fn(); });
+    return b;
+  };
   const call = async (path: string, body?: unknown, msg = 'Đã cập nhật') => {
     try { await api.patch(path, body); d.close(); toast(msg); reload(); } catch (e) { toast(errText(e), 'err'); }
   };

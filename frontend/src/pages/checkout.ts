@@ -1,7 +1,7 @@
 import { h, busy } from '../lib/dom';
 import { icon } from '../lib/icons';
 import { api, ApiError, errText, Page } from '../lib/api';
-import { date, dateTime, money } from '../lib/format';
+import { date, dateTime, money, isoDay } from '../lib/format';
 import { liveContracts } from '../data/live';
 import { confirmDialog, dl, emptyState, field, formError, input, openDialog, pageHead, card, plate, select, statusBadge, table, toast } from '../ui/kit';
 
@@ -77,7 +77,7 @@ async function createCheckout(done: (id: number) => void, preContract: number | 
     return;
   }
   const contract = select(contracts.map((c) => [String(c.contractId), `${c.roomCode} · ${c.tenantName} · ${c.contractCode}${c.status === 'EXPIRED' ? ' · đã hết hạn, khách còn ở' : ''}`] as [string, string]), preContract ? String(preContract) : '');
-  const expected = input({ type: 'date', value: new Date().toISOString().slice(0, 10), min: new Date().toISOString().slice(0, 10) });
+  const expected = input({ type: 'date', value: isoDay(), min: isoDay() });
   d.body.append(err, field('Hợp đồng', contract), field('Ngày trả phòng dự kiến', expected, 'Không chọn ngày trong quá khứ'));
   const ok = h('button', { class: 'btn' }, 'Tạo yêu cầu');
   d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Hủy'), ok);
@@ -169,7 +169,12 @@ async function openCheckout(id: number, reload: () => void): Promise<void> {
     }
     d.body.replaceChildren(...body);
 
-    const act = (label: string, fn: () => void, cls = '') => h('button', { class: `btn ${cls}`, onclick: fn }, label);
+    const act = (label: string, fn: () => void, cls = '') => {
+      const b = h('button', { class: `btn ${cls}` }, label);
+      // chặn bấm đúp: khóa nút ngay, mở lại sau 1,5 giây nếu hộp thoại chưa vẽ lại
+      b.addEventListener('click', () => { b.setAttribute('disabled', ''); setTimeout(() => b.removeAttribute('disabled'), 1500); fn(); });
+      return b;
+    };
     const foot: HTMLElement[] = [act('Đóng', d.close, 'secondary')];
     if (open && !v) {
       foot.push(act('Hủy yêu cầu', () => void (async () => {
@@ -215,7 +220,7 @@ async function openCheckout(id: number, reload: () => void): Promise<void> {
 function confirmSchedule(c: Checkout, done: () => void): void {
   const d = openDialog('Xác nhận lịch kiểm tra phòng', { width: 480 });
   const err = h('div');
-  const when = input({ type: 'date', value: c.expectedCheckoutDate, min: new Date().toISOString().slice(0, 10) });
+  const when = input({ type: 'date', value: c.expectedCheckoutDate, min: isoDay() });
   d.body.append(err, field('Ngày kiểm tra và trả phòng', when, 'Có thể đổi so với ngày khách đề nghị'));
   const ok = h('button', { class: 'btn' }, 'Xác nhận');
   d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Hủy'), ok);
@@ -234,13 +239,14 @@ function inspectDialog(c: Checkout, ins: Inspection | null, done: () => void): v
   const rows: Array<{ name: HTMLInputElement; cost: HTMLInputElement; el: HTMLElement }> = [];
   const list = h('div', { class: 'stack', style: 'gap:8px' });
   const total = h('b', null, '0 ₫');
-  const sum = () => { total.textContent = `${money(rows.reduce((s, r) => s + (Number(r.cost.value) || 0), 0))} ₫`; };
+  const sum = () => { total.textContent = `${money(rows.filter((r) => r.name.value.trim()).reduce((s, r) => s + (Number(r.cost.value) || 0), 0))} ₫`; };
   const addRow = (name = '', cost = '') => {
     const n = input({ placeholder: 'Thiết bị hư hỏng', value: name, maxlength: '100' });
     const k = input({ type: 'number', min: '0', step: '10000', value: cost, class: 'input num-in', placeholder: 'Tiền bồi thường' });
     const row = { name: n, cost: k, el: h('div', { style: 'display:grid;grid-template-columns:minmax(0,1fr) minmax(88px,130px) auto;gap:8px;align-items:center' }, n, k,
       h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Xóa dòng', onclick: () => { rows.splice(rows.indexOf(row), 1); row.el.remove(); sum(); } }, icon('x', 16))) };
     k.addEventListener('input', sum);
+    n.addEventListener('input', sum); // dòng chưa có tên không được lưu nên không cộng vào tổng
     rows.push(row);
     list.appendChild(row.el);
     sum();
@@ -264,6 +270,7 @@ function inspectDialog(c: Checkout, ins: Inspection | null, done: () => void): v
     clearFieldErr(elec);
     clearFieldErr(water);
     if (elec.value === '' || water.value === '') { err.replaceChildren(formError('Nhập chỉ số điện và nước cuối.')); return; }
+    if (rows.some((r) => !r.name.value.trim() && Number(r.cost.value) > 0)) { err.replaceChildren(formError('Có dòng bồi thường đã nhập số tiền nhưng chưa ghi tên thiết bị. Ghi tên hoặc xóa dòng đó.')); return; }
     const damages = rows.filter((r) => r.name.value.trim()).map((r) => ({ name: r.name.value.trim(), cost: Number(r.cost.value) || 0 }));
     try {
       await api.put(`/api/checkout-requests/${c.checkoutId}/inspection`, { finalElectricMeter: Number(elec.value), finalWaterMeter: Number(water.value), damages, inspectionPhotoUrl: photo.value.trim() || null });
