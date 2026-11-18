@@ -38,6 +38,8 @@ class SecurityRulesTest {
         @GetMapping("/api/probe/staff") String staff() { return "ok"; }
         @GetMapping("/api/me/probe") String tenantArea() { return "ok"; }
         @GetMapping("/api/auth/probe") String auth() { return "ok"; }
+        @GetMapping("/api/invoices/5/detail") String invoiceDetail() { return "ok"; }
+        @GetMapping("/api/invoices/5") String invoice() { return "ok"; }
         @org.springframework.web.bind.annotation.PostMapping("/api/auth/forgot-password") String forgot() { return "ok"; }
         @org.springframework.web.bind.annotation.PostMapping("/api/auth/reset-password") String reset() { return "ok"; }
         @org.springframework.web.bind.annotation.PostMapping("/api/auth/register") String register() { return "ok"; }
@@ -62,6 +64,15 @@ class SecurityRulesTest {
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/auth/reset-password"))
                 .andExpect(status().isOk());
         mvc.perform(get("/api/auth/probe")).andExpect(status().isUnauthorized());
+    }
+
+    /** Nguoi thue xem chi tiet hoa don duoc (controller kiem chu so huu), nhung khong vao cac URL hoa don khac. */
+    @Test
+    void tenantMayOpenInvoiceDetailOnly() throws Exception {
+        dbRoles = List.of("TENANT");
+        String t = bearer("TENANT");
+        mvc.perform(get("/api/invoices/5/detail").header("Authorization", t)).andExpect(status().isOk());
+        mvc.perform(get("/api/invoices/5").header("Authorization", t)).andExpect(status().isForbidden());
     }
 
     @Autowired MockMvc mvc;

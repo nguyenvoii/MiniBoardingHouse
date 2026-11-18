@@ -58,6 +58,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/**").authenticated()
                         // Khu vuc nguoi thue: API cua nguoi thue DAT DUOI /api/me/** (vd /api/me/invoices)
                         .requestMatchers("/api/me/**").hasRole("TENANT")
+                        // Xem chi tiet hoa don: nguoi thue duoc vao nhung InvoiceController chi tra hoa don cua chinh ho
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/invoices/*/detail")
+                        .hasAnyRole("LANDLORD", "MANAGER", "CASHIER", "TENANT")
                         // Mac dinh chi nhan vien: nguoi thue khong vao duoc API nao quen gan @PreAuthorize
                         .anyRequest().hasAnyRole("LANDLORD", "MANAGER", "CASHIER", "METER_READER");
                 } else {

@@ -57,36 +57,64 @@ public class InvoiceController {
                 service.issueBatch(req, CurrentUser.requireUserId(actor), http.getRemoteAddr()));
     }
 
+    /** Nhan vien thu tien/quan ly doc het; nguoi thue (TENANT) chi doc hoa don cua chinh minh (khi bat bao mat). */
+    private static final String READ_ROLES = "hasAnyRole('LANDLORD','MANAGER','CASHIER','TENANT')";
+
+    /** Nguoi thue chi xem duoc hoa don cua minh: khac chu thi tra 404 (khong lo hoa don do co ton tai hay khong). */
+    private void requireOwnInvoice(AuthUser actor, Integer invoiceId) {
+        if (actor != null && actor.isTenant()) {
+            Integer own = CurrentUser.requireTenantId(actor);
+            if (!own.equals(service.get(invoiceId).tenantId())) {
+                throw com.group7.minihouse.shared.exception.BusinessException.notFound("Hoa don " + invoiceId);
+            }
+        }
+    }
+
     // UC 84
     @GetMapping
+    @PreAuthorize(READ_ROLES)
     public List<InvoiceResponse> search(
             @RequestParam(value = "code", required = false) String code,
             @RequestParam(value = "roomCode", required = false) String roomCode,
             @RequestParam(value = "monthYear", required = false) String monthYear,
             @RequestParam(value = "propertyId", required = false) Integer propertyId,
             @RequestParam(value = "tenantId", required = false) Integer tenantId,
-            @RequestParam(value = "status", required = false) String status) {
-        return service.search(code, roomCode, monthYear, propertyId, tenantId, status);
+            @RequestParam(value = "status", required = false) String status,
+            @AuthenticationPrincipal AuthUser actor) {
+        Integer tid = actor != null && actor.isTenant() ? CurrentUser.requireTenantId(actor) : tenantId;
+        return service.search(code, roomCode, monthYear, propertyId, tid, status);
     }
 
     @GetMapping("/payable")
-    public List<InvoiceResponse> payable(@RequestParam("tenantId") Integer tenantId) {
-        return service.payable(tenantId);
+    @PreAuthorize(READ_ROLES)
+    public List<InvoiceResponse> payable(@RequestParam(value = "tenantId", required = false) Integer tenantId,
+                                         @AuthenticationPrincipal AuthUser actor) {
+        Integer tid = actor != null && actor.isTenant() ? CurrentUser.requireTenantId(actor) : tenantId;
+        if (tid == null) {
+            throw new com.group7.minihouse.shared.exception.BusinessException("Can tenantId");
+        }
+        return service.payable(tid);
     }
 
     @GetMapping("/{id}")
-    public InvoiceResponse get(@PathVariable("id") Integer id) {
+    @PreAuthorize(READ_ROLES)
+    public InvoiceResponse get(@PathVariable("id") Integer id, @AuthenticationPrincipal AuthUser actor) {
+        requireOwnInvoice(actor, id);
         return service.get(id);
     }
 
     // UC 78
     @GetMapping("/{id}/detail")
-    public InvoiceDetail detail(@PathVariable("id") Integer id) {
+    @PreAuthorize(READ_ROLES)
+    public InvoiceDetail detail(@PathVariable("id") Integer id, @AuthenticationPrincipal AuthUser actor) {
+        requireOwnInvoice(actor, id);
         return service.detail(id);
     }
 
     @GetMapping(value = "/{id}/print", produces = MediaType.TEXT_HTML_VALUE + ";charset=UTF-8")
-    public String print(@PathVariable("id") Integer id) {
+    @PreAuthorize(READ_ROLES)
+    public String print(@PathVariable("id") Integer id, @AuthenticationPrincipal AuthUser actor) {
+        requireOwnInvoice(actor, id);
         return service.printableHtml(id);
     }
 
@@ -104,7 +132,10 @@ public class InvoiceController {
     }
 
     @GetMapping("/{id}/notifications")
-    public List<NotificationResponse> notifications(@PathVariable("id") Integer id) {
+    @PreAuthorize(READ_ROLES)
+    public List<NotificationResponse> notifications(@PathVariable("id") Integer id,
+                                                    @AuthenticationPrincipal AuthUser actor) {
+        requireOwnInvoice(actor, id);
         return service.notifications(id);
     }
 
@@ -124,11 +155,13 @@ public class InvoiceController {
 
     // UC 76
     @GetMapping("/summary")
+    @PreAuthorize("hasAnyRole('LANDLORD','MANAGER','CASHIER')")
     public List<MonthSummary> summary(@RequestParam("propertyId") Integer propertyId) {
         return service.summaryByMonth(propertyId);
     }
 
     @GetMapping("/summary/{monthYear}")
+    @PreAuthorize("hasAnyRole('LANDLORD','MANAGER','CASHIER')")
     public MonthDetailSummary summaryOfMonth(@PathVariable("monthYear") String monthYear,
                                              @RequestParam("propertyId") Integer propertyId) {
         return service.summaryOfMonth(propertyId, monthYear);
