@@ -52,12 +52,15 @@ interface ApiFurnishing { roomId: number; itemName: string }
 
 export async function liveContracts(): Promise<Contract[]> {
   // EXPIRED cũng tính: hết hạn mà chưa trả phòng/thanh lý thì khách vẫn ở, phòng chưa Trống
-  const [a, b, c] = await Promise.all([
-    api.get<Page<Contract>>('/api/contracts?status=ACTIVE&size=100'),
-    api.get<Page<Contract>>('/api/contracts?status=EXPIRING_SOON&size=100'),
-    api.get<Page<Contract>>('/api/contracts?status=EXPIRED&size=100').catch(() => ({ items: [] as Contract[] })),
-  ]);
-  return [...a.items, ...b.items, ...c.items];
+  // backend chặn 100 dòng mỗi trang: đọc hết các trang để phòng thứ 101 trở đi không hiện nhầm "Trống"
+  const all = async (status: string): Promise<Contract[]> => {
+    const first = await api.get<Page<Contract>>(`/api/contracts?status=${status}&size=100&page=0`);
+    const out = [...first.items];
+    for (let p = 1; p < first.totalPages && p < 20; p++) out.push(...(await api.get<Page<Contract>>(`/api/contracts?status=${status}&size=100&page=${p}`)).items);
+    return out;
+  };
+  const [a, b, c] = await Promise.all([all('ACTIVE'), all('EXPIRING_SOON'), all('EXPIRED').catch(() => [] as Contract[])]);
+  return [...a, ...b, ...c];
 }
 
 export function loadProperties(): Promise<PropertyInfo[]> {

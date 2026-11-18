@@ -1,10 +1,11 @@
 import { h, busy } from '../lib/dom';
 import { icon } from '../lib/icons';
 import { api, ApiError, errText, Page } from '../lib/api';
-import { date, dateTime, money } from '../lib/format';
+import { restoreVi } from '../lib/vi';
+import { date, dateTime, money, isoDay } from '../lib/format';
 import { loadLive } from '../data/live';
 import type { Contract, ContractDetail } from '../data/types';
-import { dl, emptyState, field, formError, input, openDialog, pageHead, plate, select, statusBadge, table, toast } from '../ui/kit';
+import { confirmDialog, dl, emptyState, field, formError, input, openDialog, pageHead, plate, select, statusBadge, table, toast } from '../ui/kit';
 
 export const ADJ: Record<string, string> = {
   PRICE_CHANGE: 'Đổi giá thuê', DEPOSIT_CHANGE: 'Đổi tiền cọc', PAYMENT_SCHEDULE: 'Đổi chu kỳ và hạn trả', PAYMENT_TERMS: 'Sửa điều khoản thanh toán',
@@ -52,7 +53,7 @@ async function createContract(roomId: number | null, done: () => void): Promise<
   const vacant = liveRooms.filter((r) => r.status === 'VACANT');
   const room = select(vacant.map((r) => [String(r.roomId), `${r.code} · ${money(r.price)} ₫/tháng`] as [string, string]), roomId ? String(roomId) : '');
   const tenant = select(liveTenants.map((t) => [String(t.tenantId), `${t.name} · ${t.phone}`] as [string, string]));
-  const start = input({ type: 'date', value: new Date().toISOString().slice(0, 10) });
+  const start = input({ type: 'date', value: isoDay() });
   const end = input({ type: 'date' });
   const rent = input({ type: 'number', min: '0', step: '10000', placeholder: 'Mặc định theo phòng', class: 'input num-in' });
   const dep = input({ type: 'number', min: '0', step: '10000', placeholder: 'Mặc định theo phòng', class: 'input num-in' });
@@ -79,6 +80,7 @@ async function createContract(roomId: number | null, done: () => void): Promise<
   ok.addEventListener('click', () => busy(ok, async () => {
     err.replaceChildren();
     if (!room.value || !end.value) { err.replaceChildren(formError('Chọn phòng và ngày kết thúc.')); return; }
+    if (!tenant.value) { err.replaceChildren(formError('Chưa có khách nào để lập hợp đồng. Thêm khách ở màn Khách hàng trước.')); return; }
     try {
       const c = await api.post<Contract>('/api/contracts', {
         roomId: Number(room.value), tenantId: Number(tenant.value), startDate: start.value, endDate: end.value,
@@ -128,7 +130,7 @@ async function openContract(id: number, reload: () => void): Promise<void> {
   const pdf = h('button', { class: 'btn secondary sm', onclick: () => api.download(`/api/contracts/${id}/pdf`, `hop-dong-${c.contractCode}.pdf`).catch((e) => toast(errText(e), 'err')) }, icon('download', 14), 'Tải PDF');
   d.foot.append(
     h('div', { style: 'display:flex;gap:6px;flex-wrap:wrap;margin-right:auto' },
-      pdf, act('Gửi khách', 'send', async () => { try { toast(await sendMsg(id)); } catch (e) { toast(errText(e), 'err'); } }),
+      pdf, act('Gửi khách', 'send', async () => { try { const m = await sendMsg(id); toast(restoreVi(m), /chua co tai khoan|chưa có tài khoản/i.test(m) ? 'err' : 'ok'); } catch (e) { toast(errText(e), 'err'); } }),
       act('Ký', 'sign', () => signPad(id, refresh))),
     h('div', { style: 'display:flex;gap:6px;flex-wrap:wrap' },
       act('Sửa điều khoản', 'edit', () => editTerms(c, refresh)), act('Gia hạn', 'calendar', () => extend(c, refresh), 'secondary', occupying),
@@ -169,6 +171,10 @@ function editTerms(c: Contract, done: () => void): void {
   const ok = h('button', { class: 'btn' }, 'Lưu');
   d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Hủy'), ok);
   ok.addEventListener('click', () => busy(ok, async () => {
+    err.replaceChildren();
+    // cọc mới thấp hơn số đã thu: cảnh báo trước vì tiền đã nhận không tự hoàn lại
+    const dinfo = await api.get<{ collected: number }>(`/api/contracts/${c.contractId}/deposit`).catch(() => null);
+    if (dinfo && Number(dep.value) < dinfo.collected && !(await confirmDialog('Cọc thấp hơn số đã thu', `Đã thu ${money(dinfo.collected)} ₫ nhưng cọc mới chỉ ${money(Number(dep.value))} ₫. Tiền đã thu không tự hoàn lại. Vẫn lưu?`, 'Vẫn lưu', true))) return;
     try {
       await api.put(`/api/contracts/${c.contractId}/pricing`, { monthlyRentPrice: Number(rent.value), depositAmount: Number(dep.value), paymentDueDay: Number(due.value) });
       await api.put(`/api/contracts/${c.contractId}/payment-terms`, { lateFeePerDay: Number(late.value), depositRefundConditions: refund.value });
@@ -266,6 +272,7 @@ export function signPad(id: number, done: () => void, mine = false): void {
     if (!dirty) { err.replaceChildren(formError('Hãy ký vào khung trước khi lưu.')); return; }
     const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, 'image/png'));
     if (!blob) return;
+    if (mine && !(await confirmDialog('Xác nhận ký hợp đồng', 'Chữ ký chỉ lưu được một lần và không sửa lại được. Bạn đã đọc kỹ điều khoản và đồng ý ký?', 'Đồng ý ký'))) return;
     try { await api.upload(mine ? `/api/me/contracts/${id}/sign` : `/api/contracts/${id}/sign`, blob); d.close(); toast('Đã lưu chữ ký'); done(); }
     catch (x) { err.replaceChildren(formError(errText(x))); }
   }));
