@@ -550,15 +550,30 @@ public class BillingService {
                 .filter(c -> daysInMonth(c, ym, effectiveEnd(c)) > 0).toList();
     }
 
-    /** Ngay het hieu luc thuc te: hop dong da cham dut thi lay ngay cham dut, nguoc lai ngay het han. */
+    /**
+     * Ngay het hieu luc thuc te de tinh tien: ngay het han hop dong, nhung som hon neu hop dong da cham dut hoac
+     * khach da bao tra phong (ngay tra du kien/thuc te cua yeu cau tra phong chua huy). Nho do tien phong cua thang
+     * cuoi tinh dung theo ngay o, ke ca khi chua thanh ly va chua hoan coc.
+     */
     private LocalDate effectiveEnd(RentalContract c) {
-        if (!"TERMINATED".equals(c.getStatus())) {
-            return c.getEndDate();
+        LocalDate end = c.getEndDate();
+        LocalDate checkout = em.createQuery("select min(coalesce(r.actualCheckoutDate, r.expectedCheckoutDate)) "
+                        + "from CheckoutRequest r where r.contract.contractId = :x "
+                        + "and r.status in ('PENDING', 'INSPECTING', 'FINALIZED')", LocalDate.class)
+                .setParameter("x", c.getContractId()).getResultList().stream()
+                .filter(java.util.Objects::nonNull).findFirst().orElse(null);
+        if (checkout != null && checkout.isBefore(end)) {
+            end = checkout;
         }
-        LocalDateTime at = em.createQuery("select max(a.adjustedAt) from ContractAdjustment a "
-                + "where a.contract.contractId = :x and a.adjustmentType = 'TERMINATED'", LocalDateTime.class)
-                .setParameter("x", c.getContractId()).getSingleResult();
-        return at == null || at.toLocalDate().isAfter(c.getEndDate()) ? c.getEndDate() : at.toLocalDate();
+        if ("TERMINATED".equals(c.getStatus())) {
+            LocalDateTime at = em.createQuery("select max(a.adjustedAt) from ContractAdjustment a "
+                    + "where a.contract.contractId = :x and a.adjustmentType = 'TERMINATED'", LocalDateTime.class)
+                    .setParameter("x", c.getContractId()).getSingleResult();
+            if (at != null && at.toLocalDate().isBefore(end)) {
+                end = at.toLocalDate();
+            }
+        }
+        return end;
     }
 
     private static int daysInMonth(RentalContract c, YearMonth ym, LocalDate end) {
