@@ -117,7 +117,18 @@ public class RoomEquipmentRequestService {
         if (newStatus == null || !STATUSES.contains(newStatus.trim().toUpperCase())) {
             throw new BusinessException("Trạng thái không hợp lệ (PENDING, APPROVED, REJECTED, INSTALLED, REMOVED)");
         }
-        entity.setStatus(newStatus.trim().toUpperCase());
+        String target = newStatus.trim().toUpperCase();
+        // M6: INSTALLED/REMOVED chi dat qua EquipmentService (viet) vi chung tao/tat phu phi hang thang; khong dat tay
+        // o day de trang thai va phu phi khong lech nhau. Yeu cau da REJECTED/INSTALLED/REMOVED khong doi nguoc lai.
+        if ("INSTALLED".equals(target) || "REMOVED".equals(target)) {
+            throw new BusinessException(HttpStatus.CONFLICT,
+                    "Lắp đặt/tháo thiết bị phải đi qua mục Thiết bị (để tạo hoặc tắt phụ phí), không đổi tay trạng thái");
+        }
+        if (!"PENDING".equals(entity.getStatus()) && !"APPROVED".equals(entity.getStatus())) {
+            throw new BusinessException(HttpStatus.CONFLICT,
+                    "Yêu cầu đang " + entity.getStatus() + ", không đổi trạng thái tay được");
+        }
+        entity.setStatus(target);
         return toResponse(requestRepository.save(entity));
     }
 

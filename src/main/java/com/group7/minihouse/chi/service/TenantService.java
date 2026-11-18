@@ -127,12 +127,25 @@ public class TenantService {
             t.setIdentityNumber(req.getIdentityNumber().trim());
         }
 
-        t.setEmail(req.getEmail());
-        t.setDob(req.getDob());
-        t.setPermanentAddress(req.getPermanentAddress());
-        t.setOccupation(req.getOccupation());
-        t.setEmergencyContactName(req.getEmergencyContactName());
-        t.setEmergencyContactPhone(req.getEmergencyContactPhone());
+        // M9: trường không gửi (null) thì giữ nguyên, không xóa trắng; muốn xóa thì gửi chuỗi rỗng
+        if (req.getEmail() != null) {
+            t.setEmail(req.getEmail());
+        }
+        if (req.getDob() != null) {
+            t.setDob(req.getDob());
+        }
+        if (req.getPermanentAddress() != null) {
+            t.setPermanentAddress(req.getPermanentAddress());
+        }
+        if (req.getOccupation() != null) {
+            t.setOccupation(req.getOccupation());
+        }
+        if (req.getEmergencyContactName() != null) {
+            t.setEmergencyContactName(req.getEmergencyContactName());
+        }
+        if (req.getEmergencyContactPhone() != null) {
+            t.setEmergencyContactPhone(req.getEmergencyContactPhone());
+        }
 
         return toDTO(tenantRepository.save(t));
     }

@@ -85,6 +85,29 @@ class ChiServicesTest {
                 mock(com.group7.minihouse.chi.repository.ResidentStayHistoryRepository.class));
     }
 
+    /** M9: PUT chi gui ho ten khong duoc xoa trang cac truong con lai. */
+    @Test
+    void updateTenantKeepsFieldsThatWereNotSent() {
+        TenantRepository tenants = mock(TenantRepository.class);
+        com.group7.minihouse.shared.entity.Tenant t = new com.group7.minihouse.shared.entity.Tenant();
+        t.setTenantId(1);
+        t.setFullName("A");
+        t.setPhoneNumber("0900000001");
+        t.setIdentityNumber("0123456789");
+        t.setEmail("a@x.vn");
+        t.setPermanentAddress("Ha Noi");
+        t.setOccupation("SV");
+        org.mockito.Mockito.when(tenants.findById(1)).thenReturn(java.util.Optional.of(t));
+        org.mockito.Mockito.when(tenants.save(org.mockito.ArgumentMatchers.any())).thenAnswer(i -> i.getArgument(0));
+        com.group7.minihouse.chi.dto.TenantDTO.CreateRequest req = new com.group7.minihouse.chi.dto.TenantDTO.CreateRequest();
+        req.setFullName("Nguyen Van A");
+        tenantService(mock(TenantVehicleRepository.class), tenants).updateTenant(1, req);
+        assertEquals("Nguyen Van A", t.getFullName());
+        assertEquals("a@x.vn", t.getEmail());
+        assertEquals("Ha Noi", t.getPermanentAddress());
+        assertEquals("SV", t.getOccupation());
+    }
+
     private static TenantVehicleDTO.CreateRequest vehicleReq(String plate, String type) {
         TenantVehicleDTO.CreateRequest r = new TenantVehicleDTO.CreateRequest();
         r.setTenantId(1);

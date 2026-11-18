@@ -77,6 +77,11 @@ public class ReportService {
         BigDecimal expense = money("select sum(e.amount) from OperatingExpense e "
                 + "where e.expenseDate between :from and :to and (:p = 0 or e.property.propertyId = :p)", p,
                 ym.atDay(1), ym.atEndOfMonth());
+        // M8: chi phi sua chua ghi o Su co (maintenance_logs.repair_cost) cung la chi phi cua thang hoan tat
+        expense = expense.add(money("select sum(l.repairCost) from MaintenanceLog l where l.repairCost > 0 "
+                + "and l.completedAt >= :from and l.completedAt < :to "
+                + "and (:p = 0 or l.request.room.property.propertyId = :p)", p,
+                ym.atDay(1).atStartOfDay(), ym.plusMonths(1).atDay(1).atStartOfDay()));
 
         Object[] debt = em.createQuery("select sum(i.totalAmount - i.paidAmount), count(i) from Invoice i "
                 + "where i.paymentStatus in " + PAYABLE
@@ -119,6 +124,9 @@ public class ReportService {
         Map<Integer, BigDecimal> expense = byMonth("select month(e.expenseDate), sum(e.amount) "
                 + "from OperatingExpense e where year(e.expenseDate) = :y "
                 + "and (:p = 0 or e.property.propertyId = :p) group by month(e.expenseDate)", y, p);
+        byMonth("select month(l.completedAt), sum(l.repairCost) from MaintenanceLog l where l.repairCost > 0 "
+                + "and year(l.completedAt) = :y and (:p = 0 or l.request.room.property.propertyId = :p) "
+                + "group by month(l.completedAt)", y, p).forEach((m, v) -> expense.merge(m, v, BigDecimal::add));
         return buildReport(propertyId, y, revenue, expense);
     }
 

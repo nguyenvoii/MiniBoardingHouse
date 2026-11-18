@@ -27,6 +27,38 @@ public class InvoiceBalanceCalculator {
         refreshStatus(inv, today);
     }
 
+    /**
+     * M14/M16: dat lai tong hoa don MOT NOI duy nhat: them dong chenh lech vao fee_item_details (dong tay, tien to
+     * "✎ " nhu BillingService) va cap nhat tong/giam tru/phu thu o bang tinh de hoa don in ra va bang tinh khong lech
+     * nhau; trang thai di qua refreshStatus. Goi trong giao dich da khoa hoa don.
+     */
+    public void setTotalAndSync(jakarta.persistence.EntityManager em, Invoice inv, BigDecimal newTotal, String reason,
+                                LocalDate today) {
+        BigDecimal diff = newTotal.subtract(inv.getTotalAmount());
+        var fee = inv.getCalculatedFee();
+        if (diff.signum() != 0 && fee != null) {
+            String name = "✎ Điều chỉnh: " + (reason == null ? "" : reason.trim());
+            com.group7.minihouse.shared.entity.FeeItemDetail line = new com.group7.minihouse.shared.entity.FeeItemDetail();
+            line.setCalculatedFee(fee);
+            line.setItemName(name.length() > 90 ? name.substring(0, 90) : name);
+            line.setQuantity(BigDecimal.ONE);
+            line.setUnitPrice(diff);
+            line.setSubtotal(diff.setScale(2, java.math.RoundingMode.HALF_UP));
+            em.persist(line);
+            BigDecimal oldFeeTotal = fee.getTotalCalculatedAmount() == null ? BigDecimal.ZERO : fee.getTotalCalculatedAmount();
+            fee.setTotalCalculatedAmount(oldFeeTotal.add(diff));
+            if (diff.signum() < 0) {
+                BigDecimal d = fee.getDiscountAmount() == null ? BigDecimal.ZERO : fee.getDiscountAmount();
+                fee.setDiscountAmount(d.add(diff.negate()));
+            } else {
+                BigDecimal s = fee.getSurchargeAmount() == null ? BigDecimal.ZERO : fee.getSurchargeAmount();
+                fee.setSurchargeAmount(s.add(diff));
+            }
+        }
+        inv.setTotalAmount(newTotal);
+        refreshStatus(inv, today);
+    }
+
     public void refreshStatus(Invoice inv, LocalDate today) {
         if ("CANCELLED".equals(inv.getPaymentStatus())) {
             return;

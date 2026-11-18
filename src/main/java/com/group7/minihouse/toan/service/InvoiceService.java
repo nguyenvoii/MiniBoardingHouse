@@ -354,8 +354,7 @@ public class InvoiceService {
         if ("CANCELLED".equals(inv.getPaymentStatus())) {
             throw new BusinessException(HttpStatus.CONFLICT, "Hoa don da huy");
         }
-        inv.setTotalAmount(req.newTotalAmount());
-        calculator.refreshStatus(inv, LocalDate.now());
+        calculator.setTotalAndSync(em, inv, req.newTotalAmount(), req.reason(), LocalDate.now());
         addNotification(inv, "SYSTEM_APP", ST_ADJUSTED);
         String email = inv.getTenant().getEmail();
         if (email != null && !email.isBlank()) {

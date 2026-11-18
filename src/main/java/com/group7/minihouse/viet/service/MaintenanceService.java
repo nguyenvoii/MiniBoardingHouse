@@ -235,10 +235,9 @@ public class MaintenanceService {
             throw new BusinessException("So tien giam vuot qua so con no cua hoa don (" + remaining + ")");
         }
         BigDecimal newTotal = oldTotal.subtract(reduce);
-        inv.setTotalAmount(newTotal);
-        if (newTotal.compareTo(paid) <= 0) {
-            inv.setPaymentStatus("PAID");
-        }
+        // M14/M16: tong + dong chi tiet + trang thai di qua mot noi duy nhat (InvoiceBalanceCalculator)
+        new com.group7.minihouse.toan.service.InvoiceBalanceCalculator()
+                .setTotalAndSync(em, inv, newTotal, reason, java.time.LocalDate.now());
         MaintenanceLog log = logRepository.findFirstByRequest_RequestIdOrderByMaintenanceLogIdDesc(id)
                 .orElseThrow(() -> new BusinessException("Su co chua co nhat ky xu ly"));
         String note = "[Dieu chinh hoa don " + inv.getInvoiceCode() + ": giam " + reduce + ", ly do: " + reason + "]";
