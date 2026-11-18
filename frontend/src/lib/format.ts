@@ -44,3 +44,10 @@ export function initials(name: string): string {
   const parts = name.replace(/\([^)]*\)/g, ' ').trim().split(/\s+/);
   return ((parts[parts.length - 2]?.[0] ?? '') + (parts[parts.length - 1]?.[0] ?? '')).toUpperCase() || '?';
 }
+
+/** Ngày yyyy-mm-dd theo giờ máy (không lệch 1 ngày trước 7 giờ sáng như toISOString), cộng thêm offset ngày. */
+export function isoDay(offsetDays = 0): string {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}

@@ -2,7 +2,7 @@ import { h, busy } from '../lib/dom';
 import { icon } from '../lib/icons';
 import { api, errText, Page } from '../lib/api';
 import { getMonth } from '../lib/ctx';
-import { date, money, monthLabel } from '../lib/format';
+import { date, money, monthLabel, isoDay } from '../lib/format';
 import { confirmDialog, emptyState, field, formError, input, openDialog, pageHead, panel, select, table, toast } from '../ui/kit';
 
 interface Expense { expenseId: number; expenseCategory: string; description: string | null; amount: number; expenseDate: string; receiptUrl: string | null; recordedByName: string | null }
@@ -51,7 +51,7 @@ function expenseDialog(e: Expense | null, cats: string[], done: () => void): voi
   const cat = select(all.map((c) => [c, c] as [string, string]), e?.expenseCategory ?? 'Bảo trì');
   const desc = input({ value: e?.description ?? '', placeholder: 'Ví dụ: Thay bóng đèn hành lang' });
   const amount = input({ type: 'number', min: '1', step: '1000', value: String(e?.amount ?? ''), class: 'input num-in' });
-  const day = input({ type: 'date', value: e?.expenseDate ?? new Date().toISOString().slice(0, 10) });
+  const day = input({ type: 'date', value: e?.expenseDate ?? isoDay() });
   d.body.append(err, field('Nhóm chi phí', cat, '«Điện nước chung» sẽ được chia cho các phòng theo số người ở'), field('Nội dung', desc),
     h('div', { class: 'form-grid' }, field('Số tiền (₫)', amount), field('Ngày chi', day)));
   const ok = h('button', { class: 'btn' }, 'Lưu');

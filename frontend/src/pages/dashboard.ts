@@ -3,7 +3,7 @@ import { icon } from '../lib/icons';
 import { api, PROPERTY_ID, can, Page } from '../lib/api';
 import { liveContracts, loadLive } from '../data/live';
 import { getMonth, setOverdue } from '../lib/ctx';
-import { date, money, monthLabel } from '../lib/format';
+import { date, money, monthLabel, isoDay } from '../lib/format';
 import type { Contract, Dashboard, Invoice, MonthSummary, Period, RevenueReport } from '../data/types';
 import { emptyState, pageHead, panel, plate, statusBadge, table } from '../ui/kit';
 import { routeLine, Stop } from '../ui/route';
@@ -132,8 +132,8 @@ function attentionPanel(invoices: Invoice[], overdueAll: Invoice[]): HTMLElement
 
 /** Hợp đồng còn hiệu lực và hết hạn trong 30 ngày tới, gần nhất lên trước (cùng quy tắc với con số trên Tổng quan). */
 function endingSoon(all: Contract[]): Contract[] {
-  const today = new Date().toISOString().slice(0, 10);
-  const limit = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+  const today = isoDay();
+  const limit = isoDay(30);
   // gồm cả hợp đồng đã quá hạn mà khách còn ở (EXPIRED chưa thanh lý): endDate âm ngày vẫn là việc cần làm
   return all.filter((c) => (c.endDate >= today && c.endDate <= limit && c.status !== 'EXPIRED') || c.status === 'EXPIRED').sort((a, b) => a.endDate.localeCompare(b.endDate));
 }
@@ -177,7 +177,7 @@ async function loadLifecycle(): Promise<Lifecycle> {
   const contracts = live?.contracts ?? [];
   const t = tickets?.items ?? [];
   const handed = new Set((inspections ?? []).map((x) => x.contractId));
-  const since = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+  const since = isoDay(-30);
   const unhandedList = inspections ? contracts.filter((c) => c.startDate >= since && !handed.has(c.contractId)) : [];
   return {
     unhanded: unhandedList.length, firstUnhanded: unhandedList[0]?.contractId ?? null,

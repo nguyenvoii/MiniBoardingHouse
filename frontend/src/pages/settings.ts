@@ -1,7 +1,7 @@
 import { h, busy } from '../lib/dom';
 import { icon } from '../lib/icons';
 import { api, errText, loadSession, PROPERTY_ID } from '../lib/api';
-import { date, money } from '../lib/format';
+import { date, money, isoDay } from '../lib/format';
 import { loadLive } from '../data/live';
 import { confirmDialog, emptyState, field, formError, input, openDialog, pageHead, select, table, toast } from '../ui/kit';
 
@@ -33,7 +33,7 @@ export async function settingsPage(view: HTMLElement, _p: Record<string, string>
 // ------------------------------------------------------------------ đơn giá điện nước
 async function ratesTab(reload: () => void): Promise<HTMLElement> {
   const plans = await api.get<Plan[]>('/api/service-rate-plans');
-  const today = new Date().toISOString().slice(0, 10);
+  const today = isoDay();
   const eff = plans.filter((p) => p.effectiveStartDate <= today && (!p.effectiveEndDate || p.effectiveEndDate >= today)).sort((a, b) => b.effectiveStartDate.localeCompare(a.effectiveStartDate))[0];
   return h('div', null,
     h('div', { class: 'toolbar' }, h('p', { class: 'grow' }, eff ? `Đang áp dụng: ${eff.planName}, điện ${money(eff.electricUnitPrice)} ₫/kWh, nước ${money(eff.waterUnitPrice)} ₫/m³.` : 'Chưa có bảng giá nào đang áp dụng, tiền điện nước sẽ bằng 0.'),
@@ -55,7 +55,7 @@ function planDialog(p: Plan | null, done: () => void): void {
   const name = input({ value: p?.planName ?? '', placeholder: 'Ví dụ: Bảng giá 2027' });
   const e = input({ type: 'number', min: '0', step: '100', value: String(p?.electricUnitPrice ?? ''), class: 'input num-in' });
   const w = input({ type: 'number', min: '0', step: '500', value: String(p?.waterUnitPrice ?? ''), class: 'input num-in' });
-  const from = input({ type: 'date', value: p?.effectiveStartDate ?? new Date().toISOString().slice(0, 10) });
+  const from = input({ type: 'date', value: p?.effectiveStartDate ?? isoDay() });
   const to = input({ type: 'date', value: p?.effectiveEndDate ?? '' });
   d.body.append(err, field('Tên bảng giá', name), h('div', { class: 'form-grid' }, field('Giá điện (₫/kWh)', e), field('Giá nước (₫/m³)', w), field('Áp dụng từ', from), field('Đến ngày (bỏ trống = không giới hạn)', to)));
   const ok = h('button', { class: 'btn' }, 'Lưu');
