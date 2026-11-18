@@ -129,6 +129,16 @@ export async function checkinPage(view: HTMLElement, _p: Record<string, string>,
     const due = input({ type: 'number', min: '1', max: '28', value: '5', class: 'input num-in' });
     const late = input({ type: 'number', min: '0', step: '1000', value: '10000', class: 'input num-in' });
     const info = h('p', { class: 'muted' });
+    // giữ chỗ đã duyệt đúng phòng và khách: chọn thì tiền giữ chỗ thành tiền cọc
+    const booking = select([['', 'Không gắn giữ chỗ']], '');
+    type Bk = { bookingId: number; roomId: number; tenantId: number; depositPaid: number | null };
+    let bookings: Bk[] = [];
+    const syncBooking = () => {
+      const fit = bookings.filter((b) => b.roomId === Number(room.value) && b.tenantId === st.tenantId);
+      booking.replaceChildren(...[['', fit.length ? 'Không gắn giữ chỗ' : 'Không có giữ chỗ đã duyệt cho phòng và khách này'], ...fit.map((b) => [String(b.bookingId), `Giữ chỗ #${b.bookingId}${b.depositPaid ? ` · đã giữ ${money(b.depositPaid)} ₫` : ''}`])].map(([v, l]) => h('option', { value: v }, l)));
+    };
+    void api.get<Bk[]>('/api/chi/bookings?status=APPROVED').then((r) => { bookings = r; syncBooking(); }).catch(() => undefined);
+    room.addEventListener('change', syncBooking);
     const onRoom = () => {
       const r = live.rooms.find((x) => String(x.roomId) === room.value);
       if (r) { rent.value = String(r.price); dep.value = String(r.deposit); info.textContent = `Phòng ${r.code}: ${r.area} m², tối đa ${r.maxPeople} người. Có thể điều chỉnh giá và cọc cho hợp đồng này.`; } else info.textContent = '';
@@ -143,6 +153,7 @@ export async function checkinPage(view: HTMLElement, _p: Record<string, string>,
           roomId: Number(room.value), tenantId: st.tenantId, startDate: start.value, endDate: addMonths(start.value, Number(months.value)),
           monthlyRentPrice: Number(rent.value), depositAmount: Number(dep.value),
           paymentCycleMonths: Number(cycle.value), paymentDueDay: Number(due.value), lateFeePerDay: Number(late.value),
+          bookingId: booking.value ? Number(booking.value) : null,
         });
         st.contract = c; st.roomId = c.roomId; st.roomCode = c.roomCode;
         st.depositPaid = c.depositAmount <= 0; // cọc 0 thì không có gì để thu, mở sẵn nút Hoàn tất
@@ -154,7 +165,7 @@ export async function checkinPage(view: HTMLElement, _p: Record<string, string>,
       err,
       h('div', { class: 'form-grid' }, field('Phòng (chỉ phòng trống)', room), field('Ngày bắt đầu thuê', start), field('Thời hạn', months),
         field('Giá thuê (₫/tháng)', rent), field('Tiền cọc (₫)', dep), field('Chu kỳ thanh toán', cycle),
-        field('Hạn trả mỗi kỳ (ngày trong tháng)', due, 'Hóa đơn phát hành sau khi chốt điện nước, hạn trả vào ngày này'), field('Phạt trễ hạn (₫/ngày)', late)),
+        field('Hạn trả mỗi kỳ (ngày trong tháng)', due, 'Hóa đơn phát hành sau khi chốt điện nước, hạn trả vào ngày này'), field('Phạt trễ hạn (₫/ngày)', late), field('Giữ chỗ đã duyệt', booking, 'Tiền giữ chỗ được tính vào tiền cọc')),
       info,
       h('div', { style: 'display:flex;gap:10px;flex-wrap:wrap' }, h('button', { class: 'btn secondary', onclick: () => go(0) }, icon('left', 16), 'Quay lại'), ok),
     ]);

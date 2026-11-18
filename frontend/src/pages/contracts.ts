@@ -59,12 +59,21 @@ async function createContract(roomId: number | null, done: () => void): Promise<
   const cycle = select([['1', 'Mỗi tháng'], ['2', '2 tháng một lần'], ['3', '3 tháng một lần'], ['6', '6 tháng một lần']]);
   const due = input({ type: 'number', min: '1', max: '28', value: '5', class: 'input num-in' });
   const late = input({ type: 'number', min: '0', step: '1000', value: '10000', class: 'input num-in' });
+  // giữ chỗ đã duyệt: chọn đúng phòng và khách thì tiền giữ chỗ thành tiền cọc
+  const bookings = await api.get<Array<{ bookingId: number; roomId: number; roomCode: string; tenantId: number; tenantName: string; depositPaid: number | null }>>('/api/chi/bookings?status=APPROVED').catch(() => []);
+  const booking = select([['', 'Không gắn giữ chỗ']], '');
+  const syncBooking = () => {
+    const r = Number(room.value); const t = Number(tenant.value);
+    const fit = bookings.filter((b) => b.roomId === r && b.tenantId === t);
+    booking.replaceChildren(...[['', fit.length ? 'Không gắn giữ chỗ' : 'Không có giữ chỗ đã duyệt cho phòng và khách này'], ...fit.map((b) => [String(b.bookingId), `Giữ chỗ #${b.bookingId}${b.depositPaid ? ` · đã giữ ${money(b.depositPaid)} ₫` : ''}`])].map(([v, l]) => h('option', { value: v }, l)));
+  };
+  room.addEventListener('change', syncBooking); tenant.addEventListener('change', syncBooking); syncBooking();
   d.body.append(err,
     h('div', { class: 'form-grid' }, field('Phòng (chỉ phòng trống)', room), field('Người thuê', tenant),
       field('Ngày bắt đầu', start), field('Ngày kết thúc', end),
       field('Giá thuê (₫/tháng)', rent), field('Tiền cọc (₫)', dep),
       field('Chu kỳ thanh toán', cycle), field('Hạn trả mỗi kỳ (ngày trong tháng)', due, 'Từ 1 đến 28'),
-      field('Phạt trễ hạn (₫/ngày)', late)));
+      field('Phạt trễ hạn (₫/ngày)', late), field('Giữ chỗ đã duyệt', booking, 'Tiền giữ chỗ được tính vào tiền cọc')));
   const ok = h('button', { class: 'btn' }, 'Lập hợp đồng');
   d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Hủy'), ok);
   ok.addEventListener('click', () => busy(ok, async () => {
@@ -75,6 +84,7 @@ async function createContract(roomId: number | null, done: () => void): Promise<
         roomId: Number(room.value), tenantId: Number(tenant.value), startDate: start.value, endDate: end.value,
         monthlyRentPrice: rent.value ? Number(rent.value) : null, depositAmount: dep.value ? Number(dep.value) : null,
         paymentCycleMonths: Number(cycle.value), paymentDueDay: Number(due.value), lateFeePerDay: Number(late.value),
+        bookingId: booking.value ? Number(booking.value) : null,
       });
       d.close();
       toast(`Đã lập hợp đồng ${c.contractCode}`);
