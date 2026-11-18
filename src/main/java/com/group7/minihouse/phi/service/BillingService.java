@@ -65,6 +65,8 @@ public class BillingService {
     /** Khoan nhap tay: tien to nay giu lai khi tinh lai ky, tinh vao phu thu (so duong) hoac giam tru (so am). */
     static final String MANUAL = "✎ ";
     static final String ITEM_SHARED = "Điện nước chung (phân bổ)";
+    /** Phụ phí thiết bị lắp cho phòng (room_addon_fees), tính vào nhóm dịch vụ. */
+    static final String ITEM_ADDON = "Thiết bị: ";
     static final String SHARED_CATEGORY = "Điện nước chung";
     static final BigDecimal ANOMALY_RATIO = new BigDecimal("1.5");
     private static final List<String> LIVE_AT_MONTH =
@@ -155,6 +157,7 @@ public class BillingService {
         if (readingPeriod == null) {
             issues.add(new Issue(null, "Chua co ky ghi chi so dien nuoc cho thang " + p.getMonthYear()));
         }
+        addContractWarnings(p, ym, issues);
         for (RentalContract c : eligibleContracts(p, ym)) {
             if (readingPeriod == null) {
                 break;
@@ -195,6 +198,10 @@ public class BillingService {
             manual.computeIfAbsent(i.getCalculatedFee().getRoom().getRoomId(), k -> new ArrayList<>())
                     .add(new Line(i.getItemName(), i.getQuantity(), i.getUnitPrice()));
         }
+        // Xac dinh hop dong nao duoc tinh TRUOC khi xoa bang tinh cu (hop dong da tung duoc tinh = da ban giao)
+        Set<Integer> eligibleIds = new HashSet<>();
+        eligibleContracts(p, ym).forEach(c -> eligibleIds.add(c.getContractId()));
+        addContractWarnings(p, ym, warnings);
         feeRepo.deleteItemsOfPeriod(periodId);
         feeRepo.deleteFeesOfPeriod(periodId);
         em.flush();
@@ -216,7 +223,10 @@ public class BillingService {
         // theo so ngay o cua tung hop dong; dien nuoc (1 chi so/phong/ky) tinh cho hop dong sau cung (khach hien tai).
         List<Draft> drafts = new ArrayList<>();
         Map<Integer, List<RentalContract>> byRoom = new java.util.LinkedHashMap<>();
-        for (RentalContract c : eligibleContracts(p, ym)) {
+        for (RentalContract c : candidateContracts(p, ym)) {
+            if (!eligibleIds.contains(c.getContractId())) {
+                continue;
+            }
             byRoom.computeIfAbsent(c.getRoom().getRoomId(), k -> new ArrayList<>()).add(c);
         }
         for (Map.Entry<Integer, List<RentalContract>> e : byRoom.entrySet()) {
@@ -274,9 +284,23 @@ public class BillingService {
                     .setParameter("room", c.getRoom().getRoomId())
                     .setParameter("tenant", c.getTenant().getTenantId())
                     .setParameter("today", LocalDate.now(clock)).getSingleResult();
-            long overdueDays = oldestDue == null ? 0 : ChronoUnit.DAYS.between(oldestDue, LocalDate.now(clock));
+            // M11: khong cong don. Ngay nao da bi phat o ky truoc (ky co dong phat tre han cua hop dong nay) thi khong
+            // phat lai: chi dem tu ngay lap ky truoc do tro di.
+            LocalDateTime lastPenaltyAt = em.createQuery("select max(i.calculatedFee.billingPeriod.creationDate) "
+                            + "from FeeItemDetail i where i.calculatedFee.contract.contractId = :c "
+                            + "and i.itemName = :n and i.calculatedFee.billingPeriod.monthYear < :ym", LocalDateTime.class)
+                    .setParameter("c", c.getContractId()).setParameter("n", ITEM_PENALTY)
+                    .setParameter("ym", ym.toString()).getSingleResult();
+            LocalDate countFrom = oldestDue;
+            if (oldestDue != null && lastPenaltyAt != null && lastPenaltyAt.toLocalDate().isAfter(oldestDue)) {
+                countFrom = lastPenaltyAt.toLocalDate();
+            }
+            long overdueDays = countFrom == null ? 0 : ChronoUnit.DAYS.between(countFrom, LocalDate.now(clock));
             if (overdueDays > 0 && c.getLateFeePerDay() != null && c.getLateFeePerDay().signum() > 0) {
                 d.add(ITEM_PENALTY, BigDecimal.valueOf(overdueDays), c.getLateFeePerDay());
+            }
+            if (d.primary) {
+                addAddonFees(d, ym);
             }
             if (d.primary && sharedTotal.signum() > 0 && totalResidents > 0) {
                 BigDecimal share = sharedTotal.multiply(BigDecimal.valueOf(d.residents))
@@ -625,6 +649,27 @@ public class BillingService {
         }
     }
 
+    /**
+     * M7: phu phi thiet bi (room_addon_fees do viet tao khi lap dat) vao hoa don thang. Phi dang chay trong thang
+     * (da bat dau, chua ket thuc), chu ky N thang thi chi thu vao cac thang cach thang bat dau boi so cua N.
+     */
+    private void addAddonFees(Draft d, YearMonth ym) {
+        List<com.group7.minihouse.shared.entity.RoomAddonFee> fees = em.createQuery(
+                "select f from RoomAddonFee f where f.room.roomId = :r and f.startDate <= :last "
+                        + "and ((f.endDate is null and f.isActive = true) or f.endDate >= :first) order by f.addonFeeId",
+                com.group7.minihouse.shared.entity.RoomAddonFee.class)
+                .setParameter("r", d.contract.getRoom().getRoomId())
+                .setParameter("first", ym.atDay(1)).setParameter("last", ym.atEndOfMonth()).getResultList();
+        for (var f : fees) {
+            int cycle = f.getBillingCycleMonths() == null || f.getBillingCycleMonths() < 1 ? 1 : f.getBillingCycleMonths();
+            long monthsSinceStart = ChronoUnit.MONTHS.between(YearMonth.from(f.getStartDate()), ym);
+            if (monthsSinceStart % cycle == 0 && f.getAmount() != null && f.getAmount().signum() > 0) {
+                String name = ITEM_ADDON + f.getFeeName();
+                d.add(name.length() > 100 ? name.substring(0, 100) : name, BigDecimal.ONE, f.getAmount());
+            }
+        }
+    }
+
     private BigDecimal sharedCost(Integer propertyId, YearMonth ym) {
         BigDecimal v = em.createQuery("select coalesce(sum(e.amount), 0) from OperatingExpense e "
                 + "where e.property.propertyId = :p and e.expenseCategory = :c "
@@ -634,15 +679,62 @@ public class BillingService {
         return v == null ? BigDecimal.ZERO : v;
     }
 
-    /** Hop dong chong len thang ym cua khu tro; thu tu theo ma phong. */
+    /**
+     * Hop dong chong len thang ym cua khu tro; thu tu theo ma phong. Hop dong het han ma khach con o (chua
+     * TERMINATED) van duoc tinh (F3); hop dong lap do chua nhan phong (M10) thi chua tinh.
+     */
     private List<RentalContract> eligibleContracts(MonthlyBillingPeriod p, YearMonth ym) {
+        return candidateContracts(p, ym).stream().filter(c -> !notHandedOver(c)).toList();
+    }
+
+    private List<RentalContract> candidateContracts(MonthlyBillingPeriod p, YearMonth ym) {
         return em.createQuery("select c from RentalContract c where c.room.property.propertyId = :p "
-                + "and c.startDate <= :last and c.endDate >= :first and c.status in :st "
-                + "order by c.room.roomCode, c.startDate", RentalContract.class)
+                + "and c.startDate <= :last and (c.endDate >= :first or c.status <> 'TERMINATED') "
+                + "and c.status in :st order by c.room.roomCode, c.startDate", RentalContract.class)
                 .setParameter("p", p.getProperty().getPropertyId())
                 .setParameter("first", ym.atDay(1)).setParameter("last", ym.atEndOfMonth())
                 .setParameter("st", LIVE_AT_MONTH).getResultList().stream()
                 .filter(c -> daysInMonth(c, ym, effectiveEnd(c)) > 0).toList();
+    }
+
+    /**
+     * M10: hop dong lap dang o wizard nhan phong (chua ket thuc, can coc > 0 ma chua thu dong nao va chua co bien ban
+     * nhan phong) thi chua ban giao nen chua tinh tien; calculate/validate canh bao ro de khong bi bo sot im lang.
+     */
+    private boolean notHandedOver(RentalContract c) {
+        if ("TERMINATED".equals(c.getStatus()) || c.getDepositAmount() == null || c.getDepositAmount().signum() <= 0) {
+            return false;
+        }
+        // da tung duoc tinh tien (ky truoc) thi hien nhien da ban giao, khong loai giua chung
+        if (!em.createQuery("select f.calculatedFeeId from CalculatedMonthlyFee f where f.contract.contractId = :c",
+                Integer.class).setParameter("c", c.getContractId()).setMaxResults(1).getResultList().isEmpty()) {
+            return false;
+        }
+        List<BigDecimal> collected = em.createQuery("select coalesce(sum(v.amount), 0) from ReceiptVoucher v "
+                        + "where v.voucherType = 'DEPOSIT' and v.note like :p", BigDecimal.class)
+                .setParameter("p", "Thu cọc hợp đồng " + c.getContractCode() + " phòng %").getResultList();
+        if (!collected.isEmpty() && collected.get(0) != null && collected.get(0).signum() > 0) {
+            return false;
+        }
+        List<Integer> inspections = em.createQuery("select k.inspectionId from CheckinInspection k "
+                        + "where k.contract.contractId = :c", Integer.class)
+                .setParameter("c", c.getContractId()).setMaxResults(1).getResultList();
+        return inspections.isEmpty();
+    }
+
+    /** Canh bao cho hop dong chua nhan phong (khong tinh) va hop dong het han ma khach van o (van tinh). */
+    private void addContractWarnings(MonthlyBillingPeriod p, YearMonth ym, List<Issue> warnings) {
+        LocalDate today = LocalDate.now(clock);
+        for (RentalContract c : candidateContracts(p, ym)) {
+            String room = c.getRoom().getRoomCode();
+            if (notHandedOver(c)) {
+                warnings.add(new Issue(room, "Hop dong " + c.getContractCode() + " chua nhan phong (chua thu coc, chua co "
+                        + "bien ban nhan phong) nen chua tinh tien; hoan tat nhan phong hoac chap dut hop dong"));
+            } else if (!"TERMINATED".equals(c.getStatus()) && c.getEndDate().isBefore(today)) {
+                warnings.add(new Issue(room, "Hop dong " + c.getContractCode() + " da het han ngay " + c.getEndDate()
+                        + " nhung chua tra phong/cham dut: van tinh tien den hom nay, hay gia han hoac lam thu tuc tra phong"));
+            }
+        }
     }
 
     /**
@@ -652,6 +744,9 @@ public class BillingService {
      */
     private LocalDate effectiveEnd(RentalContract c) {
         LocalDate end = c.getEndDate();
+        if (!"TERMINATED".equals(c.getStatus()) && end.isBefore(LocalDate.now(clock))) {
+            end = LocalDate.now(clock); // het han ma khach con o (chua tra phong/cham dut) thi tinh tiep den hom nay (F3)
+        }
         LocalDate checkout = em.createQuery("select min(coalesce(r.actualCheckoutDate, r.expectedCheckoutDate)) "
                         + "from CheckoutRequest r where r.contract.contractId = :x "
                         + "and (r.status = 'FINALIZED' or (r.status in ('PENDING', 'INSPECTING') "
