@@ -83,8 +83,8 @@ function routePanel(month: string, period: Period | null, all: Invoice[], flow: 
   stops.forEach((s, i) => { if (i === cur) s.stuck = flow.stuck; });
   return h('section', { class: 'panel route' },
     h('div', { class: 'route-head' },
-      h('h2', null, `Tuyến ${monthLabel(month).toLowerCase()}`, period ? statusBadge(period.status) : null),
-      h('span', { class: 'muted' }, cur === -1 ? 'Đã về trạm cuối' : `Còn ${5 - cur} trạm`)),
+      h('h2', null, `Chốt tiền ${monthLabel(month).toLowerCase()}`, period ? statusBadge(period.status) : null),
+      h('span', { class: 'muted' }, cur === -1 ? 'Đã xong tất cả các bước' : `Còn ${5 - cur} bước`)),
     routeLine(stops),
     flow.next
       ? h('div', { class: 'route-next' }, icon('route', 20), h('p', null, h('b', null, `Việc kế tiếp: ${flow.next.label}. `), flow.next.text))
@@ -217,8 +217,8 @@ function lifecyclePanel(l: Lifecycle, overdue: number): HTMLElement {
   }));
   return h('section', { class: 'panel route life' },
     h('div', { class: 'route-head' },
-      h('h2', null, 'Vòng đời khách thuê'),
-      h('span', { class: 'muted' }, 'Mỗi trạm là một giai đoạn từ lúc khách đến tới lúc trả phòng. Biển vàng là trạm đang có việc.')),
+      h('h2', null, 'Khách thuê: từ nhận phòng đến trả phòng'),
+      h('span', { class: 'muted' }, 'Bốn bước của một khách thuê. Bước nào đang có việc cần làm sẽ được đánh dấu vàng.')),
     routeLine(stops),
     h('div', { class: 'life-cols' }, ...cols.map((c) => h('div', { class: 'life-col' },
       ...c.rows.map((r) => h('a', { class: `life-row${r.hot ? ' hot' : ''}`, href: r.href }, h('span', null, r.label), h('b', null, String(r.n)))),

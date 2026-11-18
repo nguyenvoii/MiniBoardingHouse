@@ -32,5 +32,5 @@ export async function monthRouteBar(month: string, here: number): Promise<HTMLEl
   ];
   const line = routeLine(stops);
   line.querySelectorAll('.stop')[here]?.classList.add('here');
-  return h('section', { class: 'panel route compact', 'aria-label': `Tuyến ${monthLabel(month).toLowerCase()}` }, line);
+  return h('section', { class: 'panel route compact', 'aria-label': `Các bước chốt tiền ${monthLabel(month).toLowerCase()}` }, line);
 }
