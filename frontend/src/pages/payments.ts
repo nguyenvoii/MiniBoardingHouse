@@ -1,6 +1,6 @@
 import { h, busy } from '../lib/dom';
 import { icon } from '../lib/icons';
-import { api, can, errText, Page } from '../lib/api';
+import { api, can, errText, loadSession, Page } from '../lib/api';
 import { dateTime, money, monthLabel } from '../lib/format';
 import { getMonth } from '../lib/ctx';
 import type { Invoice, Payment, QrInfo } from '../data/types';
@@ -96,11 +96,69 @@ export async function paymentsPage(view: HTMLElement): Promise<void> {
 
   view.replaceChildren(
     pageHead('Thanh toán', 'Đối chiếu tiền vào tài khoản với hóa đơn. Giao dịch chờ xác nhận chưa được cộng vào hóa đơn.', [
+      h('button', { class: 'btn secondary', onclick: () => void receiptsDrawer() }, icon('receipt', 16), 'Phiếu thu'),
       h('button', { class: 'btn', onclick: () => matchDialog(() => void load()) }, icon('search', 16), 'Đối chiếu chuyển khoản'),
     ]),
     h('section', { class: 'panel panel-flush' }, h('div', { class: 'toolbar' }, h('div', { class: 'grow' }, kw), scope, status), holder),
   );
   await load();
+}
+
+interface Receipt { voucherId: number; voucherCode: string; transactionId: number | null; voucherType: string; amount: number; note: string | null; createdAt: string }
+const VOUCHER: Record<string, string> = { MONTHLY_RENT: 'Tiền phòng tháng', DEPOSIT: 'Tiền cọc', EXTRA_SERVICE: 'Dịch vụ thêm' };
+
+/** Danh sách phiếu thu và lập phiếu mới. Tiền phòng phải gắn giao dịch đã thành công; phiếu cọc chỉ lập ở mục Thu cọc của hợp đồng. */
+async function receiptsDrawer(): Promise<void> {
+  const d = openDialog('Phiếu thu', { drawer: true });
+  const paint = async () => {
+    d.body.replaceChildren(h('p', { class: 'muted' }, 'Đang tải...'));
+    let list: Receipt[];
+    try { list = await api.get<Receipt[]>('/api/receipts'); } catch (e) { d.body.replaceChildren(formError(errText(e))); return; }
+    d.body.replaceChildren(
+      h('p', { class: 'muted' }, 'Phiếu thu là chứng từ đã nhận tiền. Phiếu tiền cọc chỉ được lập ở mục Thu cọc của hợp đồng, không lập tay ở đây.'),
+      list.length ? table<Receipt>([
+        { key: 'c', label: 'Mã phiếu', render: (r) => h('span', { class: 'plate ghost' }, r.voucherCode) },
+        { key: 't', label: 'Loại', render: (r) => VOUCHER[r.voucherType] ?? r.voucherType },
+        { key: 'a', label: 'Số tiền (₫)', num: true, render: (r) => h('b', null, money(r.amount)) },
+        { key: 'd', label: 'Lập lúc', render: (r) => dateTime(r.createdAt) },
+        { key: 'p', label: '', render: (r) => h('button', { class: 'btn secondary sm', onclick: (e: Event) => { e.stopPropagation(); void printReceipt(r.voucherId); } }, icon('print', 14), 'In') },
+      ], list) : emptyState('Chưa có phiếu thu', 'Lập phiếu cho một giao dịch đã thu thành công.'));
+  };
+  d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Đóng'), h('button', { class: 'btn', onclick: () => newReceipt(() => void paint()) }, icon('plus', 16), 'Lập phiếu thu'));
+  await paint();
+}
+
+async function printReceipt(id: number): Promise<void> {
+  try {
+    const s = loadSession();
+    const res = await fetch(`/api/receipts/${id}/print`, { headers: s ? { Authorization: `Bearer ${s.token}` } : {} });
+    if (!res.ok) throw new Error(`Lỗi ${res.status}`);
+    window.open(URL.createObjectURL(new Blob([await res.text()], { type: 'text/html' })), '_blank');
+  } catch (e) { toast(errText(e), 'err'); }
+}
+
+async function newReceipt(done: () => void): Promise<void> {
+  const d = openDialog('Lập phiếu thu', { width: 520 });
+  const err = h('div');
+  const ok = h('button', { class: 'btn' }, 'Lập phiếu');
+  d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Hủy'), ok);
+  const paid = await api.get<Page<Payment>>('/api/payments?status=SUCCESS&page=0&size=100').then((r) => r.items).catch(() => [] as Payment[]);
+  const type = select([['MONTHLY_RENT', 'Tiền phòng tháng (gắn giao dịch)'], ['EXTRA_SERVICE', 'Dịch vụ thêm']], 'MONTHLY_RENT');
+  const tx = select([['', '— Chọn giao dịch đã thu —'], ...paid.map((p) => [String(p.transactionId), `${p.invoiceCode} · ${money(p.amountPaid)} ₫ · ${dateTime(p.paymentDate)}`] as [string, string])], '');
+  const amount = input({ type: 'number', min: '1', step: '1000', class: 'input num-in' });
+  const note = input({ placeholder: 'Ghi chú (không bắt buộc)', maxlength: '200' });
+  tx.addEventListener('change', () => { const p = paid.find((x) => String(x.transactionId) === tx.value); if (p) amount.value = String(p.amountPaid); });
+  d.body.append(err, field('Loại phiếu', type), field('Giao dịch', tx, 'Tiền phòng bắt buộc chọn giao dịch đã thành công; số tiền phiếu không vượt số tiền giao dịch'),
+    field('Số tiền (₫)', amount), field('Ghi chú', note));
+  ok.addEventListener('click', () => busy(ok, async () => {
+    err.replaceChildren();
+    if (!(Number(amount.value) > 0)) { err.replaceChildren(formError('Nhập số tiền lớn hơn 0.')); return; }
+    if (type.value === 'MONTHLY_RENT' && !tx.value) { err.replaceChildren(formError('Phiếu thu tiền phòng phải gắn với một giao dịch đã thu thành công.')); return; }
+    try {
+      await api.post('/api/receipts', { transactionId: tx.value ? Number(tx.value) : null, voucherType: type.value, amount: Number(amount.value), note: note.value.trim() || null });
+      d.close(); toast('Đã lập phiếu thu'); done();
+    } catch (e) { err.replaceChildren(formError(errText(e))); }
+  }));
 }
 
 function confirmPayment(p: Payment, done: () => void): void {
