@@ -40,10 +40,18 @@ public class AuthService {
     @Transactional
     public LoginResponse login(LoginRequest req, String ipAddress) {
         String id = req.identifier().trim();
+        String key = id.toLowerCase();
+        checkNotLocked(key);
         // Cung 1 thong bao cho "khong co tai khoan" va "sai mat khau" de khong lo tai khoan nao ton tai
-        User user = userRepository.findByEmailOrPhoneNumber(id, id)
+        boolean tooLong = req.password().getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 72;
+        User user = tooLong ? null : userRepository.findByEmailOrPhoneNumber(id, id)
                 .filter(u -> passwordEncoder.matches(req.password(), u.getPasswordHash()))
-                .orElseThrow(() -> new BusinessException(HttpStatus.UNAUTHORIZED, "Sai tai khoan hoac mat khau"));
+                .orElse(null);
+        if (user == null) {
+            recordFailure(key);
+            throw new BusinessException(HttpStatus.UNAUTHORIZED, "Sai tai khoan hoac mat khau");
+        }
+        FAILURES.remove(key);
 
         if (!"ACTIVE".equals(user.getStatus())) {
             throw new BusinessException(HttpStatus.FORBIDDEN, "Tai khoan khong hoat dong (bi khoa hoac ngung)");
@@ -57,6 +65,37 @@ public class AuthService {
 
         return new LoginResponse(jwtService.generate(authUser), "Bearer", jwtService.getExpirationSeconds(), authUser,
                 user.isMustChangePassword());
+    }
+
+    // Chong do mat khau don gian (do an): dem lan sai theo tai khoan trong bo nho, sai MAX_FAILURES lan thi khoa tam
+    // LOCK_MINUTES phut. Khoi dong lai may chu thi xoa; khong can bang rieng.
+    static final int MAX_FAILURES = 5;
+    static final long LOCK_MINUTES = 5;
+    private static final java.util.Map<String, long[]> FAILURES = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** Dung cho test: xoa trang thai dem. */
+    static void resetFailures() {
+        FAILURES.clear();
+    }
+
+    private static void checkNotLocked(String key) {
+        long[] f = FAILURES.get(key);
+        if (f != null && f[1] > System.currentTimeMillis()) {
+            throw new BusinessException(HttpStatus.TOO_MANY_REQUESTS,
+                    "Dang nhap sai qua nhieu lan, vui long thu lai sau " + LOCK_MINUTES + " phut");
+        }
+    }
+
+    private static void recordFailure(String key) {
+        FAILURES.compute(key, (k, f) -> {
+            long now = System.currentTimeMillis();
+            long[] cur = f == null || (f[1] != 0 && f[1] <= now) ? new long[] {0, 0} : f; // het han khoa thi dem lai
+            cur[0]++;
+            if (cur[0] >= MAX_FAILURES) {
+                cur[1] = now + LOCK_MINUTES * 60_000;
+            }
+            return cur;
+        });
     }
 
     /** Tai khoan nguoi thue noi voi ho so khach thue qua so dien thoai (xem docs/thiet-ke/tai-khoan-nguoi-thue.md). */

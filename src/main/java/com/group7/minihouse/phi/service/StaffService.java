@@ -143,7 +143,8 @@ public class StaffService {
             replaceStaffRoles(user, newRoles, roleCodes);
         }
 
-        audit(actorId, "UPDATE_STAFF", "Cap nhat nhan vien " + id, ip);
+        audit(actorId, "UPDATE_STAFF", "Cap nhat nhan vien " + id + (newRoles != null
+                ? ": vai tro " + ref.roles() + " -> " + roleCodes : ""), ip);
         return toResponse(user, roleCodes);
     }
 
@@ -191,6 +192,9 @@ public class StaffService {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "Ho ten khong duoc de trong va toi da 100 ky tu");
         }
         String e = blankToNull(email);
+        if (e != null) {
+            e = e.toLowerCase(); // chuan hoa: email khong phan biet hoa thuong, tranh hai tai khoan chi khac chu hoa
+        }
         String p = blankToNull(phone);
         if (e == null && p == null) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "Phai co email hoac so dien thoai de dang nhap");

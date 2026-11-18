@@ -76,7 +76,7 @@ public class DebtController {
 
     /** Tinh lai cong no + tien phat tu cac hoa don chua tra (UC95, UC96). */
     @PostMapping("/recalculate")
-    @PreAuthorize(WRITE)
+    @PreAuthorize(READ) // L3: thu ngan mo trang Cong no cung lam moi duoc so lieu (idempotent), khong bi 403 nuot im
     public ApiResponse<RecalcResult> recalculate() {
         return ApiResponse.ok(service.recalculate());
     }

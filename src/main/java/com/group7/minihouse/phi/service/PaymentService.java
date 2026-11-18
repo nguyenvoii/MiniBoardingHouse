@@ -126,6 +126,14 @@ public class PaymentService {
                 .filter(BankAccountResponse::isDefault).findFirst()
                 .orElseThrow(() -> new BusinessException(HttpStatus.CONFLICT,
                         "Khu tro chua co tai khoan ngan hang mac dinh (UC119)"));
+        // L13: da co giao dich cho cung hoa don, cung cach, cung so tien thi dung lai, khong sinh them giao dich cho moi lan bam
+        for (PaymentTransaction pending : repo.findPendingOfInvoice(inv.getInvoiceId())) {
+            if ("FAILED".equals(pending.getStatus()) && method.equals(pending.getPaymentMethod())
+                    && pending.getAmountPaid().compareTo(amount) == 0) {
+                return new QrInfo(toResponse(pending), bank.bankName(), bank.accountNumber(), bank.accountHolder(),
+                        bank.qrImageUrl(), inv.getInvoiceCode());
+            }
+        }
         String code = (method.equals("QR_CODE") ? "QR-" : "GW-") + UUID.randomUUID().toString().substring(0, 8)
                 .toUpperCase();
         PaymentTransaction t = newTransaction(inv, method, code, amount, user(receiverId));

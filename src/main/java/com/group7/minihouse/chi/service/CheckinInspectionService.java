@@ -106,7 +106,7 @@ public class CheckinInspectionService {
         inspection.setFurnishingsCondition(req.getFurnishingsCondition());
         inspection.setInspectionPhotoUrl(req.getInspectionPhotoUrl());
         inspection.setNotes(req.getNotes());
-        inspection.setTenantConfirmed(req.getTenantConfirmed() != null ? req.getTenantConfirmed() : true);
+        inspection.setTenantConfirmed(req.getTenantConfirmed() != null ? req.getTenantConfirmed() : false); // L10: khong mac dinh "khach da dong y"
         inspection.setInspectedByName(req.getInspectedByName() != null && !req.getInspectedByName().isBlank()
                 ? req.getInspectedByName() : "Chủ trọ / Quản lý");
         inspection.setCreatedAt(LocalDateTime.now());

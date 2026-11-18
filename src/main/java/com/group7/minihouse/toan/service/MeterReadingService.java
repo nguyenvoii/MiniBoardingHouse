@@ -394,6 +394,14 @@ public class MeterReadingService {
         if (room == null) {
             throw notFound("Phong " + req.roomId());
         }
+        // L19: giong CheckinInspectionService, chi doi chi so ban dau khi phong chua tung co so doc (doi sau khi da
+        // co ky tinh tien se lam lech luong tieu thu cac ky da tinh)
+        boolean hasReadings = !em.createQuery("select m.readingId from MeterReading m where m.room.roomId = :r",
+                Integer.class).setParameter("r", req.roomId()).setMaxResults(1).getResultList().isEmpty();
+        if (hasReadings) {
+            throw new BusinessException(HttpStatus.CONFLICT,
+                    "Phòng đã có chỉ số trong các kỳ ghi số, không đổi chỉ số ban đầu được nữa");
+        }
         room.setInitialElectricMeter(req.electric());
         room.setInitialWaterMeter(req.water());
         return new MoveInResponse(room.getRoomId(), room.getRoomCode(),

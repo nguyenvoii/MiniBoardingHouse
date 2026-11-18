@@ -44,6 +44,12 @@ public class User {
 
     public User() {}
 
+    /** users.updated_at luon duoc cap nhat khi sua tai khoan (truoc day chi co gia tri luc tao). */
+    @PreUpdate
+    void touchUpdatedAt() {
+        this.updatedAt = LocalDateTime.now();
+    }
+
     public Integer getUserId() { return userId; }
     public void setUserId(Integer userId) { this.userId = userId; }
 

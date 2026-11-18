@@ -143,6 +143,12 @@ public class MaintenanceService {
         if (staff == null) {
             throw BusinessException.notFound("Nhan vien");
         }
+        // L12: chi phan cong cho nhan vien dang hoat dong (khong phai nguoi thue, khong phai tai khoan da khoa)
+        if (!"ACTIVE".equals(staff.getStatus()) || em.createQuery("select ur.role.roleCode from UserRole ur "
+                + "where ur.user.userId = :u and ur.role.roleCode in ('LANDLORD','MANAGER','CASHIER','METER_READER')")
+                .setParameter("u", staff.getUserId()).getResultList().isEmpty()) {
+            throw new BusinessException("Chỉ phân công cho nhân viên đang hoạt động");
+        }
         MaintenanceLog log = logRepository.findFirstByRequest_RequestIdOrderByMaintenanceLogIdDesc(id)
                 .orElseGet(MaintenanceLog::new);
         log.setRequest(r);

@@ -56,6 +56,9 @@ public class RegistrationService {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "Ho ten khong duoc de trong va toi da 100 ky tu");
         }
         String email = blankToNull(req.email());
+        if (email != null) {
+            email = email.toLowerCase();
+        }
         if (email == null || email.length() > 255 || !EMAIL.matcher(email).matches()) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "Email khong hop le");
         }

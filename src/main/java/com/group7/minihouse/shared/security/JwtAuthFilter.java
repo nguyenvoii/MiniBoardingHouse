@@ -35,7 +35,16 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             AuthUser token = jwtService.parse(header.substring(7).trim());
             // Token hop le nhung tai khoan da bi khoa/vo hieu hoa/xoa thi coi nhu chua dang nhap (401).
             // Vai tro lay tu DB moi request (khong lay tu token) nen giang chuc/doi vai tro co hieu luc ngay.
-            Optional<List<String>> dbRoles = token == null ? Optional.empty() : statusChecker.activeRoles(token.userId());
+            Optional<List<String>> dbRoles;
+            try {
+                dbRoles = token == null ? Optional.empty() : statusChecker.activeRoles(token.userId());
+            } catch (org.springframework.dao.DataAccessException ex) {
+                // Loi ha tang (mat ket noi DB): tra 503 de nguoi dung biet thu lai, khong ep dang nhap lai bang 401
+                response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
+                response.setContentType("application/json;charset=UTF-8");
+                response.getWriter().write("{\"success\":false,\"message\":\"Hệ thống tạm thời không kiểm tra được tài khoản, vui lòng thử lại sau\"}");
+                return;
+            }
             if (dbRoles.isPresent()) {
                 AuthUser user = new AuthUser(token.userId(), token.email(), token.fullName(), dbRoles.get(),
                         token.tenantId());

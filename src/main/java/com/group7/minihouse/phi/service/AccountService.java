@@ -143,8 +143,9 @@ public class AccountService {
     }
 
     static boolean isStrong(String p) {
-        return p != null && p.length() >= 8 && p.chars().anyMatch(Character::isLetter)
-                && p.chars().anyMatch(Character::isDigit);
+        // BCrypt chi dung 72 byte dau: mat khau dai hon se bi cat im lang (phan sau khong co tac dung) nen chan tu dau
+        return p != null && p.length() >= 8 && p.getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 72
+                && p.chars().anyMatch(Character::isLetter) && p.chars().anyMatch(Character::isDigit);
     }
 
     private static String blankToNull(String s) {

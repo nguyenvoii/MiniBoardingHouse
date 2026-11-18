@@ -46,6 +46,31 @@ class AuthServiceTest {
                 tenantReadRepository);
     }
 
+    @org.junit.jupiter.api.AfterEach
+    void clearLockouts() {
+        AuthService.resetFailures();
+    }
+
+    /** Sai mat khau MAX_FAILURES lan thi khoa tam, ke ca khi lan sau nhap dung. */
+    @Test
+    void tooManyWrongPasswordsLockTheAccountTemporarily() {
+        when(userRepository.findByEmailOrPhoneNumber("a@x.vn", "a@x.vn")).thenReturn(Optional.of(user("a@x.vn", null)));
+        for (int i = 0; i < AuthService.MAX_FAILURES; i++) {
+            assertEquals(HttpStatus.UNAUTHORIZED, assertThrows(BusinessException.class,
+                    () -> service.login(new LoginRequest("a@x.vn", "sai"), "ip")).getStatus());
+        }
+        assertEquals(HttpStatus.TOO_MANY_REQUESTS, assertThrows(BusinessException.class,
+                () -> service.login(new LoginRequest("a@x.vn", "pw"), "ip")).getStatus());
+    }
+
+    @Test
+    void passwordLongerThan72BytesIsRejectedWithoutTouchingTheDatabase() {
+        String longPw = "a".repeat(73);
+        assertEquals(HttpStatus.UNAUTHORIZED, assertThrows(BusinessException.class,
+                () -> service.login(new LoginRequest("a@x.vn", longPw), "ip")).getStatus());
+        verifyNoInteractions(userRepository);
+    }
+
     private User user(String email, String phone) {
         User u = new User();
         u.setUserId(5);
