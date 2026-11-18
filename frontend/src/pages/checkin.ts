@@ -56,12 +56,12 @@ export async function checkinPage(view: HTMLElement, _p: Record<string, string>,
     const c = st.contract;
     if (!c) return;
     const [dep, ins, acct] = await Promise.all([
-      api.get<{ collected: number; remaining: number }>(`/api/contracts/${c.contractId}/deposit`).catch(() => null),
+      api.get<{ collected: number; remaining: number; paidInFull?: boolean }>(`/api/contracts/${c.contractId}/deposit`).catch(() => null),
       api.get<Array<{ contractId: number | null }>>(`/api/chi/checkin-inspections?roomId=${c.roomId}`).catch(() => [] as Array<{ contractId: number | null }>),
       api.get<{ exists: boolean }>(`/api/tenants/${c.tenantId}/account`).catch(() => null),
     ]);
     st.depositCollected = dep?.collected ?? 0;
-    st.depositPaid = !!dep && dep.remaining <= 0;
+    st.depositPaid = !!dep && (dep.paidInFull ?? dep.remaining <= 0);
     st.handedOver = ins.some((x) => x.contractId === c.contractId);
     st.signed = !!c.digitalSignatureUrl;
     st.accountDone = !!acct?.exists;
@@ -145,6 +145,7 @@ export async function checkinPage(view: HTMLElement, _p: Record<string, string>,
           paymentCycleMonths: Number(cycle.value), paymentDueDay: Number(due.value), lateFeePerDay: Number(late.value),
         });
         st.contract = c; st.roomId = c.roomId; st.roomCode = c.roomCode;
+        st.depositPaid = c.depositAmount <= 0; // cọc 0 thì không có gì để thu, mở sẵn nút Hoàn tất
         toast(`Đã lập hợp đồng ${c.contractCode}`);
         go(2);
       } catch (e) { err.replaceChildren(formError(errText(e))); }
@@ -161,7 +162,7 @@ export async function checkinPage(view: HTMLElement, _p: Record<string, string>,
 
   // ---- Bước 3: biên bản bàn giao phòng ----
   function step3(): HTMLElement {
-    if (st.handedOver) return doneBox('Đã bàn giao phòng ' + st.roomCode, 'Biên bản nhận phòng đã lưu. Khi trả phòng hệ thống sẽ đối chiếu với biên bản này.', () => go(3));
+    if (st.handedOver) return doneBox('Đã bàn giao phòng ' + st.roomCode, 'Biên bản nhận phòng đã lưu. Khi trả phòng, biên bản này hiện ngay trong màn Trả phòng để nhân viên đối chiếu số đầu, chìa khóa và nội thất (hệ thống không tự so sánh).', () => go(3));
     const err = h('div');
     const el = input({ type: 'number', min: '0', class: 'input num-in' });
     const wa = input({ type: 'number', min: '0', class: 'input num-in' });
@@ -187,7 +188,7 @@ export async function checkinPage(view: HTMLElement, _p: Record<string, string>,
     }));
     return card(`3. Bàn giao phòng ${st.roomCode} cho ${st.tenantName}`, [
       err,
-      h('p', { class: 'muted' }, 'Cùng khách đọc chỉ số công tơ và kiểm tra đồ đạc. Đây là căn cứ tính điện nước tháng đầu và đối chiếu khi trả phòng.'),
+      h('p', { class: 'muted' }, 'Cùng khách đọc chỉ số công tơ và kiểm tra đồ đạc. Đây là căn cứ tính điện nước tháng đầu; khi trả phòng biên bản hiện lại để nhân viên đối chiếu.'),
       h('div', { class: 'form-grid' }, field('Chỉ số điện lúc nhận (kWh)', el), field('Chỉ số nước lúc nhận (m³)', wa), field('Số chìa khóa bàn giao', keys)),
       field('Tình trạng phòng và đồ đạc', cond), field('Ghi chú', notes),
       h('label', { style: 'display:flex;gap:8px;align-items:center' }, confirmed, 'Khách đã xem và đồng ý với biên bản'),
@@ -207,8 +208,8 @@ export async function checkinPage(view: HTMLElement, _p: Record<string, string>,
     const deposit = h('button', { class: 'btn' }, icon('wallet', 16), 'Ghi nhận thu cọc');
     deposit.addEventListener('click', () => busy(deposit, async () => {
       try {
-        const r = await api.post<{ collected: number; remaining: number }>(`/api/contracts/${c.contractId}/deposit`, { amount: Number(amount.value) });
-        st.depositCollected = r.collected; st.depositPaid = r.remaining <= 0;
+        const r = await api.post<{ collected: number; remaining: number; paidInFull?: boolean }>(`/api/contracts/${c.contractId}/deposit`, { amount: Number(amount.value) });
+        st.depositCollected = r.collected; st.depositPaid = r.paidInFull ?? r.remaining <= 0;
         toast('Đã lập phiếu thu cọc'); paint();
       } catch (e) { toast(errText(e), 'err'); }
     }));
@@ -233,12 +234,12 @@ export async function checkinPage(view: HTMLElement, _p: Record<string, string>,
     const finish = missing.length
       ? h('button', { class: 'btn', disabled: true, title: 'Cần thu đủ cọc trước' }, 'Hoàn tất nhận phòng', icon('right', 16))
       : h('a', { class: 'btn', href: `#/contracts?open=${c.contractId}` }, 'Hoàn tất nhận phòng', icon('right', 16));
-    const depositText = st.depositCollected > 0
+    const depositText = c.depositAmount <= 0 ? 'Hợp đồng này không có tiền cọc, không cần thu.' : st.depositCollected > 0
       ? `Đã thu ${money(st.depositCollected)} ₫ trên ${money(c.depositAmount)} ₫. Khi trả phòng chỉ hoàn phần cọc đã thu ở đây.`
       : `Cần thu ${money(c.depositAmount)} ₫ (tiền mặt hoặc chuyển khoản). Khi trả phòng chỉ hoàn phần cọc đã thu ở đây.`;
     return card(`4. Hoàn tất nhận phòng ${st.roomCode}`, [
       h('p', { class: 'muted' }, 'Tiền phòng từng tháng không thu lúc này: mỗi tháng hệ thống chốt điện nước, tính tiền và phát hành hóa đơn; khách trả bằng QR trên điện thoại hoặc nộp tiền mặt tại quầy.'),
-      todo('Thu tiền cọc', depositText, st.depositPaid, h('div', { style: 'display:flex;gap:8px;align-items:center;flex-wrap:wrap' }, amount, deposit)),
+      todo('Thu tiền cọc', depositText, st.depositPaid || c.depositAmount <= 0, h('div', { style: 'display:flex;gap:8px;align-items:center;flex-wrap:wrap' }, amount, deposit)),
       todo('Khách ký hợp đồng', 'Ký trên màn hình, chỉ ký được một lần cho mỗi hợp đồng.', st.signed, sign),
       todo('Cấp tài khoản cho khách', `Khách đăng nhập bằng số điện thoại ${st.tenantPhone} để xem hóa đơn, trả tiền QR và báo sự cố.`, st.accountDone, acct),
       h('div', { class: 'panel', style: 'padding:14px;display:flex;flex-direction:column;gap:10px' },
