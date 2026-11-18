@@ -1,7 +1,7 @@
 import { h, busy } from '../lib/dom';
 import { icon } from '../lib/icons';
 import { api, errText } from '../lib/api';
-import { money } from '../lib/format';
+import { money, isoDay } from '../lib/format';
 import { loadLive } from '../data/live';
 import type { Contract } from '../data/types';
 import { card, dl, field, formError, input, pageHead, plate, select, toast, openDialog } from '../ui/kit';
@@ -13,11 +13,14 @@ import { residentsBox, vehiclesBox } from '../ui/occupancy';
 // 1 Khách hàng → 2 Phòng và hợp đồng → 3 Bàn giao phòng → 4 Thu cọc, ký và cấp tài khoản.
 
 const STEPS = ['Khách hàng', 'Phòng và hợp đồng', 'Bàn giao phòng', 'Thu cọc và tài khoản'];
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => isoDay();
+/** Ngày kết thúc = cùng ngày sau m tháng trừ 1 ngày (12 tháng từ 01/01 hết 31/12), không tràn tháng (31/08 + 6 tháng ra 28/02). */
 const addMonths = (iso: string, m: number): string => {
-  const d = new Date(iso);
-  d.setMonth(d.getMonth() + m);
-  return d.toISOString().slice(0, 10);
+  const [y, mo, da] = iso.split('-').map(Number);
+  const last = new Date(y, mo - 1 + m + 1, 0).getDate();
+  const d = new Date(y, mo - 1 + m, Math.min(da, last));
+  d.setDate(d.getDate() - 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
 interface State {
@@ -183,14 +186,14 @@ export async function checkinPage(view: HTMLElement, _p: Record<string, string>,
     const keys = input({ type: 'number', min: '0', value: '2', class: 'input num-in' });
     const cond = h('textarea', { class: 'textarea', placeholder: 'Ví dụ: 1 giường, 1 tủ, 1 điều hòa, 1 bình nóng lạnh; tường sạch, không hư hỏng' }) as HTMLTextAreaElement;
     const notes = h('textarea', { class: 'textarea', placeholder: 'Không bắt buộc' }) as HTMLTextAreaElement;
-    const confirmed = h('input', { type: 'checkbox', checked: true, id: 'ck' }) as HTMLInputElement;
+    const confirmed = h('input', { type: 'checkbox', id: 'ck' }) as HTMLInputElement; // không tick sẵn: chỉ tick khi khách có mặt đồng ý
     const ok = h('button', { class: 'btn' }, 'Lưu biên bản và tiếp tục');
     ok.addEventListener('click', () => busy(ok, async () => {
       err.replaceChildren();
       if (!cond.value.trim()) { err.replaceChildren(formError('Ghi tình trạng phòng và đồ đạc lúc bàn giao để sau này đối chiếu khi trả phòng.')); return; }
       try {
         await api.post('/api/chi/checkin-inspections', {
-          roomId: st.roomId, tenantId: st.tenantId, contractId: st.contract!.contractId, checkinDate: st.contract!.startDate,
+          roomId: st.roomId, tenantId: st.tenantId, contractId: st.contract!.contractId, checkinDate: isoDay(),
           initialElectricMeter: Number(el.value), initialWaterMeter: Number(wa.value), keyHandedCount: Number(keys.value),
           furnishingsCondition: cond.value.trim(), notes: notes.value.trim() || null, tenantConfirmed: confirmed.checked,
         });
@@ -203,7 +206,7 @@ export async function checkinPage(view: HTMLElement, _p: Record<string, string>,
       h('div', { class: 'form-grid' }, field('Chỉ số điện lúc nhận (kWh)', el), field('Chỉ số nước lúc nhận (m³)', wa), field('Số chìa khóa bàn giao', keys)),
       field('Tình trạng phòng và đồ đạc', cond), field('Ghi chú', notes),
       h('label', { style: 'display:flex;gap:8px;align-items:center' }, confirmed, 'Khách đã xem và đồng ý với biên bản'),
-      h('div', { style: 'display:flex;gap:10px;flex-wrap:wrap' }, ok),
+      h('div', { style: 'display:flex;gap:10px;flex-wrap:wrap' }, h('button', { class: 'btn secondary', onclick: () => go(1) }, icon('left', 16), 'Quay lại'), ok),
     ]);
   }
 
@@ -259,7 +262,7 @@ export async function checkinPage(view: HTMLElement, _p: Record<string, string>,
         vehiclesBox(st.tenantId!)),
       missing.length ? h('p', { style: 'color:var(--danger);font-weight:600' }, `Còn thiếu: ${missing.join(', ')}.`)
         : advice.length ? h('p', { class: 'muted' }, `Có thể hoàn tất, nhưng lưu ý: ${advice.join('; ')}. Làm sau ở mục Hợp đồng và Khách hàng.`) : null,
-      h('div', { style: 'display:flex;gap:10px;flex-wrap:wrap' }, finish),
+      h('div', { style: 'display:flex;gap:10px;flex-wrap:wrap' }, h('button', { class: 'btn secondary', onclick: () => go(2) }, icon('left', 16), 'Quay lại'), finish),
     ].filter(Boolean) as Node[]);
   }
 
