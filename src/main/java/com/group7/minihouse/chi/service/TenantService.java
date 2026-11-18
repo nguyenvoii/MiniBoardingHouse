@@ -19,6 +19,9 @@ import java.util.stream.Collectors;
 @Transactional
 public class TenantService {
 
+    @jakarta.persistence.PersistenceContext
+    private jakarta.persistence.EntityManager em;
+
     private final TenantRepository tenantRepository;
     private final TenantIdCardRepository tenantIdCardRepository;
     private final TenantVehicleRepository tenantVehicleRepository;
@@ -116,7 +119,10 @@ public class TenantService {
                     throw new BusinessException("Số điện thoại này đã được sử dụng bởi khách thuê khác");
                 }
             });
-            t.setPhoneNumber(req.getPhoneNumber().trim());
+            String oldPhone = t.getPhoneNumber();
+            String newPhone = req.getPhoneNumber().trim();
+            t.setPhoneNumber(newPhone);
+            syncAccountPhone(oldPhone, newPhone);
         }
         if (req.getIdentityNumber() != null && !req.getIdentityNumber().trim().equalsIgnoreCase(t.getIdentityNumber())) {
             tenantRepository.findByIdentityNumber(req.getIdentityNumber().trim()).ifPresent(existing -> {
@@ -148,6 +154,29 @@ public class TenantService {
         }
 
         return toDTO(tenantRepository.save(t));
+    }
+
+    /**
+     * M9: SĐT là khóa nối tài khoản đăng nhập với hồ sơ khách (AuthService.findTenantId). Đổi SĐT hồ sơ thì đổi luôn
+     * users.phone_number của tài khoản người thuê (nếu có) trong cùng giao dịch, nếu không khách mất liên kết.
+     * SĐT mới đã thuộc tài khoản khác (unique) thì từ chối.
+     */
+    private void syncAccountPhone(String oldPhone, String newPhone) {
+        if (em == null || oldPhone == null) {
+            return;
+        }
+        List<User> accounts = em.createQuery("select u from User u where u.phoneNumber = :p and exists (select 1 from UserRole ur "
+                        + "where ur.user = u and ur.role.roleCode = 'TENANT')", User.class)
+                .setParameter("p", oldPhone.trim()).getResultList();
+        if (accounts.isEmpty()) {
+            return;
+        }
+        boolean taken = !em.createQuery("select u.userId from User u where u.phoneNumber = :p", Integer.class)
+                .setParameter("p", newPhone).getResultList().isEmpty();
+        if (taken) {
+            throw new BusinessException(HttpStatus.CONFLICT, "Số điện thoại mới đã là tên đăng nhập của một tài khoản khác");
+        }
+        accounts.forEach(u -> u.setPhoneNumber(newPhone));
     }
 
     // UC 35: Xem lịch sử thuê phòng của khách

@@ -70,9 +70,31 @@ public class ServiceRateService {
 
     @Transactional
     public PlanResponse updatePlan(Integer planId, PlanRequest req) {
+        return updatePlan(planId, req, null);
+    }
+
+    /**
+     * SRS 13#7: doi don gia dien/nuoc tai cho phai de lai lich su (rate_change_histories). Bang gia ap dung cho ca he
+     * thong nen moi khu tro duoc ghi 1 dong "Dien"/"Nuoc"; can biet nguoi sua (actorId, lay tu token) vi changed_by bat buoc.
+     */
+    @Transactional
+    public PlanResponse updatePlan(Integer planId, PlanRequest req, Integer actorId) {
         validatePlan(req);
         ServiceRatePlan p = planRepo.findById(planId).orElseThrow(() -> notFound("Bang gia " + planId));
+        BigDecimal oldElectric = p.getElectricUnitPrice();
+        BigDecimal oldWater = p.getWaterUnitPrice();
         apply(p, req);
+        if (actorId != null) {
+            List<Integer> properties = em.createQuery("select pr.propertyId from Property pr", Integer.class).getResultList();
+            for (Integer propertyId : properties) {
+                if (oldElectric != null && oldElectric.compareTo(req.electricUnitPrice()) != 0) {
+                    saveHistory(propertyId, "Điện", oldElectric, req.electricUnitPrice(), actorId);
+                }
+                if (oldWater != null && oldWater.compareTo(req.waterUnitPrice()) != 0) {
+                    saveHistory(propertyId, "Nước", oldWater, req.waterUnitPrice(), actorId);
+                }
+            }
+        }
         return toResponse(p);
     }
 

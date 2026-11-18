@@ -417,12 +417,15 @@ class ContractServiceTest {
     }
 
     @Test
-    void pdfRecordsUrlOnceAndUsesExporter() {
+    void pdfIsReadOnlyAndUrlIsSetAtCreation() {
         RentalContract c = live("ACTIVE");
         when(exporter.toTextPdf(any(), any())).thenReturn(new byte[] {1, 2});
         assertEquals(2, service.pdf(100, 5).length);
-        assertEquals("/api/contracts/100/pdf", c.getPdfContractUrl());
         service.pdf(100, 5);
-        verify(em, org.mockito.Mockito.times(1)).persist(any(ContractAdjustment.class));
+        org.mockito.Mockito.verify(em, org.mockito.Mockito.never()).persist(any(ContractAdjustment.class));
+        assertEquals(null, c.getPdfContractUrl()); // GET khong ghi
+        room.setStatus("VACANT");
+        ContractResponse created = service.create(req(LocalDate.of(2026, 3, 1), LocalDate.of(2027, 3, 1)), 5, "ip");
+        assertEquals("/api/contracts/100/pdf", created.pdfContractUrl());
     }
 }

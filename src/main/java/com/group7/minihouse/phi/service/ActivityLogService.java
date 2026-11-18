@@ -69,6 +69,9 @@ public class ActivityLogService {
     /** Nhat ky cua chinh nguoi dung hien tai. */
     @Transactional(readOnly = true)
     public PageResponse<ActivityLogResponse> mine(Integer userId, int page, int size) {
+        if (userId == null) { // null o search() nghia la "khong loc" = tra nhat ky cua TAT CA nguoi dung: tuyet doi khong
+            throw new BusinessException(HttpStatus.UNAUTHORIZED, "Chua dang nhap hoac token het han");
+        }
         return search(userId, null, null, null, page, size);
     }
 

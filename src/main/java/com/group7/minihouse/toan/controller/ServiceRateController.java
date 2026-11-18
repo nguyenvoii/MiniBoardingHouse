@@ -30,8 +30,9 @@ public class ServiceRateController {
 
     @PutMapping("/service-rate-plans/{id}")
     @PreAuthorize("hasAnyRole('LANDLORD','MANAGER')")
-    public PlanResponse updatePlan(@PathVariable("id") Integer id, @RequestBody PlanRequest req) {
-        return service.updatePlan(id, req);
+    public PlanResponse updatePlan(@PathVariable("id") Integer id, @RequestBody PlanRequest req,
+            @org.springframework.security.core.annotation.AuthenticationPrincipal com.group7.minihouse.shared.security.AuthUser actor) {
+        return service.updatePlan(id, req, actor == null ? null : actor.userId());
     }
 
     @GetMapping("/service-rate-plans")

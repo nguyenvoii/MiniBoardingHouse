@@ -140,6 +140,7 @@ public class ContractService {
         c.setLateFeePerDay(req.lateFeePerDay() != null ? req.lateFeePerDay() : BigDecimal.ZERO);
         c.setStatus("ACTIVE");
         RentalContract saved = repo.save(c);
+        saved.setPdfContractUrl("/api/contracts/" + saved.getContractId() + "/pdf");
         room.setStatus("RENTED");
         audit(actorId, "CREATE_CONTRACT", "Lap hop dong " + saved.getContractCode(), ip);
         if (req.bookingId() != null) {
@@ -285,14 +286,9 @@ public class ContractService {
     // ------------------------------------------------------------------ UC45: PDF
 
     /** Tao noi dung PDF theo mau (khong luu file; moi lan tai se dung lai du lieu moi nhat). */
-    @Transactional
+    @Transactional(readOnly = true) // SRS 13#11: GET khong ghi DB; pdf_contract_url duoc dat luc lap hop dong
     public byte[] pdf(Integer id, Integer actorId) {
         RentalContract c = load(id);
-        String url = "/api/contracts/" + id + "/pdf";
-        if (!url.equals(c.getPdfContractUrl())) {
-            c.setPdfContractUrl(url);
-            record(c, "PDF_GENERATED", null, url, actorId);
-        }
         return exporter.toTextPdf("HOP DONG THUE PHONG TRO", pdfLines(c));
     }
 
