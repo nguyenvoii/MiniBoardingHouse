@@ -217,7 +217,7 @@ public class PaymentService {
             throw bad("status phai la SUCCESS, FAILED hoac REVERSED");
         }
         int s = size < 1 ? 20 : Math.min(size, 100);
-        PageRequest pageable = PageRequest.of(Math.max(page, 0), s,
+        PageRequest pageable = PageRequest.of(Math.min(Math.max(page, 0), 100_000), s,
                 Sort.by(Sort.Direction.DESC, "paymentDate").and(Sort.by(Sort.Direction.DESC, "transactionId")));
         return new PageResponse<>(repo.search(invoiceId == null ? 0 : invoiceId, likePattern(keyword), st, pageable)
                 .map(PaymentService::toResponse));
@@ -257,7 +257,8 @@ public class PaymentService {
                     + calculator.remainingOf(inv) + "), co the da thanh toan bang cach khac", toResponse(t));
         }
         t.setStatus("SUCCESS");
-        t.setPaymentDate(LocalDateTime.now(clock));
+        // L6: giu ngay luc khach tao giao dich/chuyen tien (paymentDate luc tao), khong doi thanh gio xac nhan,
+        // de doanh thu khong rot sang thang sau chi vi nhan vien xac nhan tre
         applyToInvoice(t, note);
         return new ConfirmResult(true, "Da xac nhan va cong vao hoa don " + inv.getInvoiceCode(), toResponse(t));
     }
@@ -345,7 +346,7 @@ public class PaymentService {
         if (k.isEmpty()) {
             return "%";
         }
-        return "%" + k.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
+        return "%" + k.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_").replace("[", "\\[") + "%";
     }
 
     private void audit(Integer actorId, String action, String description, String ip) {

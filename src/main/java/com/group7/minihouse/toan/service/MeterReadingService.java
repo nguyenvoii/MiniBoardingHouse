@@ -222,6 +222,9 @@ public class MeterReadingService {
     @Transactional
     public ReadingResponse confirmReading(Integer readingId) {
         MeterReading r = findReading(readingId);
+        if (Boolean.TRUE.equals(r.getPeriod().getIsClosed())) { // SRS 13#12: giong adjustReading, ky da dong thi khong doi
+            throw new BusinessException(HttpStatus.CONFLICT, "Ky ghi so da dong, khong the xac nhan chi so");
+        }
         r.setIsVerified(true);
         return toResponse(r);
     }

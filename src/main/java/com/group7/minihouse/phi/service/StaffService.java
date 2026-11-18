@@ -107,7 +107,9 @@ public class StaffService {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "Trang thai khong hop le (ACTIVE, LOCKED, INACTIVE)");
         }
         int s = size < 1 ? DEFAULT_SIZE : Math.min(size, MAX_SIZE);
-        PageRequest pageable = PageRequest.of(Math.max(page, 0), s, Sort.by(Sort.Direction.DESC, "createdAt"));
+        // trang tran so khong thanh 500; sap xep co khoa phu userId de cac dong cung createdAt khong nhay giua cac trang
+        PageRequest pageable = PageRequest.of(Math.min(Math.max(page, 0), 100_000), s,
+                Sort.by(Sort.Direction.DESC, "createdAt", "userId"));
 
         Page<User> result = userRepository.searchStaff(likePattern(keyword), st, STAFF_ROLES, pageable);
         Map<Integer, List<String>> rolesByUser = rolesOf(result.getContent());
@@ -272,7 +274,7 @@ public class StaffService {
         if (k.isEmpty()) {
             return "%";
         }
-        String escaped = k.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+        String escaped = k.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_").replace("[", "\\[");
         return "%" + escaped + "%";
     }
 

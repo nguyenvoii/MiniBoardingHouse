@@ -184,7 +184,7 @@ public class ContractService {
             throw bad("Trang thai khong hop le (ACTIVE, EXPIRING_SOON, EXPIRED, TERMINATED)");
         }
         int s = size < 1 ? 20 : Math.min(size, 100);
-        PageRequest pageable = PageRequest.of(Math.max(page, 0), s,
+        PageRequest pageable = PageRequest.of(Math.min(Math.max(page, 0), 100_000), s,
                 Sort.by(Sort.Direction.DESC, "createdAt").and(Sort.by(Sort.Direction.DESC, "contractId")));
         return new PageResponse<>(repo.search(likePattern(keyword), st, pageable).map(ContractService::toResponse));
     }
@@ -585,7 +585,7 @@ public class ContractService {
         if (k.isEmpty()) {
             return "%";
         }
-        return "%" + k.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
+        return "%" + k.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_").replace("[", "\\[") + "%";
     }
 
     private static String limit(String s) {
