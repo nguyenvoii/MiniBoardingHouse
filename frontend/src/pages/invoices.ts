@@ -1,10 +1,10 @@
 import { h } from '../lib/dom';
 import { icon } from '../lib/icons';
-import { api, errText, loadSession } from '../lib/api';
+import { api, can, errText, loadSession } from '../lib/api';
 import { getMonth } from '../lib/ctx';
 import { date, money, monthLabel } from '../lib/format';
 import type { Invoice, InvoiceDetail } from '../data/types';
-import { dl, emptyState, input, openDialog, pageHead, plate, select, statusBadge, table, toast } from '../ui/kit';
+import { confirmDialog, dl, emptyState, field, formError, input, openDialog, pageHead, plate, select, statusBadge, table, toast } from '../ui/kit';
 import { openPaymentDialog } from './payments';
 import { PROPERTY_ID } from '../lib/api';
 
@@ -83,4 +83,28 @@ async function openInvoice(id: number, reload: () => void): Promise<void> {
     } catch (e) { toast(errText(e), 'err'); }
   });
   d.foot.append(print, mail, pay);
+
+  if (inv.paymentStatus === 'CANCELLED' && can('LANDLORD', 'MANAGER')) {
+    const re = h('button', { class: 'btn secondary' }, icon('send', 16), 'Phát hành lại');
+    re.addEventListener('click', async () => {
+      try { await api.post('/api/invoices', { calculatedFeeId: inv.calculatedFeeId }); d.close(); toast('Đã phát hành lại hóa đơn'); reload(); }
+      catch (e) { toast(errText(e), 'err'); }
+    });
+    d.body.append(h('div', { class: 'danger-zone' }, h('p', null, 'Hóa đơn này đã hủy. Nếu kỳ tính tiền còn đúng, phát hành lại để người thuê thấy hóa đơn mới.'), re));
+  } else if (inv.paymentStatus !== 'CANCELLED') {
+    const reason = h('textarea', { class: 'textarea', maxlength: '500', placeholder: 'Lý do hủy (bắt buộc), ví dụ: phát hành nhầm kỳ, sai chỉ số' }) as HTMLTextAreaElement;
+    const err = h('div');
+    const cancel = h('button', { class: 'btn danger' }, 'Hủy hóa đơn');
+    cancel.addEventListener('click', async () => {
+      err.replaceChildren();
+      if (!reason.value.trim()) { err.replaceChildren(formError('Nhập lý do hủy hóa đơn.')); reason.focus(); return; }
+      if (!(await confirmDialog('Hủy hóa đơn', `Hủy hóa đơn ${inv.invoiceCode}? Người thuê không còn thấy hóa đơn này. Chỉ hủy được khi chưa thu tiền. Sau đó bạn mở lại kỳ để sửa hoặc phát hành lại.`, 'Hủy hóa đơn', true))) return;
+      try {
+        await api.patch(`/api/invoices/${id}/cancel`, { reason: reason.value.trim() });
+        d.close(); toast('Đã hủy hóa đơn'); reload();
+      } catch (e) { err.replaceChildren(formError(errText(e))); }
+    });
+    d.body.append(h('details', { class: 'danger-zone' }, h('summary', { style: 'cursor:pointer;font-weight:600' }, 'Hủy hóa đơn (phát hành nhầm)'),
+      h('p', null, 'Chỉ dùng khi phát hành nhầm hoặc sai số liệu và chưa thu tiền.'), err, field('Lý do hủy', reason), cancel));
+  }
 }
