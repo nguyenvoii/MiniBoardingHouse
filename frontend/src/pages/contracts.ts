@@ -1,6 +1,6 @@
 import { h, busy } from '../lib/dom';
 import { icon } from '../lib/icons';
-import { api, errText, Page } from '../lib/api';
+import { api, ApiError, errText, Page } from '../lib/api';
 import { date, dateTime, money } from '../lib/format';
 import { loadLive } from '../data/live';
 import type { Contract, ContractDetail } from '../data/types';
@@ -90,6 +90,8 @@ async function openContract(id: number, reload: () => void): Promise<void> {
   const c = detail.contract;
   const history = detail.adjustments.filter((a) => !(isNum(a.oldValue) && isNum(a.newValue) && Number(a.oldValue) === Number(a.newValue)));
   const live = c.status === 'ACTIVE' || c.status === 'EXPIRING_SOON';
+  // hết hạn mà chưa thanh lý: khách vẫn ở, nên vẫn trả phòng, chấm dứt, gia hạn được
+  const occupying = live || c.status === 'EXPIRED';
   const d = openDialog(`Hợp đồng ${c.contractCode}`, { drawer: true, width: 620 });
   const refresh = () => { d.close(); reload(); void openContract(id, reload); };
   const status = h('div', { class: 'stack', style: 'gap:8px' });
@@ -111,24 +113,24 @@ async function openContract(id: number, reload: () => void): Promise<void> {
         : h('p', { class: 'muted' }, 'Chưa có thay đổi nào.')),
   );
 
-  const act = (label: string, ic: Parameters<typeof icon>[0], fn: () => void, cls = 'secondary') =>
-    h('button', { class: `btn ${cls} sm`, disabled: !live, onclick: fn }, icon(ic, 14), label);
+  const act = (label: string, ic: Parameters<typeof icon>[0], fn: () => void, cls = 'secondary', enabled = live) =>
+    h('button', { class: `btn ${cls} sm`, disabled: !enabled, title: enabled ? null : 'Hợp đồng không còn hiệu lực', onclick: fn }, icon(ic, 14), label);
   const pdf = h('button', { class: 'btn secondary sm', onclick: () => api.download(`/api/contracts/${id}/pdf`, `hop-dong-${c.contractCode}.pdf`).catch((e) => toast(errText(e), 'err')) }, icon('download', 14), 'Tải PDF');
   d.foot.append(
     h('div', { style: 'display:flex;gap:6px;flex-wrap:wrap;margin-right:auto' },
       pdf, act('Gửi khách', 'send', async () => { try { toast(await sendMsg(id)); } catch (e) { toast(errText(e), 'err'); } }),
       act('Ký', 'sign', () => signPad(id, refresh))),
     h('div', { style: 'display:flex;gap:6px;flex-wrap:wrap' },
-      act('Sửa điều khoản', 'edit', () => editTerms(c, refresh)), act('Gia hạn', 'calendar', () => extend(c, refresh)),
+      act('Sửa điều khoản', 'edit', () => editTerms(c, refresh)), act('Gia hạn', 'calendar', () => extend(c, refresh), 'secondary', occupying),
       act('Đổi phòng', 'key', () => transfer(c, refresh))),
   );
-  if (live) {
+  if (occupying) {
     d.body.append(h('div', { class: 'stack', style: 'gap:10px' },
       h('div', { class: 'panel-body', style: 'border:1px solid var(--line);border-radius:10px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap' },
-        h('div', null, h('b', null, 'Khách trả phòng?'), h('p', { class: 'muted', style: 'margin:2px 0 0' }, 'Làm thủ tục Trả phòng: kiểm tra phòng, quyết toán công nợ với tiền cọc, hoàn cọc rồi mới thanh lý hợp đồng.')),
+        h('div', null, h('b', null, c.status === 'EXPIRED' ? 'Hợp đồng đã hết hạn, khách còn ở. Khách trả phòng hay gia hạn?' : 'Khách trả phòng?'), h('p', { class: 'muted', style: 'margin:2px 0 0' }, 'Làm thủ tục Trả phòng: kiểm tra phòng, quyết toán công nợ với tiền cọc, hoàn cọc rồi mới thanh lý hợp đồng.')),
         h('a', { class: 'btn', href: `#/checkout?contract=${c.contractId}`, onclick: () => d.close() }, icon('logout', 16), 'Làm thủ tục trả phòng')),
       h('details', { class: 'danger-zone' }, h('summary', { style: 'cursor:pointer;font-weight:600' }, 'Chấm dứt hợp đồng sớm (hiếm, không hoàn tác)'),
-        h('p', null, 'Chỉ dùng khi hợp đồng phải dừng ngay mà không qua trả phòng, ví dụ nhập nhầm hoặc hai bên hủy trước khi vào ở. Không chấm dứt được khi còn nợ.'),
+        h('p', null, 'Chỉ dùng khi hợp đồng phải dừng ngay mà không qua trả phòng, ví dụ nhập nhầm hoặc hai bên hủy trước khi vào ở. Không chấm dứt được khi còn nợ hoặc khi đang có yêu cầu trả phòng chưa xong.'),
         h('button', { class: 'btn danger', onclick: () => void terminate(c, refresh) }, icon('x', 16), 'Chấm dứt hợp đồng sớm'))));
   }
 }
@@ -205,17 +207,32 @@ async function terminate(c: Contract, done: () => void): Promise<void> {
   const err = h('div');
   const reason = h('textarea', { class: 'textarea', placeholder: 'Ví dụ: Hai bên thỏa thuận hủy, khách chưa vào ở (ít nhất 10 ký tự)' }) as HTMLTextAreaElement;
   const code = input({ placeholder: `Gõ ${c.roomCode}`, autocomplete: 'off', 'aria-label': 'Gõ lại mã phòng để xác nhận' });
+  const fe = input({ type: 'number', min: '0', class: 'input num-in', placeholder: 'Số điện cuối (tùy chọn)' });
+  const fw = input({ type: 'number', min: '0', class: 'input num-in', placeholder: 'Số nước cuối (tùy chọn)' });
   d.body.append(err,
-    h('p', null, `Hợp đồng ${c.contractCode} dừng ngay, phòng ${c.roomCode} trở về trống và không hoàn tác được. Tiền cọc không được quyết toán ở đây.`),
+    h('p', null, `Hợp đồng ${c.contractCode} dừng ngay, phòng ${c.roomCode} trở về trống và không hoàn tác được. Tiền cọc không được quyết toán ở đây; cần hoàn cọc thì dùng Trả phòng.`),
     field('Lý do (bắt buộc)', reason),
+    h('div', { class: 'form-grid' }, field('Số điện cuối (không bắt buộc)', fe, 'Nhập cả điện và nước nếu muốn chốt số cuối'), field('Số nước cuối (không bắt buộc)', fw)),
     field(`Gõ lại mã phòng ${c.roomCode} để xác nhận`, code));
   const ok = h('button', { class: 'btn danger', disabled: true }, 'Chấm dứt hợp đồng');
   d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Giữ hợp đồng'), ok);
   const check = () => { (ok as HTMLButtonElement).disabled = reason.value.trim().length < 10 || code.value.trim().toLowerCase() !== c.roomCode.toLowerCase(); };
   reason.addEventListener('input', check); code.addEventListener('input', check);
   ok.addEventListener('click', () => busy(ok, async () => {
-    try { await api.post(`/api/contracts/${c.contractId}/terminate`, { reason: reason.value.trim(), confirmRoomCode: code.value.trim() }); d.close(); toast('Đã chấm dứt hợp đồng'); done(); }
-    catch (x) { err.replaceChildren(formError(errText(x))); }
+    if ((fe.value === '') !== (fw.value === '')) { err.replaceChildren(formError('Muốn chốt số cuối thì nhập đủ cả số điện và số nước, hoặc để trống cả hai.')); return; }
+    try {
+      await api.post(`/api/contracts/${c.contractId}/terminate`, {
+        reason: reason.value.trim(), confirmRoomCode: code.value.trim(),
+        finalElectricMeter: fe.value === '' ? null : Number(fe.value), finalWaterMeter: fw.value === '' ? null : Number(fw.value),
+      });
+      d.close(); toast('Đã chấm dứt hợp đồng'); done();
+    } catch (x) {
+      // 409: phòng đang có yêu cầu trả phòng chưa xong, phải xử lý bên Trả phòng
+      if (x instanceof ApiError && x.status === 409 && /tra phong/i.test(x.message)) {
+        err.replaceChildren(formError('Hợp đồng đang có yêu cầu trả phòng chưa xử lý. Hãy hoàn tất thanh lý hoặc hủy yêu cầu ở màn Trả phòng trước, rồi chấm dứt lại.'),
+          h('a', { class: 'btn secondary sm', href: `#/checkout?contract=${c.contractId}`, onclick: d.close }, 'Mở Trả phòng'));
+      } else err.replaceChildren(formError(errText(x)));
+    }
   }));
 }
 

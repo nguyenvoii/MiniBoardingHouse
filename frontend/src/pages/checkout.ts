@@ -1,6 +1,6 @@
 import { h, busy } from '../lib/dom';
 import { icon } from '../lib/icons';
-import { api, errText, Page } from '../lib/api';
+import { api, ApiError, errText, Page } from '../lib/api';
 import { date, dateTime, money } from '../lib/format';
 import { liveContracts } from '../data/live';
 import { confirmDialog, dl, emptyState, field, formError, input, openDialog, pageHead, card, plate, select, statusBadge, table, toast } from '../ui/kit';
@@ -14,7 +14,11 @@ interface Checkout {
 }
 interface Inspection {
   finalElectricMeter: number; finalWaterMeter: number; damagedEquipmentsDescription: string | null; damageCompensationAmount: number;
-  inspectionPhotoUrl: string | null; inspectedAt: string;
+  inspectionPhotoUrl: string | null; inspectedAt: string; meterRecorded: boolean;
+}
+interface CheckinRecord {
+  checkinDate: string | null; initialElectricMeter: number | null; initialWaterMeter: number | null; keyHandedCount: number | null;
+  furnishingsCondition: string | null; notes: string | null; inspectionPhotoUrl: string | null; tenantConfirmed: boolean | null; inspectedByName: string | null;
 }
 interface Settlement {
   originalDeposit: number; debtTotal: number; damageTotal: number; deductedDebt: number; deductedDamage: number; refundable: number; tenantMustPay: number;
@@ -22,7 +26,7 @@ interface Settlement {
   contractDeposit: number; depositCollected: number; finalMonthBilled: boolean;
 }
 interface Voucher { refundId: number; actualRefundAmount: number; refundDate: string | null; status: string }
-interface Handover { checkout: Checkout; inspection: Inspection | null; settlement: Settlement; refundVoucher: Voucher | null }
+interface Handover { checkout: Checkout; inspection: Inspection | null; settlement: Settlement; refundVoucher: Voucher | null; checkin: CheckinRecord | null }
 
 const STEPS = ['Yêu cầu', 'Kiểm tra phòng', 'Quyết toán', 'Hoàn cọc', 'Thanh lý'];
 
@@ -68,11 +72,11 @@ async function createCheckout(done: (id: number) => void, preContract: number | 
   const d = openDialog('Tạo yêu cầu trả phòng', { width: 520 });
   const err = h('div');
   if (!contracts.length) {
-    d.body.append(h('p', { class: 'muted' }, 'Chưa có hợp đồng nào còn hiệu lực để trả phòng.'));
+    d.body.append(h('p', { class: 'muted' }, 'Chưa có hợp đồng nào còn hiệu lực, hoặc đã hết hạn mà khách còn ở, để trả phòng.'));
     d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Đóng'));
     return;
   }
-  const contract = select(contracts.map((c) => [String(c.contractId), `${c.roomCode} · ${c.tenantName} · ${c.contractCode}`] as [string, string]), preContract ? String(preContract) : '');
+  const contract = select(contracts.map((c) => [String(c.contractId), `${c.roomCode} · ${c.tenantName} · ${c.contractCode}${c.status === 'EXPIRED' ? ' · đã hết hạn, khách còn ở' : ''}`] as [string, string]), preContract ? String(preContract) : '');
   const expected = input({ type: 'date', value: new Date().toISOString().slice(0, 10), min: new Date().toISOString().slice(0, 10) });
   d.body.append(err, field('Hợp đồng', contract), field('Ngày trả phòng dự kiến', expected, 'Không chọn ngày trong quá khứ'));
   const ok = h('button', { class: 'btn' }, 'Tạo yêu cầu');
@@ -95,11 +99,13 @@ async function openCheckout(id: number, reload: () => void): Promise<void> {
     try {
       c = await api.get<Checkout>(`/api/checkout-requests/${id}`);
     } catch (e) { d.body.replaceChildren(formError(errText(e))); return; }
-    const [ins, st, v] = await Promise.all([
+    const [ins, st, v, report] = await Promise.all([
       api.get<Inspection>(`/api/checkout-requests/${id}/inspection`).catch(() => null),
       api.get<Settlement>(`/api/checkout-requests/${id}/settlement`).catch(() => null),
       api.get<Voucher>(`/api/checkout-requests/${id}/refund-voucher`).catch(() => null),
+      api.get<Handover>(`/api/checkout-requests/${id}/handover-report`).catch(() => null),
     ]);
+    const checkin = report?.checkin ?? null;
     const open = c.status === 'PENDING' || c.status === 'INSPECTING';
     const step = stepOf(c, ins, v);
     const after = async (fn: () => Promise<unknown>, msg: string) => {
@@ -114,9 +120,21 @@ async function openCheckout(id: number, reload: () => void): Promise<void> {
       body.push(h('ol', { class: 'steps', 'aria-label': 'Các bước trả phòng' },
         ...STEPS.map((s, i) => h('li', { class: i < step ? 'done' : i === step ? 'now' : '', 'aria-current': i === step ? 'step' : null }, h('span', { class: 'n' }, i < step ? icon('check', 12) : String(i + 1)), s))));
     }
+    if (checkin) {
+      body.push(card('Lúc nhận phòng (để đối chiếu)', dl([
+        ['Ngày nhận phòng', date(checkin.checkinDate)], ['Chỉ số điện đầu', checkin.initialElectricMeter ?? '–'], ['Chỉ số nước đầu', checkin.initialWaterMeter ?? '–'],
+        ['Số chìa khóa đã giao', checkin.keyHandedCount ?? '–'],
+        ['Nội thất lúc nhận', checkin.furnishingsCondition ? h('span', { style: 'white-space:pre-line' }, checkin.furnishingsCondition) : '–'],
+        ['Ghi chú', checkin.notes ? h('span', { style: 'white-space:pre-line' }, checkin.notes) : '–'],
+        ['Người lập', checkin.inspectedByName ?? '–'], ['Khách đã xác nhận', checkin.tenantConfirmed ? 'Có' : 'Chưa'],
+      ])));
+    } else if (report) {
+      body.push(h('p', { class: 'muted' }, 'Hợp đồng này chưa có biên bản nhận phòng, nên không có số đầu và nội thất để đối chiếu.'));
+    }
     if (ins) {
       body.push(card('Hiện trạng phòng', dl([
         ['Chỉ số điện cuối', ins.finalElectricMeter], ['Chỉ số nước cuối', ins.finalWaterMeter],
+        ['Đã vào chỉ số điện nước', ins.meterRecorded ? h('span', { class: 'st ok' }, icon('check', 14), 'Đã ghi vào kỳ chỉ số') : h('span', { class: 'st warn' }, icon('warn', 14), 'Chưa ghi (không có kỳ ghi chỉ số đang mở)')],
         ['Thiết bị hư hỏng', ins.damagedEquipmentsDescription ? h('span', { style: 'white-space:pre-line' }, ins.damagedEquipmentsDescription) : 'Không có'],
         ['Tiền bồi thường', `${money(ins.damageCompensationAmount)} ₫`], ['Ghi nhận lúc', dateTime(ins.inspectedAt)],
         ['Ảnh hiện trạng', ins.inspectionPhotoUrl ? h('a', { href: ins.inspectionPhotoUrl, target: '_blank', rel: 'noopener' }, 'Mở ảnh') : '–'],
@@ -127,7 +145,9 @@ async function openCheckout(id: number, reload: () => void): Promise<void> {
     if (st && (ins || v || c.status === 'FINALIZED')) {
       body.push(card('Quyết toán tiền cọc', [
         st.finalMonthBilled ? null : h('div', { class: 'route-next', style: 'background:var(--warn-bg);border-color:#e8c46a' }, icon('alert', 20),
-          h('p', { style: 'flex:1' }, h('b', null, 'Chưa tính tiền tháng cuối. '), 'Chưa có hóa đơn cho tháng trả phòng (tiền phòng theo ngày, điện nước). Chốt chỉ số và phát hành hóa đơn tháng này trước khi hoàn cọc để khoản đó được trừ vào cọc.'),
+          h('p', { style: 'flex:1' }, h('b', null, 'Chưa có hóa đơn tháng cuối. '), ins?.meterRecorded
+            ? 'Số điện nước cuối đã được ghi vào kỳ chỉ số khi lập biên bản. Hãy tính tiền và phát hành hóa đơn tháng này (tiền phòng tính theo ngày ở) rồi mới lập phiếu hoàn cọc, để khoản đó được trừ vào cọc.'
+            : 'Số điện nước cuối chưa vào kỳ chỉ số nào. Tạo kỳ ghi chỉ số của tháng, lưu lại hiện trạng phòng, rồi tính tiền và phát hành hóa đơn tháng cuối trước khi lập phiếu hoàn cọc.'),
           h('a', { class: 'btn secondary sm', href: '#/billing' }, 'Mở Tính tiền')),
         st.depositCollected < st.contractDeposit ? h('div', { class: 'route-next', style: 'background:var(--warn-bg);border-color:#e8c46a' }, icon('alert', 20),
           h('p', null, h('b', null, 'Cọc chưa thu đủ. '), `Hợp đồng ghi ${money(st.contractDeposit)} ₫ nhưng mới thu ${money(st.depositCollected)} ₫. Chỉ hoàn phần đã thu.`)) : null,
@@ -137,6 +157,7 @@ async function openCheckout(id: number, reload: () => void): Promise<void> {
           ['Hoàn lại cho khách', h('b', null, `${money(st.refundable)} ₫`)],
           ['Khách còn phải trả thêm', st.tenantMustPay > 0 ? h('b', { style: 'color:var(--danger)' }, `${money(st.tenantMustPay)} ₫`) : '0 ₫'],
         ]),
+        st.tenantMustPay > 0 ? h('div', { class: 'route-next', style: 'background:var(--warn-bg);border-color:#e8c46a' }, icon('alert', 20), h('p', null, h('b', null, `Khoản vượt cọc: ${money(st.tenantMustPay)} ₫. `), 'Tiền cọc không đủ trừ hết công nợ và bồi thường nên không có tiền hoàn lại. Khoản vượt này khách phải trả thêm; hệ thống chỉ ghi nhận số tiền, hãy thu riêng và ghi nhận thanh toán ở hóa đơn.')) : null,
         st.unpaidInvoices.length ? h('div', null, h('h3', { style: 'margin:10px 0 6px' }, 'Hóa đơn còn nợ'),
           ...st.unpaidInvoices.map((i) => h('div', { class: 'muted' }, `${i.invoiceCode} · hạn ${date(i.dueDate)} · còn ${money(i.remainingAmount)} ₫`))) : null,
       ].filter(Boolean) as Node[]));
@@ -170,6 +191,13 @@ async function openCheckout(id: number, reload: () => void): Promise<void> {
           await after(() => api.post(`/api/refund-vouchers/${v.refundId}/pay`), 'Đã ghi nhận hoàn cọc');
         }
       })()));
+    }
+    if (v && v.status === 'PENDING' && c.status === 'INSPECTING') {
+      foot.push(act('Hủy phiếu hoàn cọc', () => void (async () => {
+        if (await confirmDialog('Hủy phiếu hoàn cọc', `Hủy phiếu hoàn ${money(v.actualRefundAmount)} ₫? Sau đó bạn sửa được hiện trạng phòng và lập phiếu mới. Chưa có tiền nào được hoàn.`, 'Hủy phiếu', true)) {
+          await after(() => api.del(`/api/checkout-requests/${id}/refund-voucher`), 'Đã hủy phiếu hoàn cọc');
+        }
+      })(), 'secondary'));
     }
     if (v && v.status === 'REFUNDED' && c.status === 'INSPECTING') {
       foot.push(act('Thanh lý hợp đồng', () => void (async () => {
@@ -233,14 +261,36 @@ function inspectDialog(c: Checkout, ins: Inspection | null, done: () => void): v
   d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Hủy'), ok);
   ok.addEventListener('click', () => busy(ok, async () => {
     err.replaceChildren();
+    clearFieldErr(elec);
+    clearFieldErr(water);
     if (elec.value === '' || water.value === '') { err.replaceChildren(formError('Nhập chỉ số điện và nước cuối.')); return; }
     const damages = rows.filter((r) => r.name.value.trim()).map((r) => ({ name: r.name.value.trim(), cost: Number(r.cost.value) || 0 }));
     try {
       await api.put(`/api/checkout-requests/${c.checkoutId}/inspection`, { finalElectricMeter: Number(elec.value), finalWaterMeter: Number(water.value), damages, inspectionPhotoUrl: photo.value.trim() || null });
       d.close();
       done();
-    } catch (e) { err.replaceChildren(formError(errText(e))); }
+    } catch (e) {
+      // lỗi 400 «số cuối nhỏ hơn số kỳ trước»: hiện ngay cạnh ô sai thay vì chỉ ở đầu hộp thoại
+      const m = e instanceof ApiError && e.status === 400 ? /Chi so (dien|nuoc) cuoi \((\d+)\) nho hon chi so ky truoc \((\d+)\)/.exec(e.message) : null;
+      if (m) {
+        const target = m[1] === 'dien' ? elec : water;
+        fieldErr(target, `Số ${m[1] === 'dien' ? 'điện' : 'nước'} cuối (${m[2]}) nhỏ hơn chỉ số kỳ trước (${m[3]}). Kiểm tra lại số vừa nhập trên công tơ.`);
+        target.focus();
+      } else err.replaceChildren(formError(errText(e)));
+    }
   }));
+}
+
+function clearFieldErr(inp: HTMLInputElement): void {
+  inp.removeAttribute('aria-invalid');
+  inp.parentElement?.querySelectorAll('.field-err').forEach((n) => n.remove());
+}
+
+function fieldErr(inp: HTMLInputElement, msg: string): void {
+  clearFieldErr(inp);
+  inp.setAttribute('aria-invalid', 'true');
+  inp.parentElement?.append(h('span', { class: 'hint field-err', role: 'alert', style: 'color:var(--danger)' }, msg));
+  inp.addEventListener('input', () => clearFieldErr(inp), { once: true });
 }
 
 const esc = (s: string | number | null | undefined) => String(s ?? '').replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch] as string));
