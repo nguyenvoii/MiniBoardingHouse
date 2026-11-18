@@ -6,6 +6,11 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import jakarta.servlet.http.HttpServletRequest;
+import com.group7.minihouse.shared.security.AuthUser;
+import com.group7.minihouse.shared.security.CurrentUser;
 import com.group7.minihouse.toan.dto.PaymentDtos.*;
 import com.group7.minihouse.toan.service.PartialPaymentService;
 import com.group7.minihouse.toan.service.PrepaymentService;
@@ -107,13 +112,18 @@ public class PaymentController {
     }
 
     @PostMapping("/prepayments/refund")
-    public PrepaymentResponse refund(@RequestBody RefundRequest req) {
-        return prepaymentService.refund(req);
+    @PreAuthorize("hasAnyRole('LANDLORD','MANAGER')")
+    public PrepaymentResponse refund(@RequestBody RefundRequest req,
+                                     @AuthenticationPrincipal AuthUser actor,
+                                     HttpServletRequest http) {
+        return prepaymentService.refund(req, CurrentUser.requireUserId(actor), http.getRemoteAddr());
     }
 
     @PostMapping("/payment-transactions/{id}/reverse")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void reverse(@PathVariable("id") Integer id) {
-        prepaymentService.reverseTransaction(id);
+    @PreAuthorize("hasAnyRole('LANDLORD','MANAGER')")
+    public void reverse(@PathVariable("id") Integer id, @AuthenticationPrincipal AuthUser actor,
+                        HttpServletRequest http) {
+        prepaymentService.reverseTransaction(id, CurrentUser.requireUserId(actor), http.getRemoteAddr());
     }
 }

@@ -17,6 +17,15 @@ import com.group7.minihouse.shared.entity.CalculatedMonthlyFee;
 import com.group7.minihouse.shared.entity.FeeItemDetail;
 import com.group7.minihouse.shared.entity.Invoice;
 import com.group7.minihouse.shared.entity.InvoiceNotification;
+import com.group7.minihouse.shared.entity.User;
+import com.group7.minihouse.shared.entity.UserActivityLog;
+import com.group7.minihouse.shared.exception.BusinessException;
+import com.group7.minihouse.toan.dto.CancelInvoiceRequest;
+import com.group7.minihouse.toan.dto.CancelInvoiceResponse;
+import com.group7.minihouse.toan.repository.ToanPaymentTransactionRepository;
+import com.group7.minihouse.toan.repository.PartialPaymentLogRepository;
+import com.group7.minihouse.toan.repository.ToanUserActivityLogRepository;
+import com.group7.minihouse.toan.repository.ToanUserRepository;
 import com.group7.minihouse.toan.repository.InvoiceNotificationRepository;
 import com.group7.minihouse.toan.repository.InvoiceRepository;
 import jakarta.persistence.EntityManager;
@@ -39,33 +48,54 @@ public class InvoiceService {
     private final InvoiceBalanceCalculator calculator;
     private final PrepaymentService prepaymentService;
     private final ObjectProvider<InvoiceMailGateway> mailGateway;
+    private final ToanPaymentTransactionRepository paymentTransactionRepo;
+    private final PartialPaymentLogRepository partialPaymentLogRepo;
+    private final ToanUserActivityLogRepository activityLogRepo;
+    private final ToanUserRepository userRepo;
 
     @PersistenceContext
     private EntityManager em;
 
     public InvoiceService(InvoiceRepository invoiceRepo, InvoiceNotificationRepository notificationRepo,
                           InvoiceBalanceCalculator calculator, PrepaymentService prepaymentService,
-                          ObjectProvider<InvoiceMailGateway> mailGateway) {
+                          ObjectProvider<InvoiceMailGateway> mailGateway,
+                          ToanPaymentTransactionRepository paymentTransactionRepo,
+                          PartialPaymentLogRepository partialPaymentLogRepo,
+                          ToanUserActivityLogRepository activityLogRepo, ToanUserRepository userRepo) {
         this.invoiceRepo = invoiceRepo;
         this.notificationRepo = notificationRepo;
         this.calculator = calculator;
         this.prepaymentService = prepaymentService;
         this.mailGateway = mailGateway;
+        this.paymentTransactionRepo = paymentTransactionRepo;
+        this.partialPaymentLogRepo = partialPaymentLogRepo;
+        this.activityLogRepo = activityLogRepo;
+        this.userRepo = userRepo;
     }
 
     // ------------------------------------------------------------------ UC 79: phat hanh
 
     @Transactional
     public InvoiceResponse issue(IssueRequest req) {
-        if (req.calculatedFeeId() == null) {
-            throw bad("Thieu calculatedFeeId");
-        }
-        return toResponse(issueOne(req.calculatedFeeId(), req.issueDate(), req.dueDate()));
+        return issue(req, null, null);
+    }
+
+    @Transactional
+    public InvoiceResponse issue(IssueRequest req, Integer actorUserId, String ipAddress) {
+        if (req.calculatedFeeId() == null) throw bad("Thiếu mã bảng tính tiền");
+        Invoice invoice = issueOne(req.calculatedFeeId(), req.issueDate(), req.dueDate());
+        writeActivity(actorUserId, "CREATE_INVOICE", "Phát hành hóa đơn " + invoice.getInvoiceCode(), ipAddress);
+        return toResponse(invoice);
     }
 
     /** Phat hanh hang loat cho moi phong cua mot ky tinh tien chua co hoa don. */
     @Transactional
     public List<InvoiceResponse> issueBatch(IssueBatchRequest req) {
+        return issueBatch(req, null, null);
+    }
+
+    @Transactional
+    public List<InvoiceResponse> issueBatch(IssueBatchRequest req, Integer actorUserId, String ipAddress) {
         if (req.billingPeriodId() == null) {
             throw bad("Thieu billingPeriodId");
         }
@@ -77,7 +107,9 @@ public class InvoiceService {
                 .setParameter("bp", req.billingPeriodId()).getResultList();
         List<InvoiceResponse> out = new ArrayList<>();
         for (Integer id : feeIds) {
-            out.add(toResponse(issueOne(id, req.issueDate(), req.dueDate())));
+            Invoice invoice = issueOne(id, req.issueDate(), req.dueDate());
+            writeActivity(actorUserId, "CREATE_INVOICE", "Phát hành hóa đơn " + invoice.getInvoiceCode(), ipAddress);
+            out.add(toResponse(invoice));
         }
         return out;
     }
@@ -115,6 +147,53 @@ public class InvoiceService {
         addNotification(inv, "SYSTEM_APP", "SENT"); // UC 79: thong bao hoa don moi
         prepaymentService.autoDeduct(inv);          // UC 92: can tru tien du ky truoc
         return inv;
+    }
+
+    // ------------------------------------------------------------------ UC126: huy hoa don phat hanh nham
+
+    /** UC126: chỉ hủy hóa đơn chưa phát sinh khoản thu và ghi nhật ký cùng transaction. */
+    @Transactional
+    public CancelInvoiceResponse cancel(Integer invoiceId, CancelInvoiceRequest req,
+                                        Integer actorUserId, String ipAddress) {
+        if (req == null || req.reason() == null || req.reason().isBlank()) {
+            throw new BusinessException("Vui lòng nhập lý do hủy hóa đơn");
+        }
+        if (actorUserId == null) {
+            throw new BusinessException(HttpStatus.UNAUTHORIZED, "Không xác định được người thực hiện");
+        }
+
+        Invoice invoice = invoiceRepo.findByIdForUpdate(invoiceId)
+                .orElseThrow(() -> BusinessException.notFound("Hóa đơn"));
+        if ("CANCELLED".equals(invoice.getPaymentStatus())) {
+            throw new BusinessException(HttpStatus.CONFLICT, "Hóa đơn đã được hủy trước đó");
+        }
+
+        BigDecimal paidAmount = invoice.getPaidAmount() == null ? BigDecimal.ZERO : invoice.getPaidAmount();
+        boolean hasSuccessfulTransaction = paymentTransactionRepo
+                .existsByInvoiceInvoiceIdAndStatus(invoiceId, "SUCCESS");
+        boolean hasPartialCollection = partialPaymentLogRepo
+                .existsByInvoiceInvoiceIdAndAmountGreaterThan(invoiceId, BigDecimal.ZERO);
+        if (paidAmount.signum() > 0 || hasSuccessfulTransaction || hasPartialCollection) {
+            throw new BusinessException(HttpStatus.CONFLICT,
+                    "Không thể hủy hóa đơn vì đã phát sinh khoản thu. Vui lòng xử lý giao dịch theo quy trình hoàn/đảo tiền.");
+        }
+
+        User actor = userRepo.findById(actorUserId)
+                .orElseThrow(() -> BusinessException.notFound("Tài khoản người thực hiện"));
+        LocalDateTime cancelledAt = LocalDateTime.now();
+        invoice.setPaymentStatus("CANCELLED");
+
+        UserActivityLog log = new UserActivityLog();
+        log.setUser(actor);
+        log.setActionType("CANCEL_INVOICE");
+        log.setDescription("Hủy hóa đơn " + invoice.getInvoiceCode() + ". Lý do: " + req.reason().trim());
+        log.setIpAddress(ipAddress);
+        log.setCreatedAt(cancelledAt);
+        activityLogRepo.save(log);
+        invoiceRepo.flush();
+
+        return new CancelInvoiceResponse(invoice.getInvoiceId(), invoice.getInvoiceCode(),
+                invoice.getPaymentStatus(), req.reason().trim(), cancelledAt);
     }
 
     // ------------------------------------------------------------------ UC 78: chi tiet & in
@@ -249,6 +328,11 @@ public class InvoiceService {
 
     @Transactional
     public InvoiceResponse adjustTotal(Integer invoiceId, AdjustInvoiceRequest req) {
+        return adjustTotal(invoiceId, req, null, null);
+    }
+
+    @Transactional
+    public InvoiceResponse adjustTotal(Integer invoiceId, AdjustInvoiceRequest req, Integer actorUserId, String ipAddress) {
         Invoice inv = find(invoiceId);
         if (req.reason() == null || req.reason().isBlank()) {
             throw bad("Phai nhap ly do dieu chinh hoa don");
@@ -264,9 +348,11 @@ public class InvoiceService {
         addNotification(inv, "SYSTEM_APP", ST_ADJUSTED);
         String email = inv.getTenant().getEmail();
         if (email != null && !email.isBlank()) {
-            addNotification(inv, "EMAIL", dispatchEmail(inv, "Hoa don " + inv.getInvoiceCode()
-                    + " da duoc dieu chinh", "Ly do: " + req.reason().trim()));
+            addNotification(inv, "EMAIL", dispatchEmail(inv, "Hóa đơn " + inv.getInvoiceCode()
+                    + " đã được điều chỉnh", "Lý do: " + req.reason().trim()));
         }
+        writeActivity(actorUserId, "UPDATE_INVOICE", "Điều chỉnh hóa đơn " + inv.getInvoiceCode()
+                + ". Lý do: " + req.reason().trim(), ipAddress);
         return toResponse(inv);
     }
 
@@ -404,6 +490,19 @@ public class InvoiceService {
     private NotificationResponse toResponse(InvoiceNotification n) {
         return new NotificationResponse(n.getNotificationId(), n.getInvoice().getInvoiceId(), n.getChannel(),
                 n.getSentAt(), n.getStatus());
+    }
+
+    private void writeActivity(Integer actorUserId, String actionType, String description, String ipAddress) {
+        if (actorUserId == null) return;
+        User actor = userRepo.findById(actorUserId)
+                .orElseThrow(() -> BusinessException.notFound("Tài khoản người thao tác"));
+        UserActivityLog log = new UserActivityLog();
+        log.setUser(actor);
+        log.setActionType(actionType);
+        log.setDescription(description);
+        log.setIpAddress(ipAddress);
+        log.setCreatedAt(LocalDateTime.now());
+        activityLogRepo.save(log);
     }
 
     private static BigDecimal nz(BigDecimal v) {

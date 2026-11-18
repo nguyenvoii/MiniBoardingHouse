@@ -14,6 +14,10 @@ import com.group7.minihouse.shared.entity.PaymentTransaction;
 import com.group7.minihouse.shared.entity.PrepaymentDeduction;
 import com.group7.minihouse.shared.entity.Tenant;
 import com.group7.minihouse.shared.entity.TenantPrepayment;
+import com.group7.minihouse.shared.entity.User;
+import com.group7.minihouse.shared.entity.UserActivityLog;
+import com.group7.minihouse.toan.repository.ToanUserRepository;
+import com.group7.minihouse.toan.repository.ToanUserActivityLogRepository;
 import com.group7.minihouse.toan.repository.InvoiceRepository;
 import com.group7.minihouse.toan.repository.PrepaymentDeductionRepository;
 import com.group7.minihouse.toan.repository.TenantPrepaymentRepository;
@@ -33,16 +37,21 @@ public class PrepaymentService {
     private final PrepaymentDeductionRepository deductionRepo;
     private final InvoiceRepository invoiceRepo;
     private final InvoiceBalanceCalculator calculator;
+    private final ToanUserRepository userRepository;
+    private final ToanUserActivityLogRepository activityLogRepository;
 
     @PersistenceContext
     private EntityManager em;
 
     public PrepaymentService(TenantPrepaymentRepository prepaymentRepo, PrepaymentDeductionRepository deductionRepo,
-                             InvoiceRepository invoiceRepo, InvoiceBalanceCalculator calculator) {
+                             InvoiceRepository invoiceRepo, InvoiceBalanceCalculator calculator,
+                             ToanUserRepository userRepository, ToanUserActivityLogRepository activityLogRepository) {
         this.prepaymentRepo = prepaymentRepo;
         this.deductionRepo = deductionRepo;
         this.invoiceRepo = invoiceRepo;
         this.calculator = calculator;
+        this.userRepository = userRepository;
+        this.activityLogRepository = activityLogRepository;
     }
 
     @Transactional(readOnly = true)
@@ -62,7 +71,11 @@ public class PrepaymentService {
     /** Hoa don tra thua: phan vuot qua tong tien duoc chuyen sang tai khoan du cua khach. */
     @Transactional
     public PrepaymentResponse moveOverpaymentToBalance(Integer invoiceId) {
-        Invoice inv = findInvoice(invoiceId);
+        Invoice inv = invoiceRepo.findByIdForUpdate(invoiceId)
+                .orElseThrow(() -> notFound("Hoa don " + invoiceId));
+        if ("CANCELLED".equals(inv.getPaymentStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Không thể chuyển tiền dư từ hóa đơn đã hủy");
+        }
         BigDecimal excess = calculator.paidOf(inv).subtract(inv.getTotalAmount());
         if (excess.signum() <= 0) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Hoa don khong co tien tra thua");
@@ -81,11 +94,12 @@ public class PrepaymentService {
                 || req.amount().signum() <= 0) {
             throw bad("Can tenantId, targetInvoiceId, amount > 0");
         }
-        Invoice inv = findInvoice(req.targetInvoiceId());
+        Invoice inv = invoiceRepo.findByIdForUpdate(req.targetInvoiceId())
+                .orElseThrow(() -> notFound("Hoa don " + req.targetInvoiceId()));
         if (!inv.getTenant().getTenantId().equals(req.tenantId())) {
             throw bad("Hoa don khong thuoc khach thue nay");
         }
-        TenantPrepayment pre = prepaymentRepo.findByTenantTenantId(req.tenantId())
+        TenantPrepayment pre = prepaymentRepo.findByTenantIdForUpdate(req.tenantId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "Khach khong co tien du"));
         return toResponse(applyDeduction(pre, inv, req.amount()));
     }
@@ -121,22 +135,44 @@ public class PrepaymentService {
     /** Hoan tien mat cho khach tu tai khoan du. */
     @Transactional
     public PrepaymentResponse refund(RefundRequest req) {
+        return refund(req, null, null);
+    }
+
+    /** UC92: hoàn tiền từ số dư thừa; khóa số dư và ghi nhật ký người thực hiện trong cùng transaction. */
+    @Transactional
+    public PrepaymentResponse refund(RefundRequest req, Integer actorUserId, String ipAddress) {
         if (req.tenantId() == null || req.amount() == null || req.amount().signum() <= 0) {
             throw bad("Can tenantId, amount > 0");
         }
-        TenantPrepayment pre = prepaymentRepo.findByTenantTenantId(req.tenantId())
+        TenantPrepayment pre = prepaymentRepo.findByTenantIdForUpdate(req.tenantId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "Khach khong co tien du"));
         if (pre.getExcessBalance().compareTo(req.amount()) < 0) {
             throw bad("So tien hoan lon hon so du hien co (" + pre.getExcessBalance() + ")");
         }
         pre.setExcessBalance(pre.getExcessBalance().subtract(req.amount()));
         pre.setUpdatedAt(LocalDateTime.now());
+        if (actorUserId != null) {
+            User actor = userRepository.findById(actorUserId)
+                    .orElseThrow(() -> com.group7.minihouse.shared.exception.BusinessException.notFound("Tài khoản người thao tác"));
+            UserActivityLog log = new UserActivityLog();
+            log.setUser(actor);
+            log.setActionType("REFUND_PREPAYMENT");
+            log.setDescription("Hoàn tiền dư cho khách thuê " + req.tenantId() + ": " + req.amount());
+            log.setIpAddress(ipAddress);
+            log.setCreatedAt(LocalDateTime.now());
+            activityLogRepository.save(log);
+        }
         return toResponse(pre);
     }
 
     /** Huy giao dich thanh toan sai: danh dau REVERSED va tru khoi so da tra cua hoa don. */
     @Transactional
     public void reverseTransaction(Integer transactionId) {
+        reverseTransaction(transactionId, null, null);
+    }
+
+    @Transactional
+    public void reverseTransaction(Integer transactionId, Integer actorUserId, String ipAddress) {
         PaymentTransaction t = em.find(PaymentTransaction.class, transactionId);
         if (t == null) {
             throw notFound("Giao dich " + transactionId);
@@ -151,6 +187,17 @@ public class PrepaymentService {
         t.setStatus("REVERSED");
         calculator.setPaid(inv, calculator.paidOf(inv).subtract(t.getAmountPaid()).max(BigDecimal.ZERO),
                 LocalDate.now());
+        if (actorUserId != null) {
+            User actor = userRepository.findById(actorUserId)
+                    .orElseThrow(() -> com.group7.minihouse.shared.exception.BusinessException.notFound("Tài khoản người thao tác"));
+            UserActivityLog log = new UserActivityLog();
+            log.setUser(actor);
+            log.setActionType("REVERSE_PAYMENT");
+            log.setDescription("Đảo giao dịch " + transactionId + " của hóa đơn " + inv.getInvoiceCode());
+            log.setIpAddress(ipAddress);
+            log.setCreatedAt(LocalDateTime.now());
+            activityLogRepository.save(log);
+        }
     }
 
     // ------------------------------------------------------------------ helpers

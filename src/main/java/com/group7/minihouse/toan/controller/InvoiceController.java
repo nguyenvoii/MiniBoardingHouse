@@ -3,6 +3,15 @@ package com.group7.minihouse.toan.controller;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
+import com.group7.minihouse.shared.dto.ApiResponse;
+import com.group7.minihouse.shared.security.AuthUser;
+import com.group7.minihouse.shared.security.CurrentUser;
+import com.group7.minihouse.toan.dto.CancelInvoiceRequest;
+import com.group7.minihouse.toan.dto.CancelInvoiceResponse;
 import org.springframework.web.bind.annotation.*;
 import com.group7.minihouse.toan.dto.InvoiceDtos.*;
 import com.group7.minihouse.toan.service.InvoiceService;
@@ -18,17 +27,34 @@ public class InvoiceController {
         this.service = service;
     }
 
+    /** UC126: hủy hóa đơn phát hành nhầm khi chưa phát sinh khoản thu. */
+    @PatchMapping("/{id}/cancel")
+    @PreAuthorize("hasAnyRole('LANDLORD','MANAGER','CASHIER')")
+    public ApiResponse<CancelInvoiceResponse> cancel(
+            @PathVariable("id") Integer id,
+            @Valid @RequestBody CancelInvoiceRequest req,
+            @AuthenticationPrincipal AuthUser actor,
+            HttpServletRequest http) {
+        return ApiResponse.ok("Đã hủy hóa đơn", service.cancel(
+                id, req, CurrentUser.requireUserId(actor), http.getRemoteAddr()));
+    }
+
     // UC 79
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public InvoiceResponse issue(@RequestBody IssueRequest req) {
-        return service.issue(req);
+    @PreAuthorize("hasAnyRole('LANDLORD','MANAGER')")
+    public ApiResponse<InvoiceResponse> issue(@Valid @RequestBody IssueRequest req,
+            @AuthenticationPrincipal AuthUser actor, HttpServletRequest http) {
+        return ApiResponse.ok("Đã phát hành hóa đơn", service.issue(req, CurrentUser.requireUserId(actor), http.getRemoteAddr()));
     }
 
     @PostMapping("/batch")
     @ResponseStatus(HttpStatus.CREATED)
-    public List<InvoiceResponse> issueBatch(@RequestBody IssueBatchRequest req) {
-        return service.issueBatch(req);
+    @PreAuthorize("hasAnyRole('LANDLORD','MANAGER')")
+    public ApiResponse<List<InvoiceResponse>> issueBatch(@Valid @RequestBody IssueBatchRequest req,
+            @AuthenticationPrincipal AuthUser actor, HttpServletRequest http) {
+        return ApiResponse.ok("Đã phát hành hóa đơn theo lô",
+                service.issueBatch(req, CurrentUser.requireUserId(actor), http.getRemoteAddr()));
     }
 
     // UC 84
@@ -87,8 +113,11 @@ public class InvoiceController {
 
     // UC 83
     @PutMapping("/{id}/total")
-    public InvoiceResponse adjust(@PathVariable("id") Integer id, @RequestBody AdjustInvoiceRequest req) {
-        return service.adjustTotal(id, req);
+    @PreAuthorize("hasAnyRole('LANDLORD','MANAGER')")
+    public ApiResponse<InvoiceResponse> adjust(@PathVariable("id") Integer id, @Valid @RequestBody AdjustInvoiceRequest req,
+            @AuthenticationPrincipal AuthUser actor, HttpServletRequest http) {
+        return ApiResponse.ok("Đã điều chỉnh hóa đơn",
+                service.adjustTotal(id, req, CurrentUser.requireUserId(actor), http.getRemoteAddr()));
     }
 
     // UC 76

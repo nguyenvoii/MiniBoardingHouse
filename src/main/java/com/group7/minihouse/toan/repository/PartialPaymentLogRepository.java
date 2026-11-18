@@ -9,4 +9,6 @@ public interface PartialPaymentLogRepository extends JpaRepository<PartialPaymen
     List<PartialPaymentLog> findByInvoiceInvoiceIdOrderByInstallmentNumberAsc(Integer invoiceId);
 
     long countByInvoiceInvoiceId(Integer invoiceId);
+
+    boolean existsByInvoiceInvoiceIdAndAmountGreaterThan(Integer invoiceId, java.math.BigDecimal amount);
 }
