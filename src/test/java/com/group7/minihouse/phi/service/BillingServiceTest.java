@@ -229,6 +229,68 @@ class BillingServiceTest {
         assertThrows(BusinessException.class, () -> service.updateItem(30, new UpdateItemRequest(null, null), 5, "ip"));
     }
 
+    /** M1: dong nhap tay (tien to "✎ ") sua duoc so luong va don gia am (giam tru), khong bi bao "don gia khong duoc am". */
+    @Test
+    void manualNegativeLineCanBeEditedButNotZeroed() {
+        MonthlyBillingPeriod p = period("DRAFT");
+        CalculatedMonthlyFee f = new CalculatedMonthlyFee();
+        f.setCalculatedFeeId(20);
+        f.setBillingPeriod(p);
+        FeeItemDetail manual = item(BillingService.MANUAL + "Khuyen mai", "1", "-50000");
+        manual.setDetailId(32);
+        manual.setCalculatedFee(f);
+        when(itemRepo.findById(32)).thenReturn(Optional.of(manual));
+        when(itemRepo.findByCalculatedFeeCalculatedFeeIdOrderByDetailId(20)).thenReturn(List.of(manual));
+        try {
+            service.updateItem(32, new UpdateItemRequest(new BigDecimal("2"), null), 5, "ip");
+        } catch (NullPointerException expectedFromUnmockedResponseBuild) {
+            // phan tinh lai da chay truoc khi dung response
+        }
+        assertEquals(0, new BigDecimal("100000").compareTo(f.getDiscountAmount()));
+        assertEquals(HttpStatus.BAD_REQUEST, assertThrows(BusinessException.class,
+                () -> service.updateItem(32, new UpdateItemRequest(null, BigDecimal.ZERO), 5, "ip")).getStatus());
+    }
+
+    /** M2: phong thieu chi so thi chan duyet (dien nuoc se bang 0 roi khoa ky); force=true moi duyet duoc. */
+    @Test
+    void approveBlocksWhenRoomsMissingMeterReadingUnlessForced() {
+        MonthlyBillingPeriod p = period("DRAFT");
+        com.group7.minihouse.shared.entity.Room room = new com.group7.minihouse.shared.entity.Room();
+        room.setRoomId(8);
+        room.setRoomCode("P101");
+        CalculatedMonthlyFee f = new CalculatedMonthlyFee();
+        f.setRoom(room);
+        f.setTotalCalculatedAmount(new BigDecimal("100"));
+        when(feeRepo.findByPeriod(10)).thenReturn(List.of(f));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.approve(10, 5, "ip"));
+        assertEquals(HttpStatus.CONFLICT, ex.getStatus());
+        assertTrue(ex.getMessage().contains("P101"));
+        assertEquals("DRAFT", p.getStatus());
+
+        assertEquals("APPROVED", service.approve(10, 5, "ip", true).status());
+    }
+
+    /** T4: mo lai ky da duyet chi khi khong con hoa don dang hieu luc; tinh lai toan ky bi chan khi da co hoa don. */
+    @Test
+    void reopenOnlyWithoutActiveInvoicesAndRecalcBlockedOnceInvoiced() {
+        MonthlyBillingPeriod p = period("APPROVED");
+        when(emptyQuery.getSingleResult()).thenReturn(2L);
+        assertEquals(HttpStatus.CONFLICT,
+                assertThrows(BusinessException.class, () -> service.reopen(10, 5, "ip")).getStatus());
+        assertEquals("APPROVED", p.getStatus());
+
+        when(emptyQuery.getSingleResult()).thenReturn(0L);
+        assertEquals("DRAFT", service.reopen(10, 5, "ip").status());
+
+        when(emptyQuery.getSingleResult()).thenReturn(1L); // con hoa don da huy: sua tung khoan, khong tinh lai
+        assertEquals(HttpStatus.CONFLICT,
+                assertThrows(BusinessException.class, () -> service.calculate(10, 5, "ip")).getStatus());
+
+        p.setStatus("DRAFT");
+        assertEquals(HttpStatus.CONFLICT,
+                assertThrows(BusinessException.class, () -> service.reopen(10, 5, "ip")).getStatus());
+    }
+
     // ------------------------------------------------------------------ khoan nhap tay
 
     private CalculatedMonthlyFee draftFee() {

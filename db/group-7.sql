@@ -398,7 +398,8 @@ CREATE TABLE [calculated_monthly_fees] (
     [discount_amount] DECIMAL(18,2) DEFAULT 0,
     [late_penalty_amount] DECIMAL(18,2) DEFAULT 0,
     [total_calculated_amount] DECIMAL(18,2) NOT NULL,
-    CONSTRAINT [UQ_period_room_calculated] UNIQUE([billing_period_id], [room_id])
+    -- Phòng đổi khách giữa tháng có 2 hợp đồng trong cùng kỳ: mỗi hợp đồng 1 bảng tính
+    CONSTRAINT [UQ_period_room_contract_calculated] UNIQUE([billing_period_id], [room_id], [contract_id])
 );
 
 -- 32. Bảng chi tiết từng khoản phí trong kỳ tính tiền

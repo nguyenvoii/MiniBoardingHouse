@@ -73,8 +73,16 @@ public class BillingController {
 
     @PostMapping("/periods/{id}/approve")
     public ApiResponse<PeriodResponse> approve(@PathVariable Integer id, @AuthenticationPrincipal AuthUser user,
-                                               HttpServletRequest http) {
-        return ApiResponse.ok(service.approve(id, actor(user), http.getRemoteAddr()));
+                                               HttpServletRequest http,
+                                               @RequestParam(defaultValue = "false") boolean force) {
+        return ApiResponse.ok(service.approve(id, actor(user), http.getRemoteAddr(), force));
+    }
+
+    /** Mo lai ky da duyet ve DRAFT (khi khong con hoa don dang hieu luc) de sua tiep. */
+    @PostMapping("/periods/{id}/reopen")
+    public ApiResponse<PeriodResponse> reopen(@PathVariable Integer id, @AuthenticationPrincipal AuthUser user,
+                                              HttpServletRequest http) {
+        return ApiResponse.ok(service.reopen(id, actor(user), http.getRemoteAddr()));
     }
 
     @GetMapping("/fees/{feeId}")
