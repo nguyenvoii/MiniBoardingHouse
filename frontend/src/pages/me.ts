@@ -4,7 +4,8 @@ import { api, errText, loadSession, Page } from '../lib/api';
 import { date, dateTime, money, monthLabel } from '../lib/format';
 import type { Contract, ContractDetail, Notification, QrInfo } from '../data/types';
 import { dl, emptyState, field, formError, openDialog, plate, select, statusBadge, toast } from '../ui/kit';
-import { signPad } from './contracts';
+import { signPad, ADJ, fmtVal, isNum } from './contracts';
+import type { InvoiceDetail } from '../data/types';
 import { routeLine } from '../ui/route';
 
 interface MyInvoice { invoiceId: number; invoiceCode: string; issueDate: string; dueDate: string; totalAmount: number; paidAmount: number; remainingAmount: number; paymentStatus: string }
@@ -128,6 +129,27 @@ function requestCheckout(c: Contract, done: () => void): void {
   }));
 }
 
+async function openMyInvoice(i: MyInvoice): Promise<void> {
+  const detail = await api.get<InvoiceDetail>(`/api/invoices/${i.invoiceId}/detail`).catch((e) => { toast(errText(e), 'err'); return null; });
+  if (!detail) return;
+  const d = openDialog(`Hóa đơn ${i.invoiceCode}`, { width: 460 });
+  d.body.append(
+    dl([['Hạn trả', date(i.dueDate)], ['Tổng', `${money(i.totalAmount)} ₫`], ['Đã trả', `${money(i.paidAmount)} ₫`], ['Còn lại', `${money(i.remainingAmount)} ₫`]]),
+    h('div', { class: 'stack', style: 'gap:6px' }, ...detail.items.map((x) => h('div', { class: 'list-row' },
+      h('div', { class: 'grow' }, h('b', null, x.itemName), h('span', null, `${x.quantity} × ${money(x.unitPrice)} ₫`)), h('b', { class: 'money' }, `${money(x.subtotal)} ₫`)))));
+  d.foot.append(h('button', { class: 'btn', onclick: d.close }, 'Đóng'));
+}
+
+function openHistory(code: string, d0: ContractDetail): void {
+  const hist = d0.adjustments.filter((a) => !(isNum(a.oldValue) && isNum(a.newValue) && Number(a.oldValue) === Number(a.newValue)));
+  const d = openDialog(`Lịch sử hợp đồng ${code}`, { width: 480 });
+  d.body.append(hist.length
+    ? h('ol', { class: 'timeline' }, ...hist.map((a) => h('li', null, h('span', { class: 'pip' }),
+        h('div', null, h('b', null, ADJ[a.adjustmentType] ?? a.adjustmentType), h('span', null, `${a.oldValue ? fmtVal(a.oldValue) + ' → ' : ''}${fmtVal(a.newValue ?? '')} · ${dateTime(a.adjustedAt)}`)))))
+    : h('p', { class: 'muted' }, 'Hợp đồng chưa có thay đổi nào kể từ lúc lập.'));
+  d.foot.append(h('button', { class: 'btn', onclick: d.close }, 'Đóng'));
+}
+
 async function payQr(inv: MyInvoice, btn: HTMLElement): Promise<void> {
   await busy(btn, async () => {
     try {
@@ -144,13 +166,14 @@ async function payQr(inv: MyInvoice, btn: HTMLElement): Promise<void> {
 }
 
 export async function meInvoicesPage(view: HTMLElement): Promise<void> {
-  const list = await api.get<MyInvoice[]>('/api/me/debts/invoices');
+  const list = (await api.get<MyInvoice[]>('/api/me/debts/invoices')).filter((i) => i.paymentStatus !== 'CANCELLED');
   view.replaceChildren(
     h('h2', null, 'Hóa đơn của tôi'),
     list.length
       ? h('section', { class: 'panel panel-flush' }, ...[...list].sort((a, b) => Number(owed(b)) - Number(owed(a)) || a.dueDate.localeCompare(b.dueDate)).map((i) => h('div', { class: 'inv-row' },
           h('div', { class: 'inv-top' }, h('b', { class: 'money', style: 'font-size:18px' }, `${money(i.totalAmount)} ₫`), statusBadge(i.paymentStatus)),
           h('span', { class: 'muted' }, `${i.invoiceCode} · hạn ${date(i.dueDate)}`),
+          h('button', { class: 'btn secondary', onclick: () => void openMyInvoice(i) }, icon('receipt', 16), 'Xem chi tiết các khoản'),
           owed(i) && i.paidAmount > 0 ? h('span', { class: 'muted' }, `Đã trả ${money(i.paidAmount)} ₫, còn ${money(i.remainingAmount)} ₫`) : null,
           owed(i) ? h('button', { class: 'btn block', onclick: (e: Event) => payQr(i, e.currentTarget as HTMLElement) }, icon('qr', 16), `Trả ${money(i.remainingAmount)} ₫`) : null)))
       : h('section', { class: 'panel' }, emptyState('Chưa có hóa đơn', 'Hóa đơn hàng tháng sẽ hiện ở đây khi chủ trọ phát hành.')),
@@ -170,7 +193,7 @@ export async function meContractsPage(view: HTMLElement): Promise<void> {
           : (c.status === 'ACTIVE' || c.status === 'EXPIRING_SOON') ? h('button', { class: 'btn lg block', onclick: () => signPad(c.contractId, () => void meContractsPage(view), true) }, icon('sign', 20), 'Ký hợp đồng') : null,
         h('button', { class: 'btn secondary block', onclick: async () => {
           const d = await api.get<ContractDetail>(`/api/me/contracts/${c.contractId}`).catch(() => null);
-          if (d) toast(`Đã tải ${d.adjustments.length} mục lịch sử`);
+          if (d) openHistory(c.contractCode, d); else toast('Chưa tải được lịch sử, thử lại sau.', 'err');
         } }, 'Xem lịch sử thay đổi'))))) : h('section', { class: 'panel' }, emptyState('Chưa có hợp đồng', 'Hợp đồng sẽ hiện ở đây sau khi chủ trọ lập cho bạn.')),
   );
 }

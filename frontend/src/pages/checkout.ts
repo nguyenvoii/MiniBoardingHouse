@@ -238,7 +238,7 @@ function inspectDialog(c: Checkout, ins: Inspection | null, done: () => void): v
   const addRow = (name = '', cost = '') => {
     const n = input({ placeholder: 'Thiết bị hư hỏng', value: name, maxlength: '100' });
     const k = input({ type: 'number', min: '0', step: '10000', value: cost, class: 'input num-in', placeholder: 'Tiền bồi thường' });
-    const row = { name: n, cost: k, el: h('div', { style: 'display:grid;grid-template-columns:1fr 150px auto;gap:8px;align-items:center' }, n, k,
+    const row = { name: n, cost: k, el: h('div', { style: 'display:grid;grid-template-columns:minmax(0,1fr) minmax(88px,130px) auto;gap:8px;align-items:center' }, n, k,
       h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Xóa dòng', onclick: () => { rows.splice(rows.indexOf(row), 1); row.el.remove(); sum(); } }, icon('x', 16))) };
     k.addEventListener('input', sum);
     rows.push(row);

@@ -6,7 +6,7 @@ import { loadLive } from '../data/live';
 import type { Contract, ContractDetail } from '../data/types';
 import { dl, emptyState, field, formError, input, openDialog, pageHead, plate, select, statusBadge, table, toast } from '../ui/kit';
 
-const ADJ: Record<string, string> = {
+export const ADJ: Record<string, string> = {
   PRICE_CHANGE: 'Đổi giá thuê', DEPOSIT_CHANGE: 'Đổi tiền cọc', PAYMENT_SCHEDULE: 'Đổi chu kỳ và hạn trả', PAYMENT_TERMS: 'Sửa điều khoản thanh toán',
   UTILITY_TERMS: 'Sửa điều khoản điện nước', PDF_GENERATED: 'Tạo bản PDF', SIGNED: 'Ký hợp đồng', EXTENSION: 'Gia hạn', TENANT_CHANGE: 'Đổi người đứng tên',
   ROOM_TRANSFER: 'Chuyển phòng', TERMINATED: 'Chấm dứt hợp đồng',
@@ -135,9 +135,9 @@ async function openContract(id: number, reload: () => void): Promise<void> {
   }
 }
 
-const isNum = (v: string | null): v is string => v !== null && /^-?\d+(\.\d+)?$/.test(v);
+export const isNum = (v: string | null): v is string => v !== null && /^-?\d+(\.\d+)?$/.test(v);
 /** Số trong lịch sử (3000000.00) hiện dạng 3.000.000; chữ và ngày giữ nguyên. */
-const fmtVal = (v: string): string => (isNum(v) && v.replace(/[-.]/g, '').length >= 5 ? money(v) : v);
+export const fmtVal = (v: string): string => (isNum(v) && v.replace(/[-.]/g, '').length >= 5 ? money(v) : v);
 
 async function sendMsg(id: number): Promise<string> {
   const r = await api.post<unknown>(`/api/contracts/${id}/send`);
