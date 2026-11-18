@@ -30,6 +30,19 @@ public class RoomFurnishingController {
         return ApiResponse.ok(furnishingService.getFurnishingsByRoom(roomId));
     }
 
+    // UC 24: Lấy danh mục thiết bị, nội thất chuẩn
+    @GetMapping("/standard-catalog")
+    public ApiResponse<List<RoomFurnishingDTO>> getStandardCatalog() {
+        return ApiResponse.ok(furnishingService.getStandardCatalog());
+    }
+
+    // UC 24: Áp dụng bộ nội thất chuẩn cho phòng
+    @PostMapping("/apply-standard/{roomId}")
+    public ApiResponse<List<RoomFurnishingDTO>> applyStandard(@PathVariable Integer roomId) {
+        List<RoomFurnishingDTO> added = furnishingService.applyStandardFurnishings(roomId);
+        return ApiResponse.ok("Đã áp dụng bộ nội thất chuẩn cho phòng thành công (" + added.size() + " thiết bị mới)", added);
+    }
+
     @PostMapping
     public ApiResponse<RoomFurnishingDTO> addFurnishing(@RequestBody RoomFurnishingDTO dto) {
         return ApiResponse.ok("Thêm thiết bị thành công", furnishingService.addFurnishing(dto));
@@ -46,4 +59,3 @@ public class RoomFurnishingController {
         return ApiResponse.ok("Xóa thiết bị thành công", null);
     }
 }
-

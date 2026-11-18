@@ -50,6 +50,41 @@ public class RoomService {
                 .collect(Collectors.toList());
     }
 
+    // UC 19 & UC 20: Tìm kiếm theo mã phòng & lọc theo diện tích, giá
+    public List<RoomDTO> searchRooms(String keyword, Integer floorId, String status,
+                                    BigDecimal minArea, BigDecimal maxArea,
+                                    BigDecimal minPrice, BigDecimal maxPrice) {
+        return roomRepository.findAll().stream()
+                .filter(r -> {
+                    if (keyword != null && !keyword.isBlank()) {
+                        String kw = keyword.trim().toLowerCase();
+                        boolean matchCode = r.getRoomCode() != null && r.getRoomCode().toLowerCase().contains(kw);
+                        if (!matchCode) return false;
+                    }
+                    if (floorId != null && r.getFloor() != null) {
+                        if (!floorId.equals(r.getFloor().getFloorId())) return false;
+                    }
+                    if (status != null && !status.isBlank()) {
+                        if (!status.equalsIgnoreCase(r.getStatus())) return false;
+                    }
+                    if (minArea != null && r.getAreaSqm() != null) {
+                        if (r.getAreaSqm().compareTo(minArea) < 0) return false;
+                    }
+                    if (maxArea != null && r.getAreaSqm() != null) {
+                        if (r.getAreaSqm().compareTo(maxArea) > 0) return false;
+                    }
+                    if (minPrice != null && r.getBaseRentPrice() != null) {
+                        if (r.getBaseRentPrice().compareTo(minPrice) < 0) return false;
+                    }
+                    if (maxPrice != null && r.getBaseRentPrice() != null) {
+                        if (r.getBaseRentPrice().compareTo(maxPrice) > 0) return false;
+                    }
+                    return true;
+                })
+                .map(this::toDTO)
+                .collect(Collectors.toList());
+    }
+
     @Transactional
     public RoomDTO createRoom(RoomDTO dto) {
         if (dto == null || dto.getFloorId() == null) {
@@ -110,6 +145,47 @@ public class RoomService {
         return toDTO(roomRepository.save(room));
     }
 
+    // UC 18 & UC 27: Cập nhật thông tin phòng, giá, cọc, chỉ số công tơ (trạng thái phòng không đổi ở đây, xem updateRoomStatus)
+    @Transactional
+    public RoomDTO updateRoom(Integer id, RoomDTO dto) {
+        Room room = roomRepository.findById(id)
+                .orElseThrow(() -> new BusinessException("Không tìm thấy phòng có ID: " + id));
+
+        if (dto.getFloorId() != null && !dto.getFloorId().equals(room.getFloor().getFloorId())) {
+            PropertyFloor floor = floorRepository.findById(dto.getFloorId())
+                    .orElseThrow(() -> new BusinessException("Tầng không tồn tại"));
+            room.setFloor(floor);
+        }
+
+        if (dto.getRoomCode() != null && !dto.getRoomCode().equalsIgnoreCase(room.getRoomCode())) {
+            if (roomRepository.existsByProperty_PropertyIdAndRoomCode(room.getProperty().getPropertyId(), dto.getRoomCode())) {
+                throw new BusinessException("Mã phòng " + dto.getRoomCode() + " đã tồn tại trong nhà này");
+            }
+            room.setRoomCode(dto.getRoomCode());
+        }
+
+        if (dto.getAreaSqm() != null) {
+            room.setAreaSqm(dto.getAreaSqm());
+        }
+        if (dto.getMaxOccupants() != null) {
+            room.setMaxOccupants(dto.getMaxOccupants());
+        }
+        if (dto.getBaseRentPrice() != null) {
+            room.setBaseRentPrice(dto.getBaseRentPrice());
+        }
+        if (dto.getDepositAmount() != null) {
+            room.setDepositAmount(dto.getDepositAmount());
+        }
+        if (dto.getInitialElectricMeter() != null) {
+            room.setInitialElectricMeter(dto.getInitialElectricMeter());
+        }
+        if (dto.getInitialWaterMeter() != null) {
+            room.setInitialWaterMeter(dto.getInitialWaterMeter());
+        }
+
+        return toDTO(roomRepository.save(room));
+    }
+
     /**
      * Đổi trạng thái phòng. RENTED chỉ do hợp đồng quyết định: phòng đang có hợp đồng hiệu lực thì phải giữ RENTED
      * (muốn đổi thì chấm dứt hợp đồng), phòng không có hợp đồng thì không thể gán RENTED.
@@ -132,6 +208,15 @@ public class RoomService {
             throw new BusinessException("Phòng chưa có hợp đồng hiệu lực nên không thể đặt RENTED");
         }
         room.setStatus(status);
+        return toDTO(roomRepository.save(room));
+    }
+
+    // UC 29: Xác nhận phòng đã vệ sinh xong, cho thuê lại (chuyển REPAIRING -> VACANT)
+    @Transactional
+    public RoomDTO confirmCleanedAndAvailable(Integer roomId) {
+        Room room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new BusinessException("Không tìm thấy phòng có ID: " + roomId));
+        room.setStatus("VACANT");
         return toDTO(roomRepository.save(room));
     }
 

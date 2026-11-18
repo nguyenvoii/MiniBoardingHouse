@@ -9,4 +9,6 @@ import java.util.List;
 @Repository
 public interface PropertyFloorRepository extends JpaRepository<PropertyFloor, Integer> {
     List<PropertyFloor> findByProperty_PropertyIdOrderByFloorNumberAsc(Integer propertyId);
+    boolean existsByProperty_PropertyIdAndFloorNumber(Integer propertyId, Integer floorNumber);
+    boolean existsByProperty_PropertyIdAndFloorNumberAndFloorIdNot(Integer propertyId, Integer floorNumber, Integer floorId);
 }

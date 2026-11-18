@@ -65,6 +65,48 @@ public class BookingRequestDTO {
         public void setDepositPaid(BigDecimal depositPaid) { this.depositPaid = depositPaid; }
     }
 
+    // UC 37: DTO cho người thuê tự gửi yêu cầu đặt phòng online
+    public static class PublicCreateRequest {
+        private Integer roomId;
+        private String fullName;
+        private String phoneNumber;
+        private String email;
+        private String identityNumber;
+        private LocalDate expectedStartDate;
+        private Integer occupantsCount;
+        private BigDecimal depositPaid;
+        private String note;
+
+        public PublicCreateRequest() {}
+
+        public Integer getRoomId() { return roomId; }
+        public void setRoomId(Integer roomId) { this.roomId = roomId; }
+
+        public String getFullName() { return fullName; }
+        public void setFullName(String fullName) { this.fullName = fullName; }
+
+        public String getPhoneNumber() { return phoneNumber; }
+        public void setPhoneNumber(String phoneNumber) { this.phoneNumber = phoneNumber; }
+
+        public String getEmail() { return email; }
+        public void setEmail(String email) { this.email = email; }
+
+        public String getIdentityNumber() { return identityNumber; }
+        public void setIdentityNumber(String identityNumber) { this.identityNumber = identityNumber; }
+
+        public LocalDate getExpectedStartDate() { return expectedStartDate; }
+        public void setExpectedStartDate(LocalDate expectedStartDate) { this.expectedStartDate = expectedStartDate; }
+
+        public Integer getOccupantsCount() { return occupantsCount; }
+        public void setOccupantsCount(Integer occupantsCount) { this.occupantsCount = occupantsCount; }
+
+        public BigDecimal getDepositPaid() { return depositPaid; }
+        public void setDepositPaid(BigDecimal depositPaid) { this.depositPaid = depositPaid; }
+
+        public String getNote() { return note; }
+        public void setNote(String note) { this.note = note; }
+    }
+
     public static class RejectRequest {
         private String rejectionReason;
         public String getRejectionReason() { return rejectionReason; }
@@ -77,4 +119,3 @@ public class BookingRequestDTO {
         public void setDepositPaid(BigDecimal depositPaid) { this.depositPaid = depositPaid; }
     }
 }
-

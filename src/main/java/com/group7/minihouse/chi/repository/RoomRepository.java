@@ -27,4 +27,5 @@ public interface RoomRepository extends JpaRepository<Room, Integer> {
     List<Room> findByStatus(String status);
     Optional<Room> findByProperty_PropertyIdAndRoomCode(Integer propertyId, String roomCode);
     boolean existsByProperty_PropertyIdAndRoomCode(Integer propertyId, String roomCode);
+    long countByFloor_FloorId(Integer floorId);
 }

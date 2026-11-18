@@ -5,6 +5,7 @@ import com.group7.minihouse.chi.repository.PropertyFloorRepository;
 import com.group7.minihouse.chi.repository.PropertyRepository;
 import com.group7.minihouse.chi.repository.RoomRepository;
 import com.group7.minihouse.shared.entity.Property;
+import com.group7.minihouse.shared.exception.BusinessException;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
@@ -28,6 +29,23 @@ public class PropertyService {
 
     public List<PropertyDTO> getAll() {
         return propertyRepository.findAllByOrderByPropertyIdAsc().stream().map(this::toDTO).collect(Collectors.toList());
+    }
+
+    public PropertyDTO getDefault() {
+        List<Property> list = propertyRepository.findAllByOrderByPropertyIdAsc();
+        return list.isEmpty() ? null : toDTO(list.get(0));
+    }
+
+    /** UC 14: sửa thông tin khu trọ. */
+    @Transactional
+    public PropertyDTO update(Integer id, PropertyDTO dto) {
+        Property p = propertyRepository.findById(id)
+                .orElseThrow(() -> new BusinessException("Không tìm thấy khu trọ ID: " + id));
+        if (dto.getPropertyName() != null && !dto.getPropertyName().isBlank()) p.setPropertyName(dto.getPropertyName().trim());
+        if (dto.getAddress() != null && !dto.getAddress().isBlank()) p.setAddress(dto.getAddress().trim());
+        if (dto.getTotalFloors() != null) p.setTotalFloors(dto.getTotalFloors());
+        if (dto.getSupportPhone() != null) p.setSupportPhone(dto.getSupportPhone().trim());
+        return toDTO(propertyRepository.save(p));
     }
 
     private PropertyDTO toDTO(Property p) {

@@ -1,6 +1,7 @@
 package com.group7.minihouse.chi.controller;
 
 import org.springframework.security.access.prepost.PreAuthorize;
+import com.group7.minihouse.chi.dto.ResidentStayHistoryDTO;
 import com.group7.minihouse.chi.dto.RoomResidentDTO;
 import com.group7.minihouse.chi.dto.TenantDTO;
 import com.group7.minihouse.chi.dto.TenantVehicleDTO;
@@ -37,6 +38,18 @@ public class TenantController {
     @PostMapping
     public ApiResponse<TenantDTO> createTenant(@RequestBody TenantDTO.CreateRequest req) {
         return ApiResponse.ok(tenantService.createTenant(req));
+    }
+
+    // UC 31: Sửa hồ sơ khách thuê, ngày cư trú
+    @PutMapping("/{id}")
+    public ApiResponse<TenantDTO> updateTenant(@PathVariable Integer id, @RequestBody TenantDTO.CreateRequest req) {
+        return ApiResponse.ok("Cập nhật hồ sơ khách thuê thành công", tenantService.updateTenant(id, req));
+    }
+
+    // UC 35: Lịch sử thuê phòng của khách
+    @GetMapping("/{id}/stay-history")
+    public ApiResponse<List<ResidentStayHistoryDTO>> getStayHistory(@PathVariable Integer id) {
+        return ApiResponse.ok(tenantService.getStayHistory(id));
     }
 
     @PatchMapping("/{id}/verify")

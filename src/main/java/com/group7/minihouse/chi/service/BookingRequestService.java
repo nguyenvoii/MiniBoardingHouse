@@ -74,6 +74,46 @@ public class BookingRequestService {
         return toResponse(bookingRequestRepository.save(b));
     }
 
+    // UC 37: Khách thuê tự gửi yêu cầu giữ chỗ trực tuyến
+    public BookingRequestDTO.Response createPublicRequest(BookingRequestDTO.PublicCreateRequest req) {
+        if (req.getRoomId() == null) throw new BusinessException("Vui lòng chọn phòng cần đặt");
+        if (req.getFullName() == null || req.getFullName().isBlank()) throw new BusinessException("Vui lòng nhập họ và tên");
+        if (req.getPhoneNumber() == null || req.getPhoneNumber().isBlank()) throw new BusinessException("Vui lòng nhập số điện thoại");
+        if (req.getExpectedStartDate() == null) throw new BusinessException("Vui lòng chọn ngày dự kiến dọn vào ở");
+
+        Room room = roomRepository.findById(req.getRoomId())
+                .orElseThrow(() -> BusinessException.notFound("Phòng"));
+
+        Tenant tenant = tenantRepository.findByPhoneNumber(req.getPhoneNumber().trim()).orElse(null);
+        if (tenant == null && req.getIdentityNumber() != null && !req.getIdentityNumber().isBlank()) {
+            tenant = tenantRepository.findByIdentityNumber(req.getIdentityNumber().trim()).orElse(null);
+        }
+
+        if (tenant == null) {
+            tenant = new Tenant();
+            tenant.setFullName(req.getFullName().trim());
+            tenant.setPhoneNumber(req.getPhoneNumber().trim());
+            tenant.setEmail(req.getEmail());
+            tenant.setIdentityNumber(req.getIdentityNumber() != null && !req.getIdentityNumber().isBlank()
+                    ? req.getIdentityNumber().trim()
+                    : ("TEMP-" + System.currentTimeMillis()));
+            tenant.setIsVerified(false);
+            tenant.setCreatedAt(LocalDateTime.now());
+            tenant = tenantRepository.save(tenant);
+        }
+
+        BookingRequest b = new BookingRequest();
+        b.setRoom(room);
+        b.setTenant(tenant);
+        b.setExpectedStartDate(req.getExpectedStartDate());
+        b.setOccupantsCount(req.getOccupantsCount() != null ? req.getOccupantsCount() : 1);
+        b.setDepositPaid(req.getDepositPaid() != null ? req.getDepositPaid() : BigDecimal.ZERO);
+        b.setStatus("PENDING");
+        b.setCreatedAt(LocalDateTime.now());
+
+        return toResponse(bookingRequestRepository.save(b));
+    }
+
     public BookingRequestDTO.Response approve(Integer bookingId) {
         BookingRequest b = bookingRequestRepository.findById(bookingId)
                 .orElseThrow(() -> BusinessException.notFound("Yêu cầu đặt phòng"));

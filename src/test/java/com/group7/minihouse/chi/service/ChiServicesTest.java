@@ -81,7 +81,8 @@ class ChiServicesTest {
 
     private TenantService tenantService(TenantVehicleRepository vehicles, TenantRepository tenants) {
         return new TenantService(tenants, mock(TenantIdCardRepository.class), vehicles,
-                mock(RoomResidentRepository.class), mock(RoomRepository.class));
+                mock(RoomResidentRepository.class), mock(RoomRepository.class),
+                mock(com.group7.minihouse.chi.repository.ResidentStayHistoryRepository.class));
     }
 
     private static TenantVehicleDTO.CreateRequest vehicleReq(String plate, String type) {

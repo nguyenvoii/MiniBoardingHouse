@@ -29,6 +29,12 @@ public class BookingRequestController {
         return ApiResponse.ok("Tạo yêu cầu đặt phòng thành công", bookingRequestService.create(req));
     }
 
+    // UC 37: Người thuê tự gửi yêu cầu thuê phòng online
+    @PostMapping("/public-request")
+    public ApiResponse<BookingRequestDTO.Response> createPublicRequest(@RequestBody BookingRequestDTO.PublicCreateRequest req) {
+        return ApiResponse.ok("Gửi yêu cầu thuê phòng thành công! Chủ nhà sẽ sớm liên hệ lại với bạn.", bookingRequestService.createPublicRequest(req));
+    }
+
     @PatchMapping("/{id}/approve")
     public ApiResponse<BookingRequestDTO.Response> approve(@PathVariable Integer id) {
         return ApiResponse.ok("Đã duyệt yêu cầu đặt phòng", bookingRequestService.approve(id));

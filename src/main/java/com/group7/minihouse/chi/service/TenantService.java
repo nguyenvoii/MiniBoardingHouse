@@ -1,5 +1,6 @@
 package com.group7.minihouse.chi.service;
 
+import com.group7.minihouse.chi.dto.ResidentStayHistoryDTO;
 import com.group7.minihouse.chi.dto.RoomResidentDTO;
 import com.group7.minihouse.chi.dto.TenantDTO;
 import com.group7.minihouse.chi.dto.TenantVehicleDTO;
@@ -23,17 +24,20 @@ public class TenantService {
     private final TenantVehicleRepository tenantVehicleRepository;
     private final RoomResidentRepository roomResidentRepository;
     private final RoomRepository roomRepository;
+    private final ResidentStayHistoryRepository residentStayHistoryRepository;
 
     public TenantService(TenantRepository tenantRepository,
                          TenantIdCardRepository tenantIdCardRepository,
                          TenantVehicleRepository tenantVehicleRepository,
                          RoomResidentRepository roomResidentRepository,
-                         RoomRepository roomRepository) {
+                         RoomRepository roomRepository,
+                         ResidentStayHistoryRepository residentStayHistoryRepository) {
         this.tenantRepository = tenantRepository;
         this.tenantIdCardRepository = tenantIdCardRepository;
         this.tenantVehicleRepository = tenantVehicleRepository;
         this.roomResidentRepository = roomResidentRepository;
         this.roomRepository = roomRepository;
+        this.residentStayHistoryRepository = residentStayHistoryRepository;
     }
 
     @Transactional(readOnly = true)
@@ -96,6 +100,63 @@ public class TenantService {
         t.setCreatedAt(LocalDateTime.now());
 
         return toDTO(tenantRepository.save(t));
+    }
+
+    // UC 31: Sửa hồ sơ khách, ngày cư trú
+    public TenantDTO updateTenant(Integer id, TenantDTO.CreateRequest req) {
+        Tenant t = tenantRepository.findById(id)
+                .orElseThrow(() -> BusinessException.notFound("Khách thuê"));
+
+        if (req.getFullName() != null && !req.getFullName().isBlank()) {
+            t.setFullName(req.getFullName().trim());
+        }
+        if (req.getPhoneNumber() != null && !req.getPhoneNumber().trim().equalsIgnoreCase(t.getPhoneNumber())) {
+            tenantRepository.findByPhoneNumber(req.getPhoneNumber().trim()).ifPresent(existing -> {
+                if (!existing.getTenantId().equals(id)) {
+                    throw new BusinessException("Số điện thoại này đã được sử dụng bởi khách thuê khác");
+                }
+            });
+            t.setPhoneNumber(req.getPhoneNumber().trim());
+        }
+        if (req.getIdentityNumber() != null && !req.getIdentityNumber().trim().equalsIgnoreCase(t.getIdentityNumber())) {
+            tenantRepository.findByIdentityNumber(req.getIdentityNumber().trim()).ifPresent(existing -> {
+                if (!existing.getTenantId().equals(id)) {
+                    throw new BusinessException("Số CCCD này đã được sử dụng bởi khách thuê khác");
+                }
+            });
+            t.setIdentityNumber(req.getIdentityNumber().trim());
+        }
+
+        t.setEmail(req.getEmail());
+        t.setDob(req.getDob());
+        t.setPermanentAddress(req.getPermanentAddress());
+        t.setOccupation(req.getOccupation());
+        t.setEmergencyContactName(req.getEmergencyContactName());
+        t.setEmergencyContactPhone(req.getEmergencyContactPhone());
+
+        return toDTO(tenantRepository.save(t));
+    }
+
+    // UC 35: Xem lịch sử thuê phòng của khách
+    @Transactional(readOnly = true)
+    public List<ResidentStayHistoryDTO> getStayHistory(Integer tenantId) {
+        return residentStayHistoryRepository.findByTenant_TenantIdOrderByStartDateDesc(tenantId).stream()
+                .map(h -> {
+                    ResidentStayHistoryDTO dto = new ResidentStayHistoryDTO();
+                    dto.setHistoryId(h.getHistoryId());
+                    if (h.getTenant() != null) {
+                        dto.setTenantId(h.getTenant().getTenantId());
+                        dto.setTenantName(h.getTenant().getFullName());
+                    }
+                    if (h.getRoom() != null) {
+                        dto.setRoomId(h.getRoom().getRoomId());
+                        dto.setRoomCode(h.getRoom().getRoomCode());
+                    }
+                    dto.setStartDate(h.getStartDate());
+                    dto.setEndDate(h.getEndDate());
+                    dto.setCheckoutReason(h.getCheckoutReason());
+                    return dto;
+                }).collect(Collectors.toList());
     }
 
     public void verifyTenant(Integer id) {
