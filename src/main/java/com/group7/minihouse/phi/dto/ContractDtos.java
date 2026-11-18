@@ -38,7 +38,8 @@ public final class ContractDtos {
                                   Integer closingWater) {}
 
     /** UC51. */
-    public record TerminateRequest(String reason) {}
+    /** confirmRoomCode: người dùng gõ lại mã phòng để xác nhận, tránh bấm nhầm. */
+    public record TerminateRequest(String reason, String confirmRoomCode) {}
 
     public record ContractResponse(Integer contractId, String contractCode, Integer roomId, String roomCode,
                                    Integer tenantId, String tenantName, Integer templateId,

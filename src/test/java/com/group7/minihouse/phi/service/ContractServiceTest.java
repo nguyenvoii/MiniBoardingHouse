@@ -279,7 +279,7 @@ class ContractServiceTest {
     @Test
     void terminateFreesRoomAndWritesStayHistory() {
         RentalContract c = live("ACTIVE");
-        ContractResponse r = service.terminate(100, new TerminateRequest("Het nhu cau"), 5, "ip");
+        ContractResponse r = service.terminate(100, new TerminateRequest("Khach chuyen di noi khac", "P101"), 5, "ip");
         assertEquals("TERMINATED", r.status());
         assertEquals("VACANT", room.getStatus());
         assertNotNull(c);
@@ -289,7 +289,27 @@ class ContractServiceTest {
     @Test
     void terminateNeedsReason() {
         live("ACTIVE");
-        assertThrows(BusinessException.class, () -> service.terminate(100, new TerminateRequest("  "), 5, "ip"));
+        assertThrows(BusinessException.class, () -> service.terminate(100, new TerminateRequest("  ", "P101"), 5, "ip"));
+    }
+
+    @Test
+    void terminateNeedsLongEnoughReason() {
+        live("ACTIVE");
+        assertThrows(BusinessException.class, () -> service.terminate(100, new TerminateRequest("ngan", "P101"), 5, "ip"));
+    }
+
+    @Test
+    void terminateNeedsRoomCodeTyped() {
+        live("ACTIVE");
+        assertThrows(BusinessException.class, () -> service.terminate(100, new TerminateRequest("Khach chuyen di noi khac", "P999"), 5, "ip"));
+        assertThrows(BusinessException.class, () -> service.terminate(100, new TerminateRequest("Khach chuyen di noi khac", null), 5, "ip"));
+    }
+
+    @Test
+    void terminateBlockedWhileUnpaidInvoices() {
+        live("ACTIVE");
+        when(query.getSingleResult()).thenReturn(new java.math.BigDecimal("1500000"));
+        assertThrows(BusinessException.class, () -> service.terminate(100, new TerminateRequest("Khach chuyen di noi khac", "P101"), 5, "ip"));
     }
 
     @Test

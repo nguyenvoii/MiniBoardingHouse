@@ -11,35 +11,121 @@ interface MyInvoice { invoiceId: number; invoiceCode: string; issueDate: string;
 
 const owed = (i: MyInvoice) => i.paymentStatus !== 'PAID' && i.paymentStatus !== 'CANCELLED';
 
+interface MyCheckout { checkoutId: number; status: string; expectedCheckoutDate: string; actualCheckoutDate: string | null }
+
+const CHECKOUT_TEXT: Record<string, string> = {
+  PENDING: 'Đã gửi, chờ chủ trọ hẹn kiểm tra phòng',
+  INSPECTING: 'Chủ trọ đang kiểm tra phòng và quyết toán cọc',
+  FINALIZED: 'Đã thanh lý hợp đồng',
+  CANCELLED: 'Yêu cầu đã hủy',
+};
+
+function greeting(name: string): string {
+  const hour = new Date().getHours();
+  const when = hour < 11 ? 'Chào buổi sáng' : hour < 14 ? 'Chào buổi trưa' : hour < 18 ? 'Chào buổi chiều' : 'Chào buổi tối';
+  return `${when}, ${name.split(' ').slice(-1)[0]}`;
+}
+
+/** Còn bao nhiêu ngày tới hạn; âm là đã quá hạn. */
+function daysTo(iso: string): number {
+  const d = new Date(iso); d.setHours(0, 0, 0, 0);
+  const t = new Date(); t.setHours(0, 0, 0, 0);
+  return Math.round((d.getTime() - t.getTime()) / 86400000);
+}
+
 export async function meHomePage(view: HTMLElement): Promise<void> {
   const s = loadSession()!;
-  const [invoices, contracts] = await Promise.all([api.get<MyInvoice[]>('/api/me/debts/invoices'), api.get<Contract[]>('/api/me/contracts')]);
+  const [invoices, contracts, checkouts] = await Promise.all([
+    api.get<MyInvoice[]>('/api/me/debts/invoices'),
+    api.get<Contract[]>('/api/me/contracts'),
+    api.get<MyCheckout[]>('/api/me/checkout-requests').catch(() => [] as MyCheckout[]),
+  ]);
   const due = invoices.filter(owed).sort((a, b) => a.dueDate.localeCompare(b.dueDate));
   const next = due[0];
   const total = due.reduce((a, i) => a + i.remainingAmount, 0);
-  const c = contracts.find((x) => x.status === 'ACTIVE' || x.status === 'EXPIRING_SOON') ?? contracts[0];
+  const live = contracts.find((x) => x.status === 'ACTIVE' || x.status === 'EXPIRING_SOON');
+  const c = live ?? contracts[0];
   const unsigned = contracts.filter((x) => !x.digitalSignatureUrl && (x.status === 'ACTIVE' || x.status === 'EXPIRING_SOON'));
+  const openCheckout = checkouts.find((x) => x.status === 'PENDING' || x.status === 'INSPECTING');
+  const doneCheckout = checkouts.find((x) => x.status === 'FINALIZED');
+
+  // Câu mở đầu nói thẳng việc cần làm, không bắt khách đọc bảng
+  const headline = next
+    ? daysTo(next.dueDate) < 0 ? `Bạn có hóa đơn quá hạn ${-daysTo(next.dueDate)} ngày.`
+      : daysTo(next.dueDate) === 0 ? 'Hóa đơn của bạn đến hạn hôm nay.'
+      : `Hóa đơn tiếp theo đến hạn sau ${daysTo(next.dueDate)} ngày.`
+    : 'Bạn đã trả đủ tiền phòng. Không có việc gì cần làm.';
+
+  const bill = next
+    ? h('section', { class: 'panel bill-card' },
+        h('div', { style: 'display:flex;justify-content:space-between;align-items:center;gap:8px' }, h('span', { style: 'font-weight:650' }, 'Tiền phòng cần trả'), statusBadge(next.paymentStatus)),
+        h('div', { class: 'amount' }, money(next.remainingAmount), h('small', null, '₫')),
+        h('p', { class: 'muted' }, `Hóa đơn ${next.invoiceCode} · hạn ${date(next.dueDate)}`),
+        due.length > 1 ? h('p', { class: 'muted' }, `Còn ${due.length - 1} hóa đơn khác chưa trả, tổng cộng ${money(total)} ₫`) : null,
+        h('button', { class: 'btn lg block', onclick: (e: Event) => payQr(next, e.currentTarget as HTMLElement) }, icon('qr', 20), 'Trả bằng mã QR'),
+        h('p', { class: 'muted', style: 'font-size:13px' }, 'Mở ứng dụng ngân hàng, quét mã, giữ nguyên nội dung chuyển khoản. Hóa đơn tự cập nhật sau khi chủ trọ nhận được tiền.'))
+    : h('section', { class: 'panel bill-card' }, h('span', { class: 'st ok', style: 'align-self:flex-start' }, icon('check', 14), 'Không còn khoản nợ'),
+        h('div', { class: 'amount' }, '0', h('small', null, '₫')), h('p', { class: 'muted' }, 'Hóa đơn tháng sau sẽ hiện ở đây khi chủ trọ phát hành.'));
+
+  // Hành trình của khách trong nhà trọ: tới đâu rồi, bước tiếp theo là gì
+  const stage = doneCheckout ? 3 : openCheckout ? 2 : 1;
+  const journey = h('section', { class: 'panel', style: 'padding:18px 20px' },
+    h('h2', { style: 'font-size:16px;margin-bottom:16px' }, 'Hành trình ở trọ của bạn'),
+    routeLine([
+      { name: 'Nhận phòng', sub: c ? date(c.startDate) : '–', state: c ? 'done' : 'current' },
+      { name: 'Đang ở', sub: c ? `đến ${date(c.endDate)}` : '–', state: stage === 1 ? 'current' : 'done' },
+      { name: 'Báo trả phòng', sub: openCheckout ? 'Đang xử lý' : doneCheckout ? 'Xong' : 'Khi bạn cần', state: stage === 2 ? 'current' : stage === 3 ? 'done' : 'todo' },
+      { name: 'Nhận lại cọc', sub: doneCheckout ? 'Đã thanh lý' : '–', state: stage === 3 ? 'done' : 'todo' },
+    ]),
+    openCheckout
+      ? h('div', { class: 'route-next' }, icon('route', 20), h('p', null, h('b', null, `Báo trả phòng ngày ${date(openCheckout.expectedCheckoutDate)}. `), CHECKOUT_TEXT[openCheckout.status] ?? ''))
+      : live && !doneCheckout
+        ? h('div', { class: 'route-next' }, icon('info', 20), h('p', { style: 'flex:1' }, 'Sắp chuyển đi? Báo trước để chủ trọ hẹn kiểm tra phòng và hoàn tiền cọc.'),
+            h('button', { class: 'btn secondary sm', onclick: () => requestCheckout(live, () => void meHomePage(view)) }, icon('logout', 14), 'Báo trả phòng'))
+        : null,
+  );
+
+  const recent = invoices.slice().sort((a, b) => b.dueDate.localeCompare(a.dueDate)).slice(0, 4);
+  const history = h('section', { class: 'panel panel-flush' },
+    h('div', { class: 'panel-head' }, h('h2', null, 'Hóa đơn gần đây'), h('a', { class: 'btn ghost sm', href: '#/me/invoices' }, 'Xem tất cả')),
+    recent.length ? h('div', null, ...recent.map((i) => h('div', { class: 'list-row' },
+        h('div', { class: 'grow' }, h('b', { class: 'money' }, `${money(i.totalAmount)} ₫`), h('span', null, `${i.invoiceCode} · hạn ${date(i.dueDate)}`)), statusBadge(i.paymentStatus))))
+      : emptyState('Chưa có hóa đơn', 'Hóa đơn hàng tháng sẽ hiện ở đây khi chủ trọ phát hành.'));
+
+  const room = c
+    ? h('section', { class: 'panel' }, h('div', { class: 'panel-head' }, h('h2', null, 'Phòng của bạn'), statusBadge(c.status)),
+        h('div', { class: 'panel-body' }, h('div', { style: 'display:flex;gap:12px;align-items:center;margin-bottom:12px' }, plate(c.roomCode, 'lg'), h('span', { class: 'muted' }, `Hết hạn ${date(c.endDate)}`)),
+          dl([['Giá thuê', `${money(c.monthlyRentPrice)} ₫/tháng`], ['Tiền cọc', `${money(c.depositAmount)} ₫`], ['Hạn trả mỗi kỳ', `ngày ${c.paymentDueDay}`]])))
+    : null;
+
+  const shortcuts = h('section', { class: 'panel panel-flush' },
+    unsigned.length ? h('a', { class: 'list-row', href: '#/me/contracts', style: 'background:var(--warn-bg)' }, icon('sign', 22), h('div', { class: 'grow' }, h('b', null, 'Hợp đồng chờ bạn ký'), h('span', null, unsigned[0].contractCode)), icon('right', 18)) : null,
+    h('a', { class: 'list-row', href: '#/me/support' }, icon('wrench', 22), h('div', { class: 'grow' }, h('b', null, 'Báo sự cố trong phòng'), h('span', null, 'Điện, nước, máy lạnh, ổ khóa...')), icon('right', 18)),
+    h('a', { class: 'list-row', href: '#/me/contracts' }, icon('file', 22), h('div', { class: 'grow' }, h('b', null, 'Xem hợp đồng'), h('span', null, 'Điều khoản, tiền cọc, hạn trả')), icon('right', 18)));
 
   mount(view,
-    h('p', { style: 'font-size:18px;font-weight:650' }, `Chào ${s.name.split(' ').slice(-1)[0]},`),
-    next
-      ? h('section', { class: 'panel bill-card' },
-          h('div', { style: 'display:flex;justify-content:space-between;align-items:center;gap:8px' }, h('span', { style: 'font-weight:650' }, 'Cần trả'), statusBadge(next.paymentStatus)),
-          h('div', { class: 'amount' }, money(next.remainingAmount), h('small', null, '₫')),
-          h('p', { class: 'muted' }, `Hóa đơn ${next.invoiceCode} · hạn ${date(next.dueDate)}`),
-          due.length > 1 ? h('p', { class: 'muted' }, `Tổng ${due.length} hóa đơn chưa trả: ${money(total)} ₫`) : null,
-          h('button', { class: 'btn lg block', onclick: (e: Event) => payQr(next, e.currentTarget as HTMLElement) }, icon('qr', 20), 'Trả bằng mã QR'))
-      : h('section', { class: 'panel bill-card' }, h('span', { class: 'st ok', style: 'align-self:flex-start' }, icon('check', 14), 'Không còn khoản nợ'), h('div', { class: 'amount' }, '0', h('small', null, '₫')), h('p', { class: 'muted' }, 'Bạn đã trả đủ các hóa đơn. Cảm ơn bạn.')),
-    h('section', { class: 'panel', style: 'padding:16px 18px' }, routeLine([
-      { name: 'Hóa đơn đã phát hành', sub: invoices.length ? `${invoices.length} hóa đơn` : 'Chưa có', state: invoices.length ? 'done' : 'current' },
-      { name: 'Trả tiền', sub: due.length ? `Còn ${due.length} hóa đơn` : 'Đã trả đủ', state: invoices.length && !due.length ? 'done' : due.length ? 'current' : 'todo', stuck: due.length || undefined, stuckLabel: 'hóa đơn' },
-      { name: 'Hoàn tất', sub: invoices.length && !due.length ? 'Không còn nợ' : '–', state: invoices.length && !due.length ? 'current' : 'todo' },
-    ])),
-    unsigned.length ? h('a', { class: 'panel list-row', href: '#/me/contracts', style: 'background:var(--warn-bg);border-color:#e8c46a' }, icon('sign', 22), h('div', { class: 'grow' }, h('b', null, 'Hợp đồng chờ bạn ký'), h('span', null, unsigned[0].contractCode)), icon('right', 18)) : null,
-    c ? h('section', { class: 'panel' }, h('div', { class: 'panel-head' }, h('h2', null, 'Phòng của bạn'), statusBadge(c.status)),
-      h('div', { class: 'panel-body' }, h('div', { style: 'display:flex;gap:12px;align-items:center;margin-bottom:12px' }, plate(c.roomCode, 'lg'), h('span', { class: 'muted' }, `Hết hạn ${date(c.endDate)}`)),
-        dl([['Giá thuê', `${money(c.monthlyRentPrice)} ₫/tháng`], ['Hạn trả mỗi kỳ', `ngày ${c.paymentDueDay}`]]))) : null,
+    h('div', { class: 'me-hello' }, h('h2', null, greeting(s.name)), h('p', { class: 'muted' }, headline)),
+    h('div', { class: 'me-grid' },
+      h('div', { class: 'stack' }, bill, journey, history),
+      h('div', { class: 'stack' }, room, shortcuts),
+    ),
   );
+}
+
+function requestCheckout(c: Contract, done: () => void): void {
+  const d = openDialog('Báo trả phòng', { width: 440 });
+  const err = h('div');
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+  const when = h('input', { type: 'date', class: 'input', min: new Date().toISOString().slice(0, 10), value: tomorrow }) as HTMLInputElement;
+  d.body.append(err,
+    h('p', null, `Phòng ${c.roomCode}. Chủ trọ sẽ hẹn giờ kiểm tra phòng cùng bạn, trừ các khoản còn nợ hoặc hư hỏng (nếu có) vào tiền cọc ${money(c.depositAmount)} ₫ rồi hoàn phần còn lại.`),
+    field('Ngày bạn dự định trả phòng', when, 'Báo trước càng sớm càng dễ sắp xếp'));
+  const ok = h('button', { class: 'btn' }, 'Gửi báo trả phòng');
+  d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Để sau'), ok);
+  ok.addEventListener('click', () => busy(ok, async () => {
+    try { await api.post('/api/me/checkout-requests', { contractId: c.contractId, expectedCheckoutDate: when.value }); d.close(); toast('Đã gửi báo trả phòng'); done(); }
+    catch (e) { err.replaceChildren(formError(errText(e))); }
+  }));
 }
 
 async function payQr(inv: MyInvoice, btn: HTMLElement): Promise<void> {

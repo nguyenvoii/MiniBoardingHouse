@@ -14,7 +14,13 @@ export interface Ticket {
 interface Category { categoryId: number; categoryCode: string; categoryName: string; categoryType: string; active?: boolean; isActive?: boolean }
 
 export const TICKET_STATUS: Record<string, [string, string]> = {
-  OPEN: ['Mới nhận', 'warn'], ASSIGNED: ['Đã phân công', 'info'], IN_PROGRESS: ['Đang xử lý', 'info'], RESOLVED: ['Đã xử lý xong', 'ok'], CLOSED: ['Đã đóng', 'off'],
+  OPEN: ['Mới nhận', 'warn'], ASSIGNED: ['Đã phân công', 'info'], IN_PROGRESS: ['Đang xử lý', 'info'], RESOLVED: ['Chờ xác nhận hoàn tất', 'ok'], CLOSED: ['Đã hoàn tất', 'off'],
+};
+const NEXT: Record<string, string> = {
+  OPEN: 'Việc tiếp theo: tự xử lý luôn, hoặc giao cho nhân viên.',
+  ASSIGNED: 'Việc tiếp theo: bắt đầu xử lý, hoặc ghi kết quả nếu đã sửa xong.',
+  IN_PROGRESS: 'Việc tiếp theo: sửa xong thì ghi chi phí và kết quả.',
+  RESOLVED: 'Đã sửa xong. Bấm Xác nhận hoàn tất để kết thúc yêu cầu; khách sẽ được mời đánh giá.',
 };
 export const PRIORITY: Record<string, string> = { LOW: 'Thấp', NORMAL: 'Bình thường', URGENT: 'Khẩn cấp' };
 export const ticketBadge = (s: string) => { const [l, t] = TICKET_STATUS[s] ?? [s, 'off']; return h('span', { class: `st ${t}` }, l); };
@@ -74,16 +80,25 @@ async function openTicket(t: Ticket, catLabel: string, reload: () => void): Prom
       h('dt', null, 'Người xử lý'), h('dd', null, t.log?.assignedStaffName ?? 'Chưa phân công'), h('dt', null, 'Chi phí sửa'), h('dd', null, t.log?.repairCost != null ? `${money(t.log.repairCost)} ₫` : '–'),
       h('dt', null, 'Kết quả'), h('dd', null, t.log?.resolutionNotes ?? '–'), h('dt', null, 'Người thuê đánh giá'), h('dd', null, t.log?.tenantRating ? `${t.log.tenantRating}/5 sao` : '–')),
     h('div', null, h('h3', { style: 'margin-bottom:6px' }, 'Mô tả'), h('p', null, t.description)),
+    h('p', { class: 'muted' }, NEXT[t.status] ?? ''),
   );
   const act = (label: string, fn: () => void, cls = '') => h('button', { class: `btn ${cls}`, onclick: fn }, label);
   const call = async (path: string, body?: unknown, msg = 'Đã cập nhật') => {
     try { await api.patch(path, body); d.close(); toast(msg); reload(); } catch (e) { toast(errText(e), 'err'); }
   };
-  const foot: HTMLElement[] = [h('button', { class: 'btn secondary', onclick: d.close }, 'Đóng')];
-  if (t.status === 'OPEN' || t.status === 'ASSIGNED') foot.push(act(t.status === 'OPEN' ? 'Phân công' : 'Phân công lại', () => { d.close(); assign(t, reload); }, 'secondary'));
-  if (t.status === 'ASSIGNED') foot.push(act('Bắt đầu xử lý', () => void call(`/api/maintenance-requests/${t.requestId}/start`, undefined, 'Đã bắt đầu xử lý')));
-  if (t.status === 'ASSIGNED' || t.status === 'IN_PROGRESS') foot.push(act('Hoàn tất', () => { d.close(); resolve(t, reload); }));
-  if (t.status === 'RESOLVED') foot.push(act('Đóng yêu cầu', () => void call(`/api/maintenance-requests/${t.requestId}/close`, undefined, 'Đã đóng')));
+  const foot: HTMLElement[] = [h('button', { class: 'btn secondary', onclick: d.close }, 'Thoát')];
+  if (t.status === 'OPEN' || t.status === 'ASSIGNED') foot.push(act(t.status === 'OPEN' ? 'Giao người khác' : 'Phân công lại', () => { d.close(); assign(t, reload); }, 'secondary'));
+  if (t.status === 'OPEN') {
+    // Chủ trọ tự sửa luôn: nhận việc rồi ghi kết quả trong một bước, khỏi qua 3 nút liên tiếp
+    foot.push(act('Tôi xử lý xong ngay', async () => {
+      const me = loadSession();
+      if (!me) return;
+      try { await api.patch(`/api/maintenance-requests/${t.requestId}/assign`, { staffId: me.userId }); d.close(); resolve(t, reload); } catch (e) { toast(errText(e), 'err'); }
+    }));
+  }
+  if (t.status === 'ASSIGNED') foot.push(act('Bắt đầu xử lý', () => void call(`/api/maintenance-requests/${t.requestId}/start`, undefined, 'Đã bắt đầu xử lý'), 'secondary'));
+  if (t.status === 'ASSIGNED' || t.status === 'IN_PROGRESS') foot.push(act('Ghi kết quả, hoàn tất', () => { d.close(); resolve(t, reload); }));
+  if (t.status === 'RESOLVED') foot.push(act('Xác nhận hoàn tất', () => void call(`/api/maintenance-requests/${t.requestId}/close`, undefined, 'Đã hoàn tất yêu cầu')));
   d.foot.append(...foot);
 }
 

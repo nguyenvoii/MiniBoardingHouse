@@ -1,7 +1,7 @@
 import { h } from '../lib/dom';
 import { icon } from '../lib/icons';
-import { api, PROPERTY_ID, can } from '../lib/api';
-import { liveContracts } from '../data/live';
+import { api, PROPERTY_ID, can, Page } from '../lib/api';
+import { liveContracts, loadLive } from '../data/live';
 import { getMonth, setOverdue } from '../lib/ctx';
 import { date, money, monthLabel } from '../lib/format';
 import type { Contract, Dashboard, Invoice, MonthSummary, Period } from '../data/types';
@@ -20,15 +20,18 @@ export async function dashboardPage(view: HTMLElement): Promise<void> {
   ]);
   const period = periods.find((p) => p.monthYear === month) ?? null;
   const overdueAll = await api.get<Invoice[]>(`/api/invoices?propertyId=${PROPERTY_ID}&status=OVERDUE`).catch(() => [] as Invoice[]);
+  const life = staffOnly ? await loadLifecycle() : null;
   setOverdue(overdueAll.length);
   const flow = stage(month, period, invoices);
 
   view.replaceChildren(
     pageHead('Tổng quan', `${monthLabel(month)} · Khu trọ chính`, [
-      staffOnly && flow.next ? h('a', { class: 'btn', href: flow.next.href }, flow.next.label, icon('arrowRight', 16)) : null,
-      flow.cur !== 4 ? h('a', { class: 'btn secondary', href: '#/payments' }, icon('wallet', 16), 'Ghi nhận thanh toán') : null,
+      staffOnly ? h('a', { class: 'btn', href: '#/checkin' }, icon('key', 16), 'Nhận khách thuê phòng') : null,
+      staffOnly && flow.next ? h('a', { class: 'btn secondary', href: flow.next.href }, flow.next.label, icon('arrowRight', 16)) : null,
+      flow.cur !== 4 ? h('a', { class: 'btn ghost', href: '#/payments' }, icon('wallet', 16), 'Ghi nhận thanh toán') : null,
     ].filter(Boolean) as Node[]),
     h('div', { class: 'stack' },
+      life ? lifecyclePanel(life, overdueAll.length) : null,
       staffOnly ? routePanel(month, period, invoices, flow) : null,
       figures(summary, dash, overdueAll),
       h('div', { class: 'grid-2' }, attentionPanel(invoices, overdueAll), staffOnly ? expiringPanel(endingSoon(expiring ?? []), dash) : h('div')),
@@ -139,4 +142,64 @@ function expiringPanel(list: Contract[], _dash: Dashboard | null): HTMLElement {
     sub: `${list.length} hợp đồng hết hạn trong 30 ngày tới`, flush: true,
     actions: [h('a', { class: 'btn ghost sm', href: '#/contracts' }, 'Tất cả hợp đồng')],
   });
+}
+
+// ------------------------------------------------------------------ Vòng đời khách: tuyến 4 trạm
+interface Lifecycle {
+  prospects: number; vacant: number; unsigned: number; renting: number; totalRooms: number;
+  openTickets: number; awaitingClose: number; checkoutOpen: number; endingSoon: number;
+}
+
+async function loadLifecycle(): Promise<Lifecycle> {
+  const [live, tickets, checkouts] = await Promise.all([
+    loadLive().catch(() => null),
+    api.get<Page<{ status: string }>>('/api/maintenance-requests?size=200').catch(() => null),
+    api.get<Page<{ status: string }>>('/api/checkout-requests?size=200').catch(() => null),
+  ]);
+  const rooms = live?.rooms ?? [];
+  const contracts = live?.contracts ?? [];
+  const t = tickets?.items ?? [];
+  return {
+    prospects: (live?.tenants ?? []).filter((x) => !x.roomCode).length,
+    vacant: rooms.filter((r) => r.status === 'VACANT').length,
+    unsigned: contracts.filter((c) => !c.digitalSignatureUrl).length,
+    renting: rooms.filter((r) => r.status === 'RENTED').length,
+    totalRooms: rooms.length,
+    openTickets: t.filter((x) => x.status === 'OPEN' || x.status === 'ASSIGNED' || x.status === 'IN_PROGRESS').length,
+    awaitingClose: t.filter((x) => x.status === 'RESOLVED').length,
+    checkoutOpen: (checkouts?.items ?? []).filter((x) => x.status === 'PENDING' || x.status === 'INSPECTING').length,
+    endingSoon: endingSoon(contracts).length,
+  };
+}
+
+interface LifeRow { label: string; n: number; href: string; hot?: boolean }
+interface LifeCol { name: string; sub: string; rows: LifeRow[]; action: { label: string; href: string } }
+
+function lifecyclePanel(l: Lifecycle, overdue: number): HTMLElement {
+  const cols: LifeCol[] = [
+    { name: 'Tiếp nhận', sub: `${l.prospects} khách chưa thuê`, action: { label: 'Thêm khách', href: '#/tenants' },
+      rows: [{ label: 'Khách chưa thuê phòng', n: l.prospects, href: '#/tenants' }, { label: 'Phòng đang trống', n: l.vacant, href: '#/rooms' }] },
+    { name: 'Nhận phòng', sub: l.unsigned ? `${l.unsigned} hợp đồng chưa ký` : 'Không việc tồn', action: { label: 'Nhận khách', href: '#/checkin' },
+      rows: [{ label: 'Hợp đồng chưa ký', n: l.unsigned, href: '#/contracts', hot: l.unsigned > 0 }, { label: 'Phòng sẵn sàng nhận khách', n: l.vacant, href: '#/checkin' }] },
+    { name: 'Đang ở', sub: `${l.renting}/${l.totalRooms} phòng có khách`, action: { label: 'Xem công nợ', href: '#/debts' },
+      rows: [{ label: 'Hóa đơn quá hạn', n: overdue, href: '#/invoices?status=OVERDUE', hot: overdue > 0 },
+        { label: 'Sự cố đang xử lý', n: l.openTickets, href: '#/maintenance', hot: l.openTickets > 0 },
+        { label: 'Sự cố chờ xác nhận xong', n: l.awaitingClose, href: '#/maintenance' }] },
+    { name: 'Trả phòng', sub: l.checkoutOpen ? `${l.checkoutOpen} đang làm thủ tục` : 'Không có yêu cầu', action: { label: 'Mở Trả phòng', href: '#/checkout' },
+      rows: [{ label: 'Yêu cầu trả phòng đang làm', n: l.checkoutOpen, href: '#/checkout', hot: l.checkoutOpen > 0 },
+        { label: 'Hợp đồng hết hạn trong 30 ngày', n: l.endingSoon, href: '#/contracts', hot: l.endingSoon > 0 }] },
+  ];
+  const work = (c: LifeCol) => c.rows.filter((r) => r.hot).reduce((a, r) => a + r.n, 0);
+  const stops: Stop[] = cols.map((c) => ({
+    name: c.name, sub: c.sub, state: work(c) > 0 ? 'current' : 'done', href: c.rows[0].href, stuck: work(c), stuckLabel: 'việc cần làm',
+  }));
+  return h('section', { class: 'panel route life' },
+    h('div', { class: 'route-head' },
+      h('h2', null, 'Vòng đời khách thuê'),
+      h('span', { class: 'muted' }, 'Mỗi trạm là một giai đoạn từ lúc khách đến tới lúc trả phòng. Biển vàng là trạm đang có việc.')),
+    routeLine(stops),
+    h('div', { class: 'life-cols' }, ...cols.map((c) => h('div', { class: 'life-col' },
+      ...c.rows.map((r) => h('a', { class: `life-row${r.hot ? ' hot' : ''}`, href: r.href }, h('span', null, r.label), h('b', null, String(r.n)))),
+      h('a', { class: 'btn secondary sm', href: c.action.href }, c.action.label, icon('arrowRight', 14))))),
+  );
 }

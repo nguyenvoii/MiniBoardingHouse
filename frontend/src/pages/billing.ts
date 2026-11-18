@@ -173,7 +173,7 @@ async function openFee(feeId: number, draft: boolean, reload: () => void): Promi
     ], f.items, { footer: [h('td', { colspan: 3 }, 'Tổng'), h('td', { class: 'num' }, money(f.totalCalculatedAmount)), h('td')] }),
     draft ? h('div', { class: 'stack', style: 'gap:10px' },
       h('button', { class: 'btn secondary', style: 'align-self:flex-start', onclick: () => addItemDialog(f.calculatedFeeId, (nf) => { render(nf); toast('Đã thêm khoản'); reload(); }) }, icon('plus', 16), 'Thêm khoản'),
-      h('p', { class: 'muted' }, 'Sửa số lượng hoặc đơn giá rồi bấm ra ngoài ô để lưu. Dòng giảm trừ có đơn giá âm. Khoản «Nhập tay» được giữ lại khi tính lại kỳ; chỉnh sửa trên dòng tự tính thì không. Số lượng gửi xe và theo đầu người lấy từ hồ sơ ở Khách thuê và Phòng.')) : null);
+      h('p', { class: 'muted' }, 'Sửa số lượng hoặc đơn giá rồi bấm ra ngoài ô để lưu. Dòng giảm trừ có đơn giá âm. Khoản «Nhập tay» được giữ lại khi tính lại kỳ; chỉnh sửa trên dòng tự tính thì không. Số lượng gửi xe và theo đầu người lấy từ hồ sơ ở Khách hàng và Phòng.')) : null);
   };
   const removeItem = async (detailId: number) => {
     try {

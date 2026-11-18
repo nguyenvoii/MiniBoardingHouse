@@ -273,3 +273,30 @@ a.list-row:hover { background: var(--primary-faint); color: inherit; }
 .nav-sec > summary:focus-visible { outline: 3px solid var(--plate); outline-offset: -2px; }
 .danger-zone { border: 1px solid #e3b3ac; background: var(--danger-bg); border-radius: var(--r); padding: 14px 16px; display: flex; gap: 14px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
 .danger-zone p { color: var(--danger); font-weight: 500; flex: 1 1 220px; }
+
+/* Các bước của một quy trình (nhận khách, trả phòng) */
+.steps { list-style: none; margin: 0; padding: 0; display: flex; gap: 6px; flex-wrap: wrap; counter-reset: step; }
+.steps li { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 999px; background: var(--ground); border: 1px solid var(--line); color: var(--ink-3); font-size: 13px; font-weight: 600; }
+.steps li .n { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--line); color: var(--ink-2); font-size: 12px; }
+.steps li.now { background: var(--plate); border-color: var(--plate-ink); color: var(--plate-ink); }
+.steps li.now .n { background: var(--plate-ink); color: #fff; }
+.steps li.done { color: var(--primary); border-color: var(--primary); background: #fff; }
+.steps li.done .n { background: var(--primary); color: #fff; }
+.wizard { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; align-items: start; }
+.wizard .sum { position: sticky; top: 16px; }
+@media (max-width: 1000px) { .wizard { grid-template-columns: 1fr; } .wizard .sum { position: static; } }
+
+/* Vòng đời khách: các hàng việc nằm dưới từng trạm, thẳng cột với tuyến */
+.life-cols { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 22px; border-top: 1px solid var(--line); }
+.life-col { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px 4px; border-left: 1px solid var(--line); align-items: stretch; }
+.life-col:first-child { border-left: 0; }
+.life-col .btn { margin-top: 10px; align-self: flex-start; }
+.life-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 8px 0; color: var(--ink-2); text-decoration: none; font-size: 13.5px; border-bottom: 1px dashed var(--line); }
+.life-row b { font-size: 17px; font-variant-numeric: tabular-nums; color: var(--ink); }
+.life-row:hover span { text-decoration: underline; text-decoration-color: var(--plate); text-decoration-thickness: 2px; }
+.life-row.hot b { color: var(--danger); }
+@media (max-width: 900px) {
+  .life-cols { grid-template-columns: 1fr 1fr; }
+  .life-col:nth-child(odd) { border-left: 0; }
+}
+@media (max-width: 560px) { .life-cols { grid-template-columns: 1fr; } .life-col { border-left: 0; border-bottom: 1px solid var(--line); } }

@@ -423,11 +423,23 @@ public class ContractService {
     public ContractResponse terminate(Integer id, TerminateRequest req, Integer actorId, String ip) {
         RentalContract c = liveContract(id);
         String reason = req == null || req.reason() == null ? "" : req.reason().trim();
-        if (reason.isEmpty()) {
-            throw bad("Can ly do cham dut hop dong");
+        if (reason.length() < 10) {
+            throw bad("Can ly do cham dut hop dong (it nhat 10 ky tu)");
         }
         if (reason.length() > 255) {
             throw bad("Ly do toi da 255 ky tu");
+        }
+        // Chấm dứt sớm là việc hiếm và không hoàn tác: phải gõ lại đúng mã phòng, và không được còn nợ.
+        // Khách trả phòng bình thường thì dùng quy trình Trả phòng (kiểm tra phòng, quyết toán, hoàn cọc).
+        String confirm = req == null || req.confirmRoomCode() == null ? "" : req.confirmRoomCode().trim();
+        if (!confirm.equalsIgnoreCase(c.getRoom().getRoomCode())) {
+            throw bad("Gõ lại đúng mã phòng " + c.getRoom().getRoomCode() + " để xác nhận chấm dứt");
+        }
+        Object owed = em.createQuery("select coalesce(sum(i.remainingAmount), 0) from Invoice i "
+                        + "where i.calculatedFee.contract.contractId = :id and i.paymentStatus not in ('PAID', 'CANCELLED')")
+                .setParameter("id", id).getSingleResult();
+        if (owed instanceof java.math.BigDecimal debt && debt.signum() > 0) {
+            throw bad("Hợp đồng còn nợ " + debt.toBigInteger() + " đồng. Thu đủ hoặc dùng mục Trả phòng để quyết toán với tiền cọc");
         }
         String oldStatus = c.getStatus();
         c.setStatus("TERMINATED");

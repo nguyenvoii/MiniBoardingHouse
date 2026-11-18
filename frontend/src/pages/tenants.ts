@@ -4,7 +4,7 @@ import { api, errText } from '../lib/api';
 import { date } from '../lib/format';
 import { loadLive, LiveTenant } from '../data/live';
 import { vehiclesBox } from '../ui/occupancy';
-import { confirmDialog, dl, field, formError, input, openDialog, pageHead, panel, plate, statusBadge, table, toast } from '../ui/kit';
+import { confirmDialog, dl, field, formError, input, openDialog, pageHead, panel, plate, select, statusBadge, table, toast } from '../ui/kit';
 
 interface AccountInfo { exists: boolean; userId: number | null; phoneNumber: string | null; status: string | null }
 type Accounts = Map<number, AccountInfo | null>;
@@ -18,13 +18,15 @@ export async function tenantsPage(view: HTMLElement): Promise<void> {
   }));
 
   const holder = h('div');
-  const q = input({ type: 'search', placeholder: 'Tên, số điện thoại hoặc phòng', 'aria-label': 'Tìm khách thuê' });
+  const q = input({ type: 'search', placeholder: 'Tên, số điện thoại hoặc phòng', 'aria-label': 'Tìm khách hàng' });
+  const kind = select([['', 'Tất cả khách'], ['renting', 'Đang thuê phòng'], ['none', 'Chưa thuê (khách tiềm năng)']], '', { 'aria-label': 'Lọc theo tình trạng thuê' });
   const paint = () => {
     const k = q.value.trim().toLowerCase();
-    const rows = tenants.filter((t) => !k || `${t.name} ${t.phone} ${t.roomCode ?? ''}`.toLowerCase().includes(k));
+    const rows = tenants.filter((t) => (!k || `${t.name} ${t.phone} ${t.roomCode ?? ''}`.toLowerCase().includes(k))
+      && (kind.value === '' || (kind.value === 'renting' ? !!t.roomCode : !t.roomCode)));
     holder.replaceChildren(table<LiveTenant>([
       { key: 'n', label: 'Họ tên', render: (t) => h('span', { class: 'cell-main' }, t.name), sort: (a, b) => a.name.localeCompare(b.name, 'vi') },
-      { key: 'r', label: 'Phòng', render: (t) => (t.roomCode ? plate(t.roomCode) : h('span', { class: 'muted' }, 'Chưa thuê')) },
+      { key: 'r', label: 'Tình trạng', render: (t) => (t.roomCode ? h('span', { style: 'display:inline-flex;gap:8px;align-items:center' }, plate(t.roomCode), h('span', { class: 'st ok' }, 'Đang thuê')) : h('span', { class: 'st wait' }, 'Chưa thuê')) },
       { key: 'p', label: 'Điện thoại', render: (t) => t.phone },
       { key: 'j', label: 'Nghề nghiệp', render: (t) => t.job },
       { key: 's', label: 'Ở từ', render: (t) => date(t.since), sort: (a, b) => (a.since ?? '').localeCompare(b.since ?? '') },
@@ -32,10 +34,11 @@ export async function tenantsPage(view: HTMLElement): Promise<void> {
     ], rows, { onRow: (t) => open(t, accounts, () => void tenantsPage(view)) }));
   };
   q.addEventListener('input', paint);
+  kind.addEventListener('change', paint);
   paint();
   view.replaceChildren(
-    pageHead('Khách thuê', 'Hồ sơ người thuê, phòng đang ở và tài khoản đăng nhập để họ xem hóa đơn trên điện thoại.', [h('button', { class: 'btn', onclick: () => addTenant(() => void tenantsPage(view)) }, icon('plus', 16), 'Thêm khách thuê')]),
-    panel(null, [h('div', { class: 'toolbar' }, h('div', { class: 'grow' }, q)), holder], { flush: true }),
+    pageHead('Khách hàng', 'Hồ sơ khách: người đã đến hỏi thuê, đang thuê hoặc đã trả phòng. Khách chỉ trở thành người thuê khi có hợp đồng.', [h('button', { class: 'btn', onclick: () => addTenant(() => void tenantsPage(view)) }, icon('plus', 16), 'Thêm khách hàng')]),
+    panel(null, [h('div', { class: 'toolbar' }, h('div', { class: 'grow' }, q), kind), holder], { flush: true }),
   );
 }
 
@@ -90,12 +93,13 @@ function open(t: LiveTenant, accounts: Accounts, refresh: () => void): void {
   };
   paint(accounts.get(t.tenantId));
   d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Đóng'));
+  if (!t.roomCode) d.foot.append(h('a', { class: 'btn', href: `#/checkin?tenant=${t.tenantId}`, onclick: d.close }, icon('key', 16), 'Cho khách thuê phòng'));
 }
 
 function showPassword(phone: string, password: string): void {
   const d = openDialog('Đã cấp tài khoản', { width: 440 });
   d.body.append(
-    h('p', null, 'Gửi thông tin này cho khách thuê. Mật khẩu tạm chỉ hiện một lần, khách nên đổi sau khi đăng nhập.'),
+    h('p', null, 'Gửi thông tin này cho khách. Mật khẩu tạm chỉ hiện một lần, khách nên đổi sau khi đăng nhập.'),
     dl([['Đăng nhập bằng', phone], ['Mật khẩu tạm', h('span', { class: 'plate lg', style: 'font-size:20px;letter-spacing:0.08em' }, password)]]),
   );
   const copy = h('button', { class: 'btn secondary' }, icon('check', 16), 'Chép mật khẩu');
@@ -105,8 +109,8 @@ function showPassword(phone: string, password: string): void {
   d.foot.append(copy, h('button', { class: 'btn', onclick: d.close }, 'Xong'));
 }
 
-function addTenant(done: () => void): void {
-  const d = openDialog('Thêm khách thuê', { width: 560 });
+export function addTenant(done: (created?: { tenantId: number }) => void): void {
+  const d = openDialog('Thêm khách hàng', { width: 560 });
   const err = h('div');
   const name = input({ placeholder: 'Họ và tên', maxlength: '100' });
   const phone = input({ type: 'tel', placeholder: '09xx xxx xxx', maxlength: '20' });
@@ -115,19 +119,19 @@ function addTenant(done: () => void): void {
   const job = input({ placeholder: 'Không bắt buộc', maxlength: '100' });
   d.body.append(err, h('div', { class: 'form-grid' }, field('Họ và tên', name), field('Số điện thoại', phone, 'Dùng làm tài khoản đăng nhập của khách'),
     field('Số CCCD', cccd), field('Email', email), field('Nghề nghiệp', job)));
-  const ok = h('button', { class: 'btn' }, 'Thêm khách thuê');
+  const ok = h('button', { class: 'btn' }, 'Thêm khách hàng');
   d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Hủy'), ok);
   ok.addEventListener('click', () => busy(ok, async () => {
     err.replaceChildren();
     if (!name.value.trim() || !phone.value.trim() || !cccd.value.trim()) { err.replaceChildren(formError('Nhập đủ họ tên, số điện thoại và số CCCD.')); return; }
     try {
-      await api.post('/api/chi/tenants', {
+      const created = await api.post<{ tenantId: number }>('/api/chi/tenants', {
         fullName: name.value.trim(), phoneNumber: phone.value.trim(), identityNumber: cccd.value.trim(),
         email: email.value.trim() || null, occupation: job.value.trim() || null,
       });
       d.close();
       toast(`Đã thêm khách ${name.value.trim()}`);
-      done();
+      done(created);
     } catch (e) { err.replaceChildren(formError(errText(e))); }
   }));
 }

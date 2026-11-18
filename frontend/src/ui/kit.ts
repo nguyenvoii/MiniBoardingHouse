@@ -101,6 +101,14 @@ const STATUS: Record<string, StatusDef> = {
   SUSPENDED: { label: 'Tạm ngưng', tone: 'off', icon: 'lock' },
   LOCKED: { label: 'Đã khóa', tone: 'danger', icon: 'lock' },
   INACTIVE: { label: 'Chưa kích hoạt', tone: 'wait', icon: 'clock' },
+  // trả phòng, thiết bị
+  PENDING: { label: 'Chờ xác nhận', tone: 'wait', icon: 'clock' },
+  INSPECTING: { label: 'Đang kiểm tra phòng', tone: 'info', icon: 'search' },
+  FINALIZED: { label: 'Đã thanh lý', tone: 'ok', icon: 'check' },
+  REJECTED: { label: 'Từ chối', tone: 'off', icon: 'x' },
+  REFUNDED: { label: 'Đã hoàn cọc', tone: 'ok', icon: 'check' },
+  INSTALLED: { label: 'Đã lắp', tone: 'ok', icon: 'check' },
+  REMOVED: { label: 'Đã gỡ', tone: 'off', icon: 'x' },
 };
 
 export function statusBadge(code: string | null | undefined): HTMLElement {
@@ -224,6 +232,11 @@ export function panel(title: string | null, body: Node | Node[], opts: { sub?: s
     title ? h('div', { class: 'panel-head' }, h('div', null, h('h2', null, title), opts.sub ? h('p', null, opts.sub) : null), opts.actions ? h('div', { class: 'page-actions' }, ...opts.actions) : null) : null,
     ...(Array.isArray(body) ? body : [body]),
   );
+}
+
+/** Khung có tiêu đề và phần thân có đệm: dùng cho biểu mẫu và nội dung rời, khác panel() dành cho bảng sát mép. */
+export function card(title: string | null, body: Node | Node[], opts: { sub?: string; actions?: Node[] } = {}): HTMLElement {
+  return panel(title, h('div', { class: 'panel-body stack', style: 'gap:14px' }, ...(Array.isArray(body) ? body : [body])), opts);
 }
 
 export function pageHead(title: string, sub?: string, actions: Node[] = []): HTMLElement {

@@ -32,9 +32,11 @@ const GROUPS: Array<{ title: string; open: boolean; items: NavItem[] }> = [
     title: 'Quản lý',
     open: true,
     items: [
+      { href: '#/checkin', label: 'Nhận khách', icon: 'key', roles: ['LANDLORD', 'MANAGER'] },
       { href: '#/contracts', label: 'Hợp đồng', icon: 'file', roles: ['LANDLORD', 'MANAGER'] },
+      { href: '#/checkout', label: 'Trả phòng', icon: 'logout', roles: ['LANDLORD', 'MANAGER'] },
       { href: '#/rooms', label: 'Phòng', icon: 'bed', roles: ['LANDLORD', 'MANAGER'] },
-      { href: '#/tenants', label: 'Khách thuê', icon: 'users', roles: ['LANDLORD', 'MANAGER'] },
+      { href: '#/tenants', label: 'Khách hàng', icon: 'users', roles: ['LANDLORD', 'MANAGER'] },
       { href: '#/maintenance', label: 'Sửa chữa', icon: 'wrench', roles: ['LANDLORD', 'MANAGER'] },
     ],
   },
@@ -150,7 +152,8 @@ export function buildTenantShell(s: Session): TenantShell {
   ];
   const links = tabs.map(([href, label, ic]) => h('a', { href }, icon(ic, 22), label) as HTMLAnchorElement);
   const root = h('div', { class: 'm-app' },
-    h('header', { class: 'm-top' }, logo(28), title,
+    h('header', { class: 'm-top' }, logo(28), h('b', { class: 'm-brand' }, 'Stayly'), title,
+      h('span', { class: 'm-who' }, s.name),
       h('button', { class: 'icon-btn', 'aria-label': `Đăng xuất ${s.name}`, onclick: logout }, icon('logout'))),
     view,
     h('nav', { class: 'm-tabs', 'aria-label': 'Điều hướng' }, ...links),

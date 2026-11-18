@@ -1,5 +1,5 @@
-// Phòng, khách thuê và khu trọ lấy từ API của Chi (/api/chi/**). Trạng thái thuê và người đang ở được suy ra từ
-// HỢP ĐỒNG THẬT (API hợp đồng), để màn Phòng, Khách thuê và Lập hợp đồng luôn khớp nhau.
+// Phòng, khách hàng và khu trọ lấy từ API của Chi (/api/chi/**). Trạng thái thuê và người đang ở được suy ra từ
+// HỢP ĐỒNG THẬT (API hợp đồng), để màn Phòng, Khách hàng và Lập hợp đồng luôn khớp nhau.
 import { api, Page, PROPERTY_ID } from '../lib/api';
 import type { Contract } from './types';
 

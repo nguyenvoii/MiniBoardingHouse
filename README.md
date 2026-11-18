@@ -184,6 +184,7 @@ Chi tiết (giờ các use case thêm sau, bảng DB của từng người): `do
 | `docs/HUONG_DAN_LAP_TRINH.md` | Cấu trúc code, quy ước Git và DB, cách viết API, phân quyền, job, xuất file |
 | `docs/API_PHI.md` | Các API do Phi làm (tài khoản, hợp đồng, tính tiền, thanh toán, báo cáo) |
 | `docs/GIAO_DIEN_STAYLY.md` | Giao diện web: lệnh chạy, các màn hình, cách hoạt động |
+| `docs/KICH_BAN_KHACH_A.md` | Kịch bản khách A từ lúc đến thuê tới lúc trả phòng: ai làm gì, ở màn nào, tiền đi đâu |
 | `docs/HUONG_DAN_GIT.md` | Cách đẩy code và mở Pull Request |
 | `docs/HUONG_DAN_SU_DUNG.txt` | Hướng dẫn sử dụng ngắn gọn |
 | `docs/LOI_CAN_SUA_CODE_TOAN.md` | Các lỗi cần sửa trong code của Toàn |

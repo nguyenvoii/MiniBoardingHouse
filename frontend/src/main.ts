@@ -21,6 +21,8 @@ import { billingPage, billingDetailPage } from './pages/billing';
 import { invoicesPage } from './pages/invoices';
 import { paymentsPage } from './pages/payments';
 import { contractsPage } from './pages/contracts';
+import { checkoutPage } from './pages/checkout';
+import { checkinPage } from './pages/checkin';
 import { roomsPage } from './pages/rooms';
 import { tenantsPage } from './pages/tenants';
 import { reportsPage } from './pages/reports';
@@ -36,7 +38,7 @@ import { maintenancePage } from './pages/maintenance';
 
 const TITLES: Record<string, string> = {
   '/': 'Tổng quan', '/meters': 'Chỉ số điện nước', '/billing': 'Tính tiền tháng', '/invoices': 'Hóa đơn', '/payments': 'Thanh toán', '/debts': 'Công nợ',
-  '/maintenance': 'Sửa chữa', '/contracts': 'Hợp đồng', '/rooms': 'Phòng', '/tenants': 'Khách thuê', '/reports': 'Doanh thu và chi phí', '/expenses': 'Chi phí vận hành',
+  '/maintenance': 'Sửa chữa', '/contracts': 'Hợp đồng', '/checkin': 'Nhận khách thuê phòng', '/checkout': 'Trả phòng', '/rooms': 'Phòng', '/tenants': 'Khách hàng', '/reports': 'Doanh thu và chi phí', '/expenses': 'Chi phí vận hành',
   '/staff': 'Nhân viên', '/settings': 'Cài đặt', '/activity': 'Nhật ký thao tác', '/profile': 'Tài khoản của tôi', '/login': 'Đăng nhập',
   '/me': 'Trang chủ', '/me/invoices': 'Hóa đơn của tôi', '/me/contracts': 'Hợp đồng của tôi', '/me/support': 'Hỗ trợ', '/me/notifications': 'Thông báo',
 };
@@ -49,6 +51,8 @@ route('/billing/:id', 'staff', billingDetailPage);
 route('/invoices', 'staff', invoicesPage);
 route('/payments', 'staff', paymentsPage);
 route('/contracts', 'staff', contractsPage);
+route('/checkin', 'staff', checkinPage);
+route('/checkout', 'staff', checkoutPage);
 route('/rooms', 'staff', roomsPage);
 route('/tenants', 'staff', tenantsPage);
 route('/reports', 'staff', reportsPage);

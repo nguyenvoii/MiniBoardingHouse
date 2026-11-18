@@ -4,7 +4,7 @@ import { api, errText, Page } from '../lib/api';
 import { date, dateTime, money } from '../lib/format';
 import { loadLive } from '../data/live';
 import type { Contract, ContractDetail } from '../data/types';
-import { confirmDialog, dl, emptyState, field, formError, input, openDialog, pageHead, plate, select, statusBadge, table, toast } from '../ui/kit';
+import { dl, emptyState, field, formError, input, openDialog, pageHead, plate, select, statusBadge, table, toast } from '../ui/kit';
 
 const ADJ: Record<string, string> = {
   PRICE_CHANGE: 'Đổi giá thuê', DEPOSIT_CHANGE: 'Đổi tiền cọc', PAYMENT_SCHEDULE: 'Đổi chu kỳ và hạn trả', PAYMENT_TERMS: 'Sửa điều khoản thanh toán',
@@ -120,8 +120,13 @@ async function openContract(id: number, reload: () => void): Promise<void> {
       act('Đổi phòng', 'key', () => transfer(c, refresh))),
   );
   if (live) {
-    d.body.append(h('div', { class: 'danger-zone' }, h('p', null, 'Chấm dứt hợp đồng sẽ trả phòng về trạng thái trống và không hoàn tác được.'),
-      h('button', { class: 'btn danger', onclick: () => void terminate(c, refresh) }, icon('x', 16), 'Chấm dứt hợp đồng')));
+    d.body.append(h('div', { class: 'stack', style: 'gap:10px' },
+      h('div', { class: 'panel-body', style: 'border:1px solid var(--line);border-radius:10px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap' },
+        h('div', null, h('b', null, 'Khách trả phòng?'), h('p', { class: 'muted', style: 'margin:2px 0 0' }, 'Làm thủ tục Trả phòng: kiểm tra phòng, quyết toán công nợ với tiền cọc, hoàn cọc rồi mới thanh lý hợp đồng.')),
+        h('a', { class: 'btn', href: `#/checkout?contract=${c.contractId}`, onclick: () => d.close() }, icon('logout', 16), 'Làm thủ tục trả phòng')),
+      h('details', { class: 'danger-zone' }, h('summary', { style: 'cursor:pointer;font-weight:600' }, 'Chấm dứt hợp đồng sớm (hiếm, không hoàn tác)'),
+        h('p', null, 'Chỉ dùng khi hợp đồng phải dừng ngay mà không qua trả phòng, ví dụ nhập nhầm hoặc hai bên hủy trước khi vào ở. Không chấm dứt được khi còn nợ.'),
+        h('button', { class: 'btn danger', onclick: () => void terminate(c, refresh) }, icon('x', 16), 'Chấm dứt hợp đồng sớm'))));
   }
 }
 
@@ -193,15 +198,20 @@ async function transfer(c: Contract, done: () => void): Promise<void> {
 }
 
 async function terminate(c: Contract, done: () => void): Promise<void> {
-  const d = openDialog('Chấm dứt hợp đồng');
+  const d = openDialog('Chấm dứt hợp đồng sớm');
   const err = h('div');
-  const reason = h('textarea', { class: 'textarea', placeholder: 'Lý do chấm dứt (bắt buộc)' }) as HTMLTextAreaElement;
-  d.body.append(err, h('p', null, `Hợp đồng ${c.contractCode} chấm dứt thì phòng ${c.roomCode} trở về trống và không hoàn tác được.`), field('Lý do', reason));
-  const ok = h('button', { class: 'btn danger' }, 'Chấm dứt hợp đồng');
+  const reason = h('textarea', { class: 'textarea', placeholder: 'Ví dụ: Hai bên thỏa thuận hủy, khách chưa vào ở (ít nhất 10 ký tự)' }) as HTMLTextAreaElement;
+  const code = input({ placeholder: `Gõ ${c.roomCode}`, autocomplete: 'off', 'aria-label': 'Gõ lại mã phòng để xác nhận' });
+  d.body.append(err,
+    h('p', null, `Hợp đồng ${c.contractCode} dừng ngay, phòng ${c.roomCode} trở về trống và không hoàn tác được. Tiền cọc không được quyết toán ở đây.`),
+    field('Lý do (bắt buộc)', reason),
+    field(`Gõ lại mã phòng ${c.roomCode} để xác nhận`, code));
+  const ok = h('button', { class: 'btn danger', disabled: true }, 'Chấm dứt hợp đồng');
   d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Giữ hợp đồng'), ok);
+  const check = () => { (ok as HTMLButtonElement).disabled = reason.value.trim().length < 10 || code.value.trim().toLowerCase() !== c.roomCode.toLowerCase(); };
+  reason.addEventListener('input', check); code.addEventListener('input', check);
   ok.addEventListener('click', () => busy(ok, async () => {
-    if (!(await confirmDialog('Xác nhận chấm dứt', 'Bạn chắc chắn chấm dứt hợp đồng này?', 'Chấm dứt', true))) return;
-    try { await api.post(`/api/contracts/${c.contractId}/terminate`, { reason: reason.value }); d.close(); toast('Đã chấm dứt hợp đồng'); done(); }
+    try { await api.post(`/api/contracts/${c.contractId}/terminate`, { reason: reason.value.trim(), confirmRoomCode: code.value.trim() }); d.close(); toast('Đã chấm dứt hợp đồng'); done(); }
     catch (x) { err.replaceChildren(formError(errText(x))); }
   }));
 }
