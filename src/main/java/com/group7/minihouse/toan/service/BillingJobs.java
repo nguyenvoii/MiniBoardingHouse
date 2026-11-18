@@ -9,7 +9,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * Cac job tu dong cua Toan (UC 57, 82):
+ * Cac job tu dong cua Toan (UC 57, 82). Chi chay khi bat minihouse.scheduler.enabled=true (mac dinh TAT, cung
+ * quy uoc voi VietJobs):
  * - chot ky ghi chi so dien nuoc qua han,
  * - nhac thanh toan truoc han 3 ngay & 1 ngay,
  * - chuyen hoa don qua han sang OVERDUE va thong bao.
@@ -21,7 +22,7 @@ import org.springframework.stereotype.Component;
  *   minihouse.scheduler.meter-grace-days=7
  */
 @Component
-@ConditionalOnProperty(name = "minihouse.scheduler.enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(name = "minihouse.scheduler.enabled", havingValue = "true")
 public class BillingJobs {
 
     private static final Logger log = LoggerFactory.getLogger(BillingJobs.class);

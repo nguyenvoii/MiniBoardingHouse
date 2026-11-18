@@ -48,4 +48,13 @@ class GlobalExceptionHandlerTest {
         assertFailure(HttpStatus.BAD_REQUEST, handler.handleBadParameter(
                 new MethodArgumentTypeMismatchException("abc", Integer.class, "size", null, null)));
     }
+
+    /** Code cu nem ResponseStatusException: phai giu nguyen status va thong bao, khong thanh 500 "Loi he thong". */
+    @Test
+    void responseStatusExceptionKeepsStatusAndMessage() {
+        ResponseEntity<ApiResponse<Void>> res = handler.handleResponseStatus(
+                new org.springframework.web.server.ResponseStatusException(HttpStatus.CONFLICT, "Ky ghi so da dong"));
+        assertFailure(HttpStatus.CONFLICT, res);
+        assertEquals("Ky ghi so da dong", res.getBody().getMessage());
+    }
 }

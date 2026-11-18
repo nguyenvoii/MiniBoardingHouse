@@ -29,6 +29,14 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(ex.getStatus()).body(ApiResponse.error(ex.getMessage()));
     }
 
+    /** Code cu con nem ResponseStatusException: giu nguyen status va noi dung, khong de roi vao 500. */
+    @ExceptionHandler(org.springframework.web.server.ResponseStatusException.class)
+    public ResponseEntity<ApiResponse<Void>> handleResponseStatus(
+            org.springframework.web.server.ResponseStatusException ex) {
+        String msg = ex.getReason() == null ? "Yeu cau khong hop le" : ex.getReason();
+        return ResponseEntity.status(ex.getStatusCode()).body(ApiResponse.error(msg));
+    }
+
     /** @Valid that bai: gom cac loi cua tung truong thanh 1 thong bao. */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<Void>> handleValidation(MethodArgumentNotValidException ex) {

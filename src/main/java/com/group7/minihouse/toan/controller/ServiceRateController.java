@@ -5,6 +5,7 @@ import java.util.List;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 import com.group7.minihouse.toan.dto.RateDtos.*;
 import com.group7.minihouse.toan.service.ServiceRateService;
 
@@ -21,12 +22,14 @@ public class ServiceRateController {
 
     // UC 61, 64: bang gia dien nuoc
     @PostMapping("/service-rate-plans")
+    @PreAuthorize("hasAnyRole('LANDLORD','MANAGER')")
     @ResponseStatus(HttpStatus.CREATED)
     public PlanResponse createPlan(@RequestBody PlanRequest req) {
         return service.createPlan(req);
     }
 
     @PutMapping("/service-rate-plans/{id}")
+    @PreAuthorize("hasAnyRole('LANDLORD','MANAGER')")
     public PlanResponse updatePlan(@PathVariable("id") Integer id, @RequestBody PlanRequest req) {
         return service.updatePlan(id, req);
     }
@@ -44,17 +47,20 @@ public class ServiceRateController {
 
     // UC 62: phi dich vu theo khu
     @PostMapping("/property-service-rates")
+    @PreAuthorize("hasAnyRole('LANDLORD','MANAGER')")
     @ResponseStatus(HttpStatus.CREATED)
     public ServiceRateResponse createServiceRate(@RequestBody ServiceRateRequest req) {
         return service.createServiceRate(req);
     }
 
     @PutMapping("/property-service-rates/{id}")
+    @PreAuthorize("hasAnyRole('LANDLORD','MANAGER')")
     public ServiceRateResponse updateServiceRate(@PathVariable("id") Integer id, @RequestBody ServiceRateRequest req) {
         return service.updateServiceRate(id, req);
     }
 
     @DeleteMapping("/property-service-rates/{id}")
+    @PreAuthorize("hasAnyRole('LANDLORD','MANAGER')")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteServiceRate(@PathVariable("id") Integer id) {
         service.deleteServiceRate(id);
@@ -69,17 +75,20 @@ public class ServiceRateController {
 
     // UC 63: phu thu & mien giam theo phong
     @PostMapping("/room-custom-rates")
+    @PreAuthorize("hasAnyRole('LANDLORD','MANAGER')")
     @ResponseStatus(HttpStatus.CREATED)
     public CustomRateResponse createCustomRate(@RequestBody CustomRateRequest req) {
         return service.createCustomRate(req);
     }
 
     @PutMapping("/room-custom-rates/{id}")
+    @PreAuthorize("hasAnyRole('LANDLORD','MANAGER')")
     public CustomRateResponse updateCustomRate(@PathVariable("id") Integer id, @RequestBody CustomRateRequest req) {
         return service.updateCustomRate(id, req);
     }
 
     @DeleteMapping("/room-custom-rates/{id}")
+    @PreAuthorize("hasAnyRole('LANDLORD','MANAGER')")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteCustomRate(@PathVariable("id") Integer id) {
         service.deleteCustomRate(id);

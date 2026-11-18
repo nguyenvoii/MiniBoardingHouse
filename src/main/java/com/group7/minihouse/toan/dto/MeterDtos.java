@@ -55,6 +55,10 @@ public final class MeterDtos {
     public record MoveInResponse(Integer roomId, String roomCode, int initialElectric, int initialWater) {}
 
     /** Chi so luc tra phong (UC 60): ghi thanh mot ban ghi chi so trong ky chi dinh. */
+    /** Phong can ghi chi so trong ky: hop dong chong len ky (ke ca da cham dut giua ky), chua co chi so. */
+    public record MissingRoom(Integer roomId, String roomCode, Integer floorNumber, Integer contractId,
+                              String tenantName, String contractStatus) {}
+
     public record MoveOutRequest(Integer roomId, Integer periodId, Integer electric, Integer water,
                                  Integer recordedByUserId, String electricPhotoUrl, String waterPhotoUrl) {}
 }

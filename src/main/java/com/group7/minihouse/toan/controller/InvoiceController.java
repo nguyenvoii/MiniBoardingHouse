@@ -92,11 +92,13 @@ public class InvoiceController {
 
     // UC 80, 81
     @PostMapping("/{id}/send-email")
+    @PreAuthorize("hasAnyRole('LANDLORD','MANAGER','CASHIER')")
     public NotificationResponse sendEmail(@PathVariable("id") Integer id) {
         return service.sendEmail(id);
     }
 
     @PostMapping("/{id}/send-app")
+    @PreAuthorize("hasAnyRole('LANDLORD','MANAGER','CASHIER')")
     public NotificationResponse sendApp(@PathVariable("id") Integer id) {
         return service.sendToApp(id);
     }

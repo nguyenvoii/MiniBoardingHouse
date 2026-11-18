@@ -9,7 +9,7 @@ import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
+import com.group7.minihouse.shared.exception.BusinessException;
 import com.group7.minihouse.toan.dto.MeterDtos.*;
 import com.group7.minihouse.shared.entity.MeterAdjustmentLog;
 import com.group7.minihouse.shared.entity.MeterAnomalyAlert;
@@ -70,7 +70,7 @@ public class MeterReadingService {
             throw bad("Ngay ket thuc ky phai sau ngay bat dau");
         }
         if (periodRepo.existsByPropertyPropertyIdAndPeriodName(req.propertyId(), req.periodName())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Ky ghi so nay da ton tai");
+            throw new BusinessException(HttpStatus.CONFLICT, "Ky ghi so nay da ton tai");
         }
         UtilityReadingPeriod p = new UtilityReadingPeriod();
         p.setProperty(ref(Property.class, req.propertyId()));
@@ -112,7 +112,7 @@ public class MeterReadingService {
         }
         UtilityReadingPeriod period = findPeriod(req.periodId());
         if (Boolean.TRUE.equals(period.getIsClosed())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Ky ghi so da dong");
+            throw new BusinessException(HttpStatus.CONFLICT, "Ky ghi so da dong");
         }
         Room room = em.find(Room.class, req.roomId());
         if (room == null) {
@@ -123,7 +123,7 @@ public class MeterReadingService {
             throw bad("Phong khong thuoc khu cua ky ghi so");
         }
         if (readingRepo.findByPeriodPeriodIdAndRoomRoomId(req.periodId(), req.roomId()).isPresent()) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Phong nay da co chi so trong ky");
+            throw new BusinessException(HttpStatus.CONFLICT, "Phong nay da co chi so trong ky");
         }
 
         int[] base = resolveOldValues(room, period, req.oldElectric(), req.oldWater());
@@ -158,6 +158,40 @@ public class MeterReadingService {
     public List<ReadingResponse> listReadings(Integer periodId) {
         return readingRepo.findByPeriodPeriodIdOrderByRoomRoomCode(periodId).stream()
                 .map(this::toResponse).toList();
+    }
+
+    private static final java.util.List<String> LIVE_AT_PERIOD = java.util.List.of("ACTIVE", "EXPIRING_SOON",
+            "EXPIRED", "TERMINATED");
+
+    /**
+     * M9/T5: cac phong can ghi chi so trong ky = phong co hop dong chong len ky (ke ca hop dong da cham dut giua ky,
+     * vi tinh tien thang van tinh hop dong do) tru phong da co chi so. Moi phong 1 dong, lay khach cua hop dong sau cung.
+     */
+    @Transactional(readOnly = true)
+    public List<MissingRoom> missingRooms(Integer periodId) {
+        UtilityReadingPeriod p = findPeriod(periodId);
+        java.util.Set<Integer> done = new java.util.HashSet<>();
+        readingRepo.findByPeriodPeriodIdOrderByRoomRoomCode(periodId).forEach(r -> done.add(r.getRoom().getRoomId()));
+        List<com.group7.minihouse.shared.entity.RentalContract> contracts = em.createQuery(
+                "select c from RentalContract c where c.room.property.propertyId = :p and c.startDate <= :end "
+                        + "and c.endDate >= :start and c.status in :st "
+                        + "and (c.status <> 'TERMINATED' or not exists (select a.adjustmentId from ContractAdjustment a "
+                        + "where a.contract = c and a.adjustmentType = 'TERMINATED' and a.adjustedAt < :startTime)) "
+                        + "order by c.room.roomCode, c.startDate",
+                com.group7.minihouse.shared.entity.RentalContract.class)
+                .setParameter("p", p.getProperty().getPropertyId()).setParameter("end", p.getEndDate())
+                .setParameter("start", p.getStartDate()).setParameter("st", LIVE_AT_PERIOD)
+                .setParameter("startTime", p.getStartDate().atStartOfDay()).getResultList();
+        java.util.Map<Integer, MissingRoom> byRoom = new java.util.LinkedHashMap<>();
+        for (var c : contracts) {
+            Integer roomId = c.getRoom().getRoomId();
+            if (done.contains(roomId)) {
+                continue;
+            }
+            byRoom.put(roomId, new MissingRoom(roomId, c.getRoom().getRoomCode(), c.getRoom().getFloor().getFloorNumber(),
+                    c.getContractId(), c.getTenant().getFullName(), c.getStatus()));
+        }
+        return new java.util.ArrayList<>(byRoom.values());
     }
 
     @Transactional(readOnly = true)
@@ -196,7 +230,7 @@ public class MeterReadingService {
     public ReadingResponse adjustReading(Integer readingId, AdjustRequest req) {
         MeterReading r = findReading(readingId);
         if (Boolean.TRUE.equals(r.getPeriod().getIsClosed())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Ky ghi so da dong, khong the dieu chinh");
+            throw new BusinessException(HttpStatus.CONFLICT, "Ky ghi so da dong, khong the dieu chinh");
         }
         if (req.reason() == null || req.reason().isBlank()) {
             throw bad("Phai nhap ly do dieu chinh");
@@ -451,11 +485,11 @@ public class MeterReadingService {
                 Boolean.TRUE.equals(a.getIsResolved()));
     }
 
-    private static ResponseStatusException bad(String msg) {
-        return new ResponseStatusException(HttpStatus.BAD_REQUEST, msg);
+    private static BusinessException bad(String msg) {
+        return new BusinessException(HttpStatus.BAD_REQUEST, msg);
     }
 
-    private static ResponseStatusException notFound(String what) {
-        return new ResponseStatusException(HttpStatus.NOT_FOUND, "Khong tim thay " + what);
+    private static BusinessException notFound(String what) {
+        return new BusinessException(HttpStatus.NOT_FOUND, "Khong tim thay " + what);
     }
 }

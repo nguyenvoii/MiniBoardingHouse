@@ -8,7 +8,7 @@ import java.util.Set;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
+import com.group7.minihouse.shared.exception.BusinessException;
 import com.group7.minihouse.toan.dto.RateDtos.*;
 import com.group7.minihouse.shared.entity.Property;
 import com.group7.minihouse.shared.entity.PropertyServiceRate;
@@ -58,7 +58,7 @@ public class ServiceRateService {
         validatePlan(req);
         planRepo.findFirstByEffectiveEndDateIsNullOrderByEffectiveStartDateDesc().ifPresent(open -> {
             if (!open.getEffectiveStartDate().isBefore(req.effectiveStartDate())) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                throw new BusinessException(HttpStatus.CONFLICT,
                         "Ngay ap dung phai sau bang gia dang hieu luc (" + open.getEffectiveStartDate() + ")");
             }
             open.setEffectiveEndDate(req.effectiveStartDate().minusDays(1));
@@ -259,11 +259,11 @@ public class ServiceRateService {
                 c.getCustomPrice(), c.getNotes(), kind);
     }
 
-    private static ResponseStatusException bad(String msg) {
-        return new ResponseStatusException(HttpStatus.BAD_REQUEST, msg);
+    private static BusinessException bad(String msg) {
+        return new BusinessException(HttpStatus.BAD_REQUEST, msg);
     }
 
-    private static ResponseStatusException notFound(String what) {
-        return new ResponseStatusException(HttpStatus.NOT_FOUND, "Khong tim thay " + what);
+    private static BusinessException notFound(String what) {
+        return new BusinessException(HttpStatus.NOT_FOUND, "Khong tim thay " + what);
     }
 }
