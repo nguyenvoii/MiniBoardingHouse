@@ -81,6 +81,7 @@ public class StaffService {
         user.setEmail(c.email());
         user.setPhoneNumber(c.phone());
         user.setPasswordHash(passwordEncoder.encode(tempPassword));
+        user.setMustChangePassword(true);
         user.setStatus("ACTIVE");
         User saved = userRepository.save(user);
         for (Role role : roles) {

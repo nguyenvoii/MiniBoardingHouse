@@ -72,6 +72,7 @@ public class PasswordRecoveryService {
             throw new BusinessException(HttpStatus.BAD_REQUEST, BAD_CODE);
         }
         user.setPasswordHash(passwordEncoder.encode(newPassword));
+        user.setMustChangePassword(false);
         userRepository.save(user);
         activityLogService.log(user.getUserId(), "RESET_PASSWORD", "Dat lai mat khau bang ma OTP", ip);
     }

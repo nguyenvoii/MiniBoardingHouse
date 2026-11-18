@@ -65,6 +65,7 @@ public class TenantAccountService {
         user.setEmail(email);
         user.setFullName(tenant.getFullName());
         user.setPasswordHash(passwordEncoder.encode(tempPassword));
+        user.setMustChangePassword(true);
         user.setStatus("ACTIVE");
         User saved = userRepository.save(user);
 
@@ -94,6 +95,7 @@ public class TenantAccountService {
         }
         String tempPassword = PasswordGenerator.generate();
         account.setPasswordHash(passwordEncoder.encode(tempPassword));
+        account.setMustChangePassword(true);
         userRepository.save(account);
         if (actorUserId != null) {
             activityLogService.log(actorUserId, "RESET_TENANT_PASSWORD",

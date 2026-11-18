@@ -54,6 +54,7 @@ public class AccountService {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "Mat khau moi phai khac mat khau hien tai");
         }
         user.setPasswordHash(passwordEncoder.encode(newPassword));
+        user.setMustChangePassword(false);
         userRepository.save(user);
         activityLogService.log(userId, "CHANGE_PASSWORD", "Doi mat khau", ip);
     }

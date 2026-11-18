@@ -55,7 +55,8 @@ public class AuthService {
 
         activityLogService.log(user.getUserId(), "LOGIN", "Dang nhap thanh cong", ipAddress);
 
-        return new LoginResponse(jwtService.generate(authUser), "Bearer", jwtService.getExpirationSeconds(), authUser);
+        return new LoginResponse(jwtService.generate(authUser), "Bearer", jwtService.getExpirationSeconds(), authUser,
+                user.isMustChangePassword());
     }
 
     /** Tai khoan nguoi thue noi voi ho so khach thue qua so dien thoai (xem docs/thiet-ke/tai-khoan-nguoi-thue.md). */

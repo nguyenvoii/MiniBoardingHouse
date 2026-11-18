@@ -32,6 +32,7 @@ CREATE TABLE [users] (
     [full_name] NVARCHAR(100) NOT NULL,
     [avatar_url] NVARCHAR(500) NULL,
     [status] NVARCHAR(20) NOT NULL DEFAULT 'ACTIVE' CHECK ([status] IN ('ACTIVE', 'INACTIVE', 'LOCKED')),
+    [must_change_password] BIT NOT NULL DEFAULT 0, -- 1 = mật khẩu tạm do nhân viên cấp, phải đổi ở lần đăng nhập đầu
     [created_at] DATETIME2 NOT NULL DEFAULT GETDATE(),
     [updated_at] DATETIME2 NOT NULL DEFAULT GETDATE()
 );
