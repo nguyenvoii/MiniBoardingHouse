@@ -17,7 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class DepositService {
 
     public record DepositStatus(Integer contractId, String contractCode, BigDecimal required, BigDecimal collected,
-                                BigDecimal remaining) {
+                                BigDecimal remaining, boolean paidInFull) {
     }
 
     private static final Set<String> LIVE = Set.of("ACTIVE", "EXPIRING_SOON");
@@ -73,6 +73,6 @@ public class DepositService {
         BigDecimal required = c.getDepositAmount() == null ? BigDecimal.ZERO : c.getDepositAmount();
         BigDecimal collected = DepositLedger.collected(em, c.getContractCode());
         return new DepositStatus(c.getContractId(), c.getContractCode(), required, collected,
-                required.subtract(collected).max(BigDecimal.ZERO));
+                required.subtract(collected).max(BigDecimal.ZERO), collected.compareTo(required) >= 0);
     }
 }

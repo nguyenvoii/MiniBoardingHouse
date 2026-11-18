@@ -62,6 +62,8 @@ class ContractServiceTest {
     @Mock MeterReadingService meterService;
     @Mock ActivityLogService activityLogService;
     @Mock Query query;
+    @Mock org.springframework.context.ApplicationEventPublisher publisher;
+    @Mock DepositService depositService;
 
     ContractService service;
     Room room;
@@ -71,7 +73,7 @@ class ContractServiceTest {
     @BeforeEach
     void setUp() {
         service = new ContractService(repo, adjustmentRepo, tenantRepo, userRepo, em, fileStorage, exporter,
-                meterService, activityLogService);
+                meterService, activityLogService, new ContractEndService(publisher), depositService);
         room = room(1, "P101", "VACANT");
         room2 = room(2, "P102", "VACANT");
         tenant = new Tenant();
@@ -277,13 +279,84 @@ class ContractServiceTest {
     }
 
     @Test
-    void terminateFreesRoomAndWritesStayHistory() {
+    void terminateFreesRoomAndPublishesTheSharedEndEvent() {
         RentalContract c = live("ACTIVE");
         ContractResponse r = service.terminate(100, new TerminateRequest("Khach chuyen di noi khac", "P101"), 5, "ip");
         assertEquals("TERMINATED", r.status());
         assertEquals("VACANT", room.getStatus());
         assertNotNull(c);
-        verify(em).persist(any(com.group7.minihouse.shared.entity.ResidentStayHistory.class));
+        // lich su o / TERMINATED / chot chi so do ContractEndListener lam khi nhan su kien, chung voi Tra phong
+        ArgumentCaptor<com.group7.minihouse.shared.event.ContractEndedEvent> ev =
+                ArgumentCaptor.forClass(com.group7.minihouse.shared.event.ContractEndedEvent.class);
+        verify(publisher).publishEvent(ev.capture());
+        assertEquals("ACTIVE", ev.getValue().previousStatus());
+        assertEquals(100, ev.getValue().contractId());
+    }
+
+    @Test
+    void terminateWorksForExpiredContractToo() {
+        RentalContract c = live("EXPIRED");
+        ContractResponse r = service.terminate(100, new TerminateRequest("Khach da don di tu truoc", "P101"), 5, "ip");
+        assertEquals("TERMINATED", r.status());
+        assertEquals("VACANT", room.getStatus());
+        ArgumentCaptor<com.group7.minihouse.shared.event.ContractEndedEvent> ev =
+                ArgumentCaptor.forClass(com.group7.minihouse.shared.event.ContractEndedEvent.class);
+        verify(publisher).publishEvent(ev.capture());
+        assertEquals("EXPIRED", ev.getValue().previousStatus());
+        assertNotNull(c);
+    }
+
+    @Test
+    void terminateBlockedWhileCheckoutRequestIsOpen() {
+        live("ACTIVE");
+        when(query.getResultList()).thenReturn(List.of(5));
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.terminate(100, new TerminateRequest("Khach chuyen di noi khac", "P101"), 5, "ip"));
+        assertEquals(HttpStatus.CONFLICT, ex.getStatus());
+    }
+
+    @Test
+    void terminateWithFinalMetersValidatesThemFirst() {
+        live("ACTIVE");
+        org.mockito.Mockito.doThrow(new BusinessException("Chi so dien cuoi nho hon ky truoc"))
+                .when(meterService).validateFinalReading(eq(1), any(LocalDate.class), eq(10), eq(5));
+        assertThrows(BusinessException.class, () -> service.terminate(100,
+                new TerminateRequest("Khach chuyen di noi khac", "P101", 10, 5), 5, "ip"));
+        org.mockito.Mockito.verifyNoInteractions(publisher);
+    }
+
+    @Test
+    void lowerDepositThanCollectedIsRejected() {
+        live("ACTIVE");
+        when(query.getSingleResult()).thenReturn(new BigDecimal("3000000")); // da thu 3.000.000
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.updatePricing(100, new PricingRequest(null, new BigDecimal("2000000"), null, null), 5, "ip"));
+        assertEquals(HttpStatus.CONFLICT, ex.getStatus());
+    }
+
+    @Test
+    void createFromBookingTurnsHeldDepositIntoDepositReceipt() {
+        var booking = new com.group7.minihouse.shared.entity.BookingRequest();
+        booking.setRoom(room);
+        booking.setTenant(tenant);
+        booking.setStatus("APPROVED");
+        booking.setDepositPaid(new BigDecimal("1000000"));
+        when(em.find(com.group7.minihouse.shared.entity.BookingRequest.class, 9)).thenReturn(booking);
+        service.create(new CreateContractRequest(1, 7, null, LocalDate.of(2026, 3, 1), LocalDate.of(2027, 3, 1),
+                null, null, null, null, null, 9), 5, "ip");
+        verify(depositService).collect(100, new BigDecimal("1000000"), 5, "ip");
+        assertEquals("CANCELLED", booking.getStatus());
+    }
+
+    @Test
+    void createFromBookingRejectsBookingOfAnotherRoom() {
+        var booking = new com.group7.minihouse.shared.entity.BookingRequest();
+        booking.setRoom(room2);
+        booking.setTenant(tenant);
+        booking.setStatus("APPROVED");
+        when(em.find(com.group7.minihouse.shared.entity.BookingRequest.class, 9)).thenReturn(booking);
+        assertThrows(BusinessException.class, () -> service.create(new CreateContractRequest(1, 7, null,
+                LocalDate.of(2026, 3, 1), LocalDate.of(2027, 3, 1), null, null, null, null, null, 9), 5, "ip"));
     }
 
     @Test

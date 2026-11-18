@@ -17,7 +17,7 @@ public class TenantRoomResolver {
 
     public List<RentalContract> activeContracts(Integer tenantId) {
         return em.createQuery("select c from RentalContract c where c.tenant.tenantId = :t"
-                + " and c.status in ('ACTIVE','EXPIRING_SOON') order by c.contractId", RentalContract.class)
+                + " and c.status in ('ACTIVE','EXPIRING_SOON','EXPIRED') order by c.contractId", RentalContract.class)
                 .setParameter("t", tenantId).getResultList();
     }
 

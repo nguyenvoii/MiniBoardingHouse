@@ -15,7 +15,15 @@ public final class ContractDtos {
                                         LocalDate startDate, LocalDate endDate,
                                         BigDecimal monthlyRentPrice, BigDecimal depositAmount,
                                         Integer paymentCycleMonths, Integer paymentDueDay,
-                                        BigDecimal lateFeePerDay) {}
+                                        BigDecimal lateFeePerDay, Integer bookingId) {
+        /** bookingId (tuỳ chọn): yêu cầu giữ chỗ đã duyệt (APPROVED) của đúng khách và phòng; tiền giữ chỗ thành tiền cọc. */
+        public CreateContractRequest(Integer roomId, Integer tenantId, Integer templateId, LocalDate startDate,
+                                     LocalDate endDate, BigDecimal monthlyRentPrice, BigDecimal depositAmount,
+                                     Integer paymentCycleMonths, Integer paymentDueDay, BigDecimal lateFeePerDay) {
+            this(roomId, tenantId, templateId, startDate, endDate, monthlyRentPrice, depositAmount,
+                    paymentCycleMonths, paymentDueDay, lateFeePerDay, null);
+        }
+    }
 
     /** UC42. */
     public record PricingRequest(BigDecimal monthlyRentPrice, BigDecimal depositAmount,
@@ -39,7 +47,13 @@ public final class ContractDtos {
 
     /** UC51. */
     /** confirmRoomCode: người dùng gõ lại mã phòng để xác nhận, tránh bấm nhầm. */
-    public record TerminateRequest(String reason, String confirmRoomCode) {}
+    /** finalElectricMeter/finalWaterMeter (tuỳ chọn, phải đi cùng nhau): chỉ số cuối, được kiểm và ghi như khi trả phòng. */
+    public record TerminateRequest(String reason, String confirmRoomCode, Integer finalElectricMeter,
+                                   Integer finalWaterMeter) {
+        public TerminateRequest(String reason, String confirmRoomCode) {
+            this(reason, confirmRoomCode, null, null);
+        }
+    }
 
     public record ContractResponse(Integer contractId, String contractCode, Integer roomId, String roomCode,
                                    Integer tenantId, String tenantName, Integer templateId,

@@ -404,6 +404,86 @@ public class MeterReadingService {
                 null, req.water(), req.recordedByUserId(), req.electricPhotoUrl(), req.waterPhotoUrl()));
     }
 
+    /**
+     * Kiem chi so cuoi khi tra phong (F1): phai >= chi so cua ky ngay truoc (hoac chi so ban dau cua phong).
+     * Goi truoc khi luu bien ban de loi hien ngay cho nguoi nhap, khong doi toi luc thanh ly.
+     */
+    @Transactional(readOnly = true)
+    public void validateFinalReading(Integer roomId, LocalDate date, int electric, int water) {
+        Room room = em.find(Room.class, roomId);
+        if (room == null) {
+            throw notFound("Phong " + roomId);
+        }
+        UtilityReadingPeriod period = openPeriodAt(room, date);
+        int[] base = baseBefore(room, period == null ? date : period.getStartDate());
+        if (electric < base[0]) {
+            throw bad("Chi so dien cuoi (" + electric + ") nho hon chi so ky truoc (" + base[0] + "), kiem tra lai so vua nhap");
+        }
+        if (water < base[1]) {
+            throw bad("Chi so nuoc cuoi (" + water + ") nho hon chi so ky truoc (" + base[1] + "), kiem tra lai so vua nhap");
+        }
+    }
+
+    /**
+     * F6: ghi chi so cuoi cua phong nhu so doc cua ky ghi so dang mo chua ngay do (de vao hoa don thang cuoi).
+     * Phong da co so doc trong ky thi cap nhat theo so cuoi (co nhat ky dieu chinh). Khong nem loi khi so khong hop le
+     * hoac khong co ky mo: tra false de goi trong giao dich cua nguoi khac khong lam hong giao dich do.
+     */
+    @Transactional
+    public boolean recordFinalReading(Integer roomId, LocalDate date, int electric, int water, Integer userId) {
+        Room room = em.find(Room.class, roomId);
+        if (room == null || userId == null) {
+            return false;
+        }
+        UtilityReadingPeriod period = openPeriodAt(room, date);
+        if (period == null) {
+            return false;
+        }
+        int[] base = baseBefore(room, period.getStartDate());
+        if (electric < base[0] || water < base[1]) {
+            return false;
+        }
+        var existing = readingRepo.findByPeriodPeriodIdAndRoomRoomId(period.getPeriodId(), roomId);
+        if (existing.isPresent()) {
+            MeterReading r = existing.get();
+            if (r.getNewElectric() == electric && r.getNewWater() == water) {
+                return true;
+            }
+            String reason = "Cap nhat theo chi so cuoi cua bien ban tra phong";
+            if (r.getNewElectric() != electric) {
+                adjustReading(r.getReadingId(), new AdjustRequest("NEW_ELECTRIC", electric, reason, userId));
+            }
+            if (r.getNewWater() != water) {
+                adjustReading(r.getReadingId(), new AdjustRequest("NEW_WATER", water, reason, userId));
+            }
+            return true;
+        }
+        ReadingResponse saved = recordReading(new ReadingRequest(period.getPeriodId(), roomId, null, electric, null,
+                water, userId, null, null));
+        confirmReading(saved.readingId()); // so do nhan vien nhap khi kiem tra phong = da xac nhan
+        return true;
+    }
+
+    private UtilityReadingPeriod openPeriodAt(Room room, LocalDate date) {
+        if (room.getProperty() == null) {
+            return null;
+        }
+        List<UtilityReadingPeriod> l = em.createQuery("select p from UtilityReadingPeriod p "
+                        + "where p.property.propertyId = :pr and p.startDate <= :d and p.endDate >= :d "
+                        + "and p.isClosed = false order by p.startDate desc", UtilityReadingPeriod.class)
+                .setParameter("pr", room.getProperty().getPropertyId()).setParameter("d", date)
+                .setMaxResults(1).getResultList();
+        return l.isEmpty() ? null : l.get(0);
+    }
+
+    /** [dien, nuoc] cua ky ket thuc truoc ngay before, hoac chi so ban dau cua phong. */
+    private int[] baseBefore(Room room, LocalDate before) {
+        var prev = readingRepo.findFirstByRoomRoomIdAndPeriodEndDateLessThanOrderByPeriodEndDateDesc(
+                room.getRoomId(), before);
+        return new int[] {prev.map(MeterReading::getNewElectric).orElse(room.getInitialElectricMeter()),
+                prev.map(MeterReading::getNewWater).orElse(room.getInitialWaterMeter())};
+    }
+
     // ------------------------------------------------------------------ helpers
 
     /** [oldElectric, oldWater]: tu request, neu khong co thi lay ky truoc, neu khong co thi chi so ban dau cua phong. */

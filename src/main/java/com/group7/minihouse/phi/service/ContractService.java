@@ -27,6 +27,7 @@ import com.group7.minihouse.shared.entity.UserNotification;
 import com.group7.minihouse.shared.exception.BusinessException;
 import com.group7.minihouse.shared.export.TableExporter;
 import com.group7.minihouse.shared.storage.FileStorage;
+import com.group7.minihouse.shared.util.DepositLedger;
 import com.group7.minihouse.toan.dto.MeterDtos.MoveOutRequest;
 import com.group7.minihouse.toan.service.MeterReadingService;
 import jakarta.persistence.EntityManager;
@@ -54,6 +55,8 @@ public class ContractService {
     public static final String SIGNATURE_URL_PREFIX = "/api/contracts/signatures/";
     static final long SIGNATURE_MAX_BYTES = 1024 * 1024;
     private static final Set<String> LIVE = Set.of("ACTIVE", "EXPIRING_SOON");
+    /** Khách còn chiếm phòng: hợp đồng hết hạn (EXPIRED) mà chưa trả phòng/chấm dứt vẫn phải kết thúc được. */
+    private static final Set<String> OCCUPYING = Set.of("ACTIVE", "EXPIRING_SOON", "EXPIRED");
     private static final Set<String> STATUSES = Set.of("ACTIVE", "EXPIRING_SOON", "EXPIRED", "TERMINATED");
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final DateTimeFormatter CODE_DATE = DateTimeFormatter.ofPattern("yyyyMMdd");
@@ -67,11 +70,16 @@ public class ContractService {
     private final TableExporter exporter;
     private final MeterReadingService meterService;
     private final ActivityLogService activityLogService;
+    private final ContractEndService endService;
+    private final DepositService depositService;
 
     public ContractService(RentalContractRepository repo, ContractAdjustmentRepository adjustmentRepo,
                            TenantReadRepository tenantRepo, UserRepository userRepo, EntityManager em,
                            FileStorage fileStorage, TableExporter exporter, MeterReadingService meterService,
-                           ActivityLogService activityLogService) {
+                           ActivityLogService activityLogService, ContractEndService endService,
+                           DepositService depositService) {
+        this.endService = endService;
+        this.depositService = depositService;
         this.repo = repo;
         this.adjustmentRepo = adjustmentRepo;
         this.tenantRepo = tenantRepo;
@@ -134,7 +142,37 @@ public class ContractService {
         RentalContract saved = repo.save(c);
         room.setStatus("RENTED");
         audit(actorId, "CREATE_CONTRACT", "Lap hop dong " + saved.getContractCode(), ip);
+        if (req.bookingId() != null) {
+            linkBooking(req.bookingId(), saved, actorId, ip);
+        }
         return toResponse(saved);
+    }
+
+    /**
+     * M5: noi yeu cau giu cho (Tiep nhan) voi hop dong: phai la yeu cau APPROVED cua dung khach va phong. Tien giu cho
+     * da nhan (deposit_paid) thanh phieu thu coc cua hop dong (toi da bang tien coc), yeu cau duoc dong lai de khong
+     * dung lai lan hai (bang khong co trang thai rieng nen dung CANCELLED kem ghi chu ma hop dong).
+     */
+    private void linkBooking(Integer bookingId, RentalContract c, Integer actorId, String ip) {
+        com.group7.minihouse.shared.entity.BookingRequest b =
+                em.find(com.group7.minihouse.shared.entity.BookingRequest.class, bookingId);
+        if (b == null) {
+            throw BusinessException.notFound("Yeu cau giu cho " + bookingId);
+        }
+        if (!"APPROVED".equals(b.getStatus())) {
+            throw conflict("Chi lap hop dong tu yeu cau giu cho da duyet (hien la " + b.getStatus() + ")");
+        }
+        if (!b.getRoom().getRoomId().equals(c.getRoom().getRoomId())
+                || !b.getTenant().getTenantId().equals(c.getTenant().getTenantId())) {
+            throw bad("Yeu cau giu cho khong thuoc phong va khach da chon");
+        }
+        BigDecimal held = b.getDepositPaid() == null ? BigDecimal.ZERO : b.getDepositPaid();
+        BigDecimal toCollect = held.min(c.getDepositAmount());
+        if (toCollect.signum() > 0) {
+            depositService.collect(c.getContractId(), toCollect, actorId, ip);
+        }
+        b.setStatus("CANCELLED");
+        b.setRejectionReason("Da lap hop dong " + c.getContractCode());
     }
 
     // ------------------------------------------------------------------ UC47: tra cuu
@@ -189,6 +227,14 @@ public class ContractService {
         checkPricing(rent, deposit, cycle, dueDay);
         if (rent.compareTo(c.getMonthlyRentPrice()) != 0) {
             record(c, "PRICE_CHANGE", c.getMonthlyRentPrice().toPlainString(), rent.toPlainString(), actorId);
+        }
+        if (deposit.compareTo(c.getDepositAmount()) < 0) {
+            // M2: ha coc xuong duoi so da thu thi khach mat phan chenh khi hoan coc; phai hoan phan do truoc
+            BigDecimal collected = DepositLedger.collected(em, c.getContractCode());
+            if (deposit.compareTo(collected) < 0) {
+                throw conflict("Da thu coc " + collected.toBigInteger() + ", khong the sua tien coc xuong "
+                        + deposit.toBigInteger() + " (thap hon so da thu). Hoan phan chenh cho khach truoc");
+            }
         }
         if (deposit.compareTo(c.getDepositAmount()) != 0) {
             record(c, "DEPOSIT_CHANGE", c.getDepositAmount().toPlainString(), deposit.toPlainString(), actorId);
@@ -421,7 +467,10 @@ public class ContractService {
 
     @Transactional
     public ContractResponse terminate(Integer id, TerminateRequest req, Integer actorId, String ip) {
-        RentalContract c = liveContract(id);
+        RentalContract c = load(id);
+        if (!OCCUPYING.contains(c.getStatus())) {
+            throw conflict("Hop dong o trang thai " + c.getStatus() + ", khong con hieu luc de thao tac");
+        }
         String reason = req == null || req.reason() == null ? "" : req.reason().trim();
         if (reason.length() < 10) {
             throw bad("Can ly do cham dut hop dong (it nhat 10 ky tu)");
@@ -441,21 +490,22 @@ public class ContractService {
         if (owed instanceof java.math.BigDecimal debt && debt.signum() > 0) {
             throw bad("Hợp đồng còn nợ " + debt.toBigInteger() + " đồng. Thu đủ hoặc dùng mục Trả phòng để quyết toán với tiền cọc");
         }
-        String oldStatus = c.getStatus();
-        c.setStatus("TERMINATED");
-        c.getRoom().setStatus("VACANT");
-        ResidentStayHistory h = new ResidentStayHistory();
-        h.setTenant(c.getTenant());
-        h.setRoom(c.getRoom());
-        h.setStartDate(c.getStartDate());
-        h.setEndDate(LocalDate.now());
-        h.setCheckoutReason(reason);
-        em.persist(h);
-        em.createQuery("update RoomResident r set r.isActive = false, r.endDate = :d "
-                        + "where r.room.roomId = :room and r.isActive = true")
-                .setParameter("d", LocalDate.now()).setParameter("room", c.getRoom().getRoomId())
-                .executeUpdate();
-        record(c, "TERMINATED", oldStatus, reason, actorId);
+        // Đang có yêu cầu trả phòng chưa xong thì phải xử lý nó (đường chuẩn), không chấm dứt chồng lên
+        if (!em.createQuery("select r.checkoutId from CheckoutRequest r where r.contract.contractId = :id "
+                        + "and r.status in ('PENDING', 'INSPECTING')").setParameter("id", id)
+                .getResultList().isEmpty()) {
+            throw conflict("Hop dong dang co yeu cau tra phong chua xu ly: hoan tat thanh ly o muc Tra phong hoac huy yeu cau do truoc");
+        }
+        Integer finalE = req.finalElectricMeter();
+        Integer finalW = req.finalWaterMeter();
+        if (finalE != null || finalW != null) {
+            if (finalE == null || finalW == null || finalE < 0 || finalW < 0) {
+                throw bad("Chi so dien va nuoc cuoi phai di cung nhau va khong am");
+            }
+            meterService.validateFinalReading(c.getRoom().getRoomId(), LocalDate.now(), finalE, finalW);
+        }
+        // Lịch sử TERMINATED, lịch sử ở, gỡ người ở, chốt chỉ số do ContractEndListener làm (cùng đường với Trả phòng)
+        endService.end(c, LocalDate.now(), reason, actorId, finalE, finalW);
         audit(actorId, "TERMINATE_CONTRACT", "Cham dut hop dong " + c.getContractCode() + ": " + reason, ip);
         return toResponse(c);
     }

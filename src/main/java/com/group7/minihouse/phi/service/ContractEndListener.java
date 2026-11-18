@@ -5,10 +5,8 @@ import com.group7.minihouse.shared.entity.RentalContract;
 import com.group7.minihouse.shared.entity.ResidentStayHistory;
 import com.group7.minihouse.shared.entity.User;
 import com.group7.minihouse.shared.event.ContractEndedEvent;
-import com.group7.minihouse.toan.dto.MeterDtos.MoveOutRequest;
 import com.group7.minihouse.toan.service.MeterReadingService;
 import jakarta.persistence.EntityManager;
-import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.event.EventListener;
@@ -43,7 +41,7 @@ public class ContractEndListener {
         ContractAdjustment a = new ContractAdjustment();
         a.setContract(c);
         a.setAdjustmentType("TERMINATED");
-        a.setOldValue("ACTIVE");
+        a.setOldValue(e.previousStatus() == null ? "ACTIVE" : e.previousStatus());
         a.setNewValue(e.reason() == null ? "Tra phong" : e.reason());
         if (e.actorId() != null) {
             a.setAdjustedBy(em.getReference(User.class, e.actorId()));
@@ -64,30 +62,19 @@ public class ContractEndListener {
         closeMeters(e);
     }
 
-    /** Ghi chỉ số cuối như một lần đọc của kỳ chứa ngày trả phòng, nếu kỳ đó có và phòng chưa có số đọc. */
+    /**
+     * Chốt chỉ số cuối vào kỳ ghi số đang mở chứa ngày trả phòng (thường đã ghi từ lúc kiểm tra phòng, F6; ở đây chỉ
+     * bổ sung nếu chưa có). Số được kiểm trước khi ghi (recordInspection kiểm từ đầu), nên không dựa vào try/catch:
+     * dịch vụ trả false thay vì ném lỗi, giao dịch thanh lý không bị đánh dấu rollback (F1).
+     */
     private void closeMeters(ContractEndedEvent e) {
-        if (e.finalElectric() == null || e.finalWater() == null || e.actorId() == null || e.propertyId() == null) {
+        if (e.finalElectric() == null || e.finalWater() == null || e.actorId() == null) {
             return;
         }
-        List<?> periods = em.createQuery("select p.periodId from UtilityReadingPeriod p where p.property.propertyId = :pr "
-                        + "and p.startDate <= :d and p.endDate >= :d and p.isClosed = false")
-                .setParameter("pr", e.propertyId()).setParameter("d", e.endDate()).getResultList();
-        if (periods.isEmpty()) {
-            return;
-        }
-        Integer periodId = (Integer) periods.get(0);
-        Long existing = (Long) em.createQuery("select count(m) from MeterReading m where m.period.periodId = :p "
-                        + "and m.room.roomId = :r").setParameter("p", periodId).setParameter("r", e.roomId())
-                .getSingleResult();
-        if (existing > 0) {
-            return;
-        }
-        try {
-            meterService.recordMoveOut(new MoveOutRequest(e.roomId(), periodId, e.finalElectric(), e.finalWater(),
-                    e.actorId(), null, null));
-        } catch (RuntimeException ex) {
-            // Chỉ số cuối thấp hơn chỉ số kỳ trước (nhập sai): không chặn thanh lý, nhân viên sửa ở màn Chỉ số
-            log.warn("Khong chot duoc chi so khi tra phong phong {}: {}", e.roomId(), ex.getMessage());
+        if (!meterService.recordFinalReading(e.roomId(), e.endDate(), e.finalElectric(), e.finalWater(),
+                e.actorId())) {
+            log.info("Khong chot duoc chi so khi tra phong phong {} (khong co ky ghi so dang mo hoac so khong hop le)",
+                    e.roomId());
         }
     }
 }

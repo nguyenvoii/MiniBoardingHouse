@@ -45,7 +45,15 @@ public final class CheckoutDtos {
     public record InspectionResponse(Integer inspectionId, Integer checkoutId, Integer finalElectricMeter,
                                      Integer finalWaterMeter, String damagedEquipmentsDescription,
                                      BigDecimal damageCompensationAmount, BigDecimal unpaidUtilitiesAmount,
-                                     String inspectionPhotoUrl, Integer inspectedBy, LocalDateTime inspectedAt) {
+                                     String inspectionPhotoUrl, Integer inspectedBy, LocalDateTime inspectedAt,
+                                     boolean meterRecorded) {
+    }
+
+    /** F5: biên bản nhận phòng của hợp đồng (chỉ số đầu, nội thất) để đối chiếu khi trả phòng; null nếu chưa lập. */
+    public record CheckinRecord(Integer inspectionId, LocalDate checkinDate, Integer initialElectricMeter,
+                                Integer initialWaterMeter, Integer keyHandedCount, String furnishingsCondition,
+                                String notes, String inspectionPhotoUrl, Boolean tenantConfirmed,
+                                String inspectedByName) {
     }
 
     public record UnpaidInvoiceItem(Integer invoiceId, String invoiceCode, LocalDate dueDate,
@@ -73,6 +81,7 @@ public final class CheckoutDtos {
 
     /** UC107: bien ban ban giao phong (du lieu de in). */
     public record HandoverReport(CheckoutResponse checkout, InspectionResponse inspection,
-                                 SettlementResponse settlement, RefundVoucherResponse refundVoucher) {
+                                 SettlementResponse settlement, RefundVoucherResponse refundVoucher,
+                                 CheckinRecord checkin) {
     }
 }

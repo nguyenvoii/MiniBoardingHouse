@@ -199,7 +199,7 @@ public class RoomService {
         Room room = roomRepository.findById(roomId)
                 .orElseThrow(() -> BusinessException.notFound("Phòng"));
         boolean hasActiveContract = em.createQuery("select count(c) from RentalContract c where c.room.roomId = :r "
-                        + "and c.status in ('ACTIVE', 'EXPIRING_SOON')", Long.class)
+                        + "and c.status in ('ACTIVE', 'EXPIRING_SOON', 'EXPIRED')", Long.class)
                 .setParameter("r", roomId).getSingleResult() > 0;
         if (hasActiveContract && !"RENTED".equals(status)) {
             throw new BusinessException("Phòng đang có hợp đồng hiệu lực, hãy chấm dứt hợp đồng trước khi đổi trạng thái");

@@ -68,25 +68,29 @@ class ContractEndAndDepositTest {
         verify(em).persist(any(ContractAdjustment.class));
         verify(em).persist(any(ResidentStayHistory.class));
         verify(query).executeUpdate();
-        verify(meters, never()).recordMoveOut(any());
     }
 
     @Test
-    void endingByCheckoutClosesMetersWhenAnOpenPeriodExists() {
+    void endingByCheckoutClosesMetersThroughTheMeterService() {
         MeterReadingService meters = mock(MeterReadingService.class);
-        when(query.getResultList()).thenReturn(List.of(9));
-        when(query.getSingleResult()).thenReturn(0L);
         new ContractEndListener(em, meters).onContractEnded(event(2000, 900));
-        verify(meters).recordMoveOut(new MoveOutRequest(7, 9, 2000, 900, 5, null, null));
+        verify(meters).recordFinalReading(7, LocalDate.of(2026, 11, 18), 2000, 900, 5);
+    }
+
+    /** F1: so cuoi khong hop le khong duoc lam hong giao dich thanh ly: dich vu tra false, listener khong nem loi. */
+    @Test
+    void invalidFinalMeterDoesNotBreakTheEndTransaction() {
+        MeterReadingService meters = mock(MeterReadingService.class);
+        when(meters.recordFinalReading(7, LocalDate.of(2026, 11, 18), 2000, 900, 5)).thenReturn(false);
+        new ContractEndListener(em, meters).onContractEnded(event(2000, 900));
+        verify(em).persist(any(ContractAdjustment.class)); // lich su van duoc ghi, khong ngoai le
     }
 
     @Test
-    void doesNotOverwriteAnExistingReadingInThatPeriod() {
+    void skipsMetersWhenNoFinalNumbersWereRecorded() {
         MeterReadingService meters = mock(MeterReadingService.class);
-        when(query.getResultList()).thenReturn(List.of(9));
-        when(query.getSingleResult()).thenReturn(1L);
-        new ContractEndListener(em, meters).onContractEnded(event(2000, 900));
-        verify(meters, never()).recordMoveOut(any());
+        new ContractEndListener(em, meters).onContractEnded(event(null, null));
+        verify(meters, never()).recordFinalReading(anyInt(), any(), anyInt(), anyInt(), anyInt());
     }
 
     @Test

@@ -39,17 +39,30 @@ public class ReceiptService {
         this.invoiceService = invoiceService;
     }
 
+    /** Dung noi bo (vd DepositService lap phieu thu coc co ghi chu dung mau cua hop dong). */
     @Transactional
     public ReceiptResponse create(ReceiptRequest req) {
-        return create(req, null, null);
+        return doCreate(req, null, null);
+    }
+
+    /**
+     * Duong API (POST /api/receipts): M12 khong cho lap phieu loai DEPOSIT o day vi tien coc da thu cua hop dong duoc suy
+     * ra tu phieu DEPOSIT co ghi chu dung mau; ai lap tay duoc phieu loai nay se lam tang tien hoan coc. Thu coc di qua
+     * POST /api/contracts/{id}/deposit.
+     */
+    @Transactional
+    public ReceiptResponse create(ReceiptRequest req, Integer actorId, String ip) {
+        if (req != null && "DEPOSIT".equalsIgnoreCase(req.voucherType())) {
+            throw bad("Phieu thu coc chi lap qua muc Thu coc cua hop dong");
+        }
+        return doCreate(req, actorId, ip);
     }
 
     /**
      * Phieu thu tien phong (MONTHLY_RENT) bat buoc gan giao dich thu tien da thanh cong; da gan giao dich thi so tien
      * phieu khong duoc vuot so tien giao dich (tinh ca cac phieu da lap truoc do).
      */
-    @Transactional
-    public ReceiptResponse create(ReceiptRequest req, Integer actorId, String ip) {
+    private ReceiptResponse doCreate(ReceiptRequest req, Integer actorId, String ip) {
         if (req.voucherType() == null || !TYPES.contains(req.voucherType().toUpperCase())) {
             throw bad("voucherType phai thuoc " + TYPES);
         }

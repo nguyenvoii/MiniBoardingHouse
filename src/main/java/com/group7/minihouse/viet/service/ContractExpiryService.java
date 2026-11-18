@@ -42,7 +42,8 @@ public class ContractExpiryService {
     public List<ExpiringContract> expiring(int days) {
         int d = Math.min(Math.max(days, 1), 365);
         LocalDate today = LocalDate.now();
-        List<RentalContract> list = em.createQuery("select c from RentalContract c where c.status in ('ACTIVE','EXPIRING_SOON')"
+        // gom ca EXPIRED (het han ma chua tra phong/cham dut): daysLeft am = da qua han bao nhieu ngay (F2/F3)
+        List<RentalContract> list = em.createQuery("select c from RentalContract c where c.status in ('ACTIVE','EXPIRING_SOON','EXPIRED')"
                 + " and c.endDate is not null and c.endDate <= :limit order by c.endDate", RentalContract.class)
                 .setParameter("limit", today.plusDays(d)).getResultList();
         return list.stream().map(c -> new ExpiringContract(c.getContractId(), c.getContractCode(),

@@ -64,9 +64,16 @@ class ReceiptServiceTest {
                 () -> service.create(req(null, "MONTHLY_RENT", "1000"), 5, "ip")).getStatus());
     }
 
+    /** M12: duong API khong cho lap phieu coc tay (tien coc suy ra tu phieu coc dung mau cua hop dong). */
+    @Test
+    void duongApiTuChoiPhieuCoc() {
+        assertEquals(HttpStatus.BAD_REQUEST, assertThrows(BusinessException.class,
+                () -> service.create(req(null, "DEPOSIT", "1000"), 5, "ip")).getStatus());
+    }
+
     @Test
     void phieuCocHoacDichVuKhongBatBuocGiaoDich() {
-        assertEquals("DEPOSIT", service.create(req(null, "deposit", "1000"), 5, "ip").voucherType());
+        assertEquals("DEPOSIT", service.create(req(null, "deposit", "1000")).voucherType());
         assertEquals("EXTRA_SERVICE", service.create(req(null, "EXTRA_SERVICE", "1000"), 5, "ip").voucherType());
     }
 
@@ -99,14 +106,14 @@ class ReceiptServiceTest {
     void maPhieuBoQuaMaDaTonTai() {
         when(receiptRepo.countByVoucherCodeStartingWith(any())).thenReturn(2L);
         when(receiptRepo.existsByVoucherCode(any())).thenAnswer(i -> ((String) i.getArgument(0)).endsWith("0003"));
-        String code = service.create(req(null, "DEPOSIT", "1000"), 5, "ip").voucherCode();
+        String code = service.create(req(null, "DEPOSIT", "1000")).voucherCode();
         assertEquals(true, code.endsWith("0004"), code);
     }
 
     @Test
     void soTienPhaiLonHonKhongVaLoaiPhieuHopLe() {
         assertEquals(HttpStatus.BAD_REQUEST, assertThrows(BusinessException.class,
-                () -> service.create(req(null, "DEPOSIT", "0"), 5, "ip")).getStatus());
+                () -> service.create(req(null, "MONTHLY_RENT", "0"), 5, "ip")).getStatus());
         assertEquals(HttpStatus.BAD_REQUEST, assertThrows(BusinessException.class,
                 () -> service.create(req(null, "OTHER", "1000"), 5, "ip")).getStatus());
     }

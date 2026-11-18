@@ -6,9 +6,12 @@ import com.group7.minihouse.shared.dto.PageResponse;
 import com.group7.minihouse.shared.entity.CheckoutInspection;
 import com.group7.minihouse.shared.entity.CheckoutRequest;
 import com.group7.minihouse.shared.entity.DepositRefundVoucher;
-import com.group7.minihouse.shared.event.ContractEndedEvent;
+import com.group7.minihouse.phi.service.ContractEndService;
+import com.group7.minihouse.shared.entity.ContractAdjustment;
+import com.group7.minihouse.shared.entity.User;
 import com.group7.minihouse.shared.util.DepositLedger;
-import org.springframework.context.ApplicationEventPublisher;
+import com.group7.minihouse.toan.service.MeterReadingService;
+import com.group7.minihouse.viet.dto.CheckoutDtos.CheckinRecord;
 import com.group7.minihouse.shared.entity.Invoice;
 import com.group7.minihouse.shared.entity.RentalContract;
 import com.group7.minihouse.shared.exception.BusinessException;
@@ -58,20 +61,22 @@ public class CheckoutService {
     private final TenantRoomResolver tenantRoomResolver;
     private final ActorResolver actorResolver;
     private final DebtService debtService;
-    private final ApplicationEventPublisher events;
+    private final ContractEndService endService;
+    private final MeterReadingService meterService;
 
     public CheckoutService(CheckoutRequestRepository checkoutRepository,
                            CheckoutInspectionRepository inspectionRepository,
                            DepositRefundVoucherRepository voucherRepository, TenantRoomResolver tenantRoomResolver,
                            ActorResolver actorResolver, DebtService debtService,
-                           ApplicationEventPublisher events) {
+                           ContractEndService endService, MeterReadingService meterService) {
+        this.meterService = meterService;
         this.checkoutRepository = checkoutRepository;
         this.inspectionRepository = inspectionRepository;
         this.voucherRepository = voucherRepository;
         this.tenantRoomResolver = tenantRoomResolver;
         this.actorResolver = actorResolver;
         this.debtService = debtService;
-        this.events = events;
+        this.endService = endService;
     }
 
     // ---------- UC101: tiep nhan yeu cau ----------
@@ -86,7 +91,8 @@ public class CheckoutService {
             throw new BusinessException("Ngay tra phong du kien khong duoc o qua khu");
         }
         RentalContract contract = resolveContract(req.contractId(), tenantId);
-        if (!Set.of("ACTIVE", "EXPIRING_SOON").contains(contract.getStatus())) {
+        // EXPIRED (het han nhung khach con o, chua thanh ly) van phai tra phong duoc
+        if (!Set.of("ACTIVE", "EXPIRING_SOON", "EXPIRED").contains(contract.getStatus())) {
             throw new BusinessException("Hop dong khong con hieu luc, khong the yeu cau tra phong");
         }
         if (checkoutRepository.existsByContract_ContractIdAndStatusIn(contract.getContractId(), OPEN)) {
@@ -184,6 +190,9 @@ public class CheckoutService {
         if (req.finalElectricMeter() < 0 || req.finalWaterMeter() < 0) {
             throw new BusinessException("Chi so dien/nuoc khong duoc am");
         }
+        // F1: so cuoi phai >= so ky truoc, bao loi ngay luc nhap (khong de den luc thanh ly moi hong)
+        meterService.validateFinalReading(c.getContract().getRoom().getRoomId(), LocalDate.now(),
+                req.finalElectricMeter(), req.finalWaterMeter());
         BigDecimal damageTotal = BigDecimal.ZERO;
         StringBuilder description = new StringBuilder();
         if (req.damages() != null) {
@@ -209,7 +218,11 @@ public class CheckoutService {
         ins.setInspectionPhotoUrl(VietSupport.blankToNull(req.inspectionPhotoUrl()));
         ins.setInspectedBy(actorResolver.require(actorId));
         ins.setInspectedAt(LocalDateTime.now());
-        return toResponse(inspectionRepository.save(ins));
+        CheckoutInspection saved = inspectionRepository.save(ins);
+        // F6: ghi ngay so cuoi thanh so doc cua ky dang mo de vao hoa don thang cuoi (truoc khi quyet toan, hoan coc)
+        boolean recorded = meterService.recordFinalReading(c.getContract().getRoom().getRoomId(), LocalDate.now(),
+                req.finalElectricMeter(), req.finalWaterMeter(), saved.getInspectedBy().getUserId());
+        return toResponse(saved, recorded);
     }
 
     @Transactional(readOnly = true)
@@ -220,10 +233,15 @@ public class CheckoutService {
     }
 
     private static InspectionResponse toResponse(CheckoutInspection i) {
+        return toResponse(i, false);
+    }
+
+    /** meterRecorded: so cuoi da duoc ghi thanh so doc cua ky ghi so dang mo (false khi khong co ky mo). */
+    private static InspectionResponse toResponse(CheckoutInspection i, boolean meterRecorded) {
         return new InspectionResponse(i.getInspectionId(), i.getCheckout().getCheckoutId(),
                 i.getFinalElectricMeter(), i.getFinalWaterMeter(), i.getDamagedEquipmentsDescription(),
                 i.getDamageCompensationAmount(), i.getUnpaidUtilitiesAmount(), i.getInspectionPhotoUrl(),
-                i.getInspectedBy().getUserId(), i.getInspectedAt());
+                i.getInspectedBy().getUserId(), i.getInspectedAt(), meterRecorded);
     }
 
     // ---------- UC104, UC105: quyet toan, khau tru coc ----------
@@ -311,7 +329,19 @@ public class CheckoutService {
                 .orElseThrow(() -> BusinessException.notFound("Phieu hoan coc")));
     }
 
-    /** Ghi nhan da chi tra tien hoan coc. */
+    /** M3: huy phieu hoan coc con PENDING de lap lai (hoac sua hien trang phong, huy yeu cau). Da hoan tien thi khong huy duoc. */
+    @Transactional
+    public void cancelRefundVoucher(Integer checkoutId) {
+        find(checkoutId);
+        DepositRefundVoucher v = voucherRepository.findByCheckout_CheckoutId(checkoutId)
+                .orElseThrow(() -> BusinessException.notFound("Phieu hoan coc"));
+        if (!"PENDING".equals(v.getStatus())) {
+            throw new BusinessException("Phieu hoan coc da duoc hoan tien, khong huy duoc");
+        }
+        voucherRepository.delete(v);
+    }
+
+    /** Ghi nhan da chi tra tien hoan coc. Phieu duoc tinh lai theo so lieu hien tai (M3). */
     @Transactional
     public RefundVoucherResponse payRefund(Integer refundId) {
         DepositRefundVoucher v = voucherRepository.findById(refundId)
@@ -319,6 +349,13 @@ public class CheckoutService {
         if (!"PENDING".equals(v.getStatus())) {
             throw new BusinessException("Phieu hoan coc nay da duoc hoan tien");
         }
+        // M3: phieu la anh chup luc lap; khach co the da tra no / co hoa don moi phat hanh tu do. Tinh lai theo so
+        // lieu hien tai ngay luc hoan (truoc khi doi trang thai) de khong tru coc cho khoan da tra hai lan.
+        SettlementResponse fresh = settlement(v.getCheckout().getCheckoutId());
+        v.setOriginalDepositAmount(fresh.originalDeposit());
+        v.setDeductedDebtAmount(fresh.deductedDebt());
+        v.setDeductedDamageAmount(fresh.deductedDamage());
+        v.setActualRefundAmount(fresh.refundable());
         v.setStatus("REFUNDED");
         v.setRefundDate(LocalDateTime.now());
         DepositRefundVoucher saved = voucherRepository.save(v);
@@ -365,17 +402,26 @@ public class CheckoutService {
         c.setStatus("FINALIZED");
         c.setActualCheckoutDate(LocalDate.now());
         RentalContract contract = c.getContract();
-        contract.setStatus("TERMINATED");
-        contract.getRoom().setStatus("VACANT");
-        em.merge(contract);
-        em.merge(contract.getRoom());
         CheckoutRequest saved = checkoutRepository.save(c);
         var ins = inspectionRepository.findByCheckout_CheckoutId(id).orElse(null);
-        events.publishEvent(new ContractEndedEvent(contract.getContractId(), contract.getRoom().getRoomId(),
-                contract.getRoom().getProperty() == null ? null : contract.getRoom().getProperty().getPropertyId(),
-                saved.getActualCheckoutDate(), ins == null ? null : ins.getFinalElectricMeter(),
-                ins == null ? null : ins.getFinalWaterMeter(), "Tra phong, thanh ly hop dong",
-                actorId != null ? actorId : ins == null || ins.getInspectedBy() == null ? null : ins.getInspectedBy().getUserId()));
+        // F8: khach con phai tra them (no / boi thuong vuot coc) thi ghi ro vao lich su hop dong, khong de bien mat
+        SettlementResponse s = settlement(id);
+        if (s.tenantMustPay().signum() > 0) {
+            ContractAdjustment a = new ContractAdjustment();
+            a.setContract(contract);
+            a.setAdjustmentType("DEPOSIT_SHORTFALL");
+            a.setOldValue("Coc hoan " + nz(s.refundable()).toBigInteger());
+            a.setNewValue("Khach con phai tra " + s.tenantMustPay().toBigInteger() + " dong (vuot coc)");
+            if (actorId != null) {
+                a.setAdjustedBy(em.getReference(User.class, actorId));
+            }
+            em.persist(a);
+        }
+        // Dung chung duong ket thuc hop dong voi Cham dut som (ContractEndService)
+        endService.end(contract, saved.getActualCheckoutDate(), "Tra phong, thanh ly hop dong",
+                actorId != null ? actorId
+                        : ins == null || ins.getInspectedBy() == null ? null : ins.getInspectedBy().getUserId(),
+                ins == null ? null : ins.getFinalElectricMeter(), ins == null ? null : ins.getFinalWaterMeter());
         return CheckoutResponse.from(saved);
     }
 
@@ -386,7 +432,20 @@ public class CheckoutService {
                 .orElse(null);
         RefundVoucherResponse voucher = voucherRepository.findByCheckout_CheckoutId(id)
                 .map(RefundVoucherResponse::from).orElse(null);
-        return new HandoverReport(CheckoutResponse.from(c), ins, settlement(id), voucher);
+        return new HandoverReport(CheckoutResponse.from(c), ins, settlement(id), voucher,
+                checkinRecord(c.getContract().getContractId()));
+    }
+
+    /** F5: bien ban nhan phong cua hop dong (null neu chua lap) de doi chieu hien trang luc tra phong. */
+    @Transactional(readOnly = true)
+    public CheckinRecord checkinRecord(Integer contractId) {
+        return em.createQuery("select k from CheckinInspection k where k.contract.contractId = :c order by k.inspectionId desc",
+                        com.group7.minihouse.chi.entity.CheckinInspection.class)
+                .setParameter("c", contractId).setMaxResults(1).getResultList().stream().findFirst()
+                .map(k -> new CheckinRecord(k.getInspectionId(), k.getCheckinDate(), k.getInitialElectricMeter(),
+                        k.getInitialWaterMeter(), k.getKeyHandedCount(), k.getFurnishingsCondition(), k.getNotes(),
+                        k.getInspectionPhotoUrl(), k.getTenantConfirmed(), k.getInspectedByName()))
+                .orElse(null);
     }
 
     private CheckoutRequest find(Integer id) {
