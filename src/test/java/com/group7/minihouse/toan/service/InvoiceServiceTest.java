@@ -21,9 +21,9 @@ import com.group7.minihouse.toan.dto.CancelInvoiceRequest;
 import com.group7.minihouse.toan.repository.InvoiceNotificationRepository;
 import com.group7.minihouse.toan.repository.InvoiceRepository;
 import com.group7.minihouse.toan.repository.PartialPaymentLogRepository;
-import com.group7.minihouse.toan.repository.PaymentTransactionRepository;
-import com.group7.minihouse.toan.repository.UserActivityLogRepository;
-import com.group7.minihouse.toan.repository.UserRepository;
+import com.group7.minihouse.toan.repository.ToanPaymentTransactionRepository;
+import com.group7.minihouse.toan.repository.ToanUserActivityLogRepository;
+import com.group7.minihouse.toan.repository.ToanUserRepository;
 
 @ExtendWith(MockitoExtension.class)
 class InvoiceServiceTest {
@@ -33,10 +33,10 @@ class InvoiceServiceTest {
     @Mock private InvoiceBalanceCalculator calculator;
     @Mock private PrepaymentService prepaymentService;
     @Mock private ObjectProvider<InvoiceMailGateway> mailGateway;
-    @Mock private PaymentTransactionRepository paymentTransactionRepo;
+    @Mock private ToanPaymentTransactionRepository paymentTransactionRepo;
     @Mock private PartialPaymentLogRepository partialPaymentLogRepo;
-    @Mock private UserActivityLogRepository activityLogRepo;
-    @Mock private UserRepository userRepo;
+    @Mock private ToanUserActivityLogRepository activityLogRepo;
+    @Mock private ToanUserRepository userRepo;
 
     private InvoiceService service;
 
