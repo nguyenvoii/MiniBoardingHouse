@@ -3,6 +3,14 @@ package com.group7.minihouse.toan.controller;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
+import com.group7.minihouse.shared.dto.ApiResponse;
+import com.group7.minihouse.shared.security.AuthUser;
+import com.group7.minihouse.toan.dto.CancelInvoiceRequest;
+import com.group7.minihouse.toan.dto.CancelInvoiceResponse;
 import org.springframework.web.bind.annotation.*;
 import com.group7.minihouse.toan.dto.InvoiceDtos.*;
 import com.group7.minihouse.toan.service.InvoiceService;
@@ -16,6 +24,18 @@ public class InvoiceController {
 
     public InvoiceController(InvoiceService service) {
         this.service = service;
+    }
+
+    /** UC126: hủy hóa đơn phát hành nhầm khi chưa phát sinh khoản thu. */
+    @PatchMapping("/{id}/cancel")
+    @PreAuthorize("hasAnyRole('LANDLORD','MANAGER','CASHIER')")
+    public ApiResponse<CancelInvoiceResponse> cancel(
+            @PathVariable("id") Integer id,
+            @Valid @RequestBody CancelInvoiceRequest req,
+            @AuthenticationPrincipal AuthUser actor,
+            HttpServletRequest http) {
+        return ApiResponse.ok("Đã hủy hóa đơn", service.cancel(
+                id, req, actor == null ? null : actor.userId(), http.getRemoteAddr()));
     }
 
     // UC 79

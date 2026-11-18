@@ -17,6 +17,15 @@ import com.group7.minihouse.shared.entity.CalculatedMonthlyFee;
 import com.group7.minihouse.shared.entity.FeeItemDetail;
 import com.group7.minihouse.shared.entity.Invoice;
 import com.group7.minihouse.shared.entity.InvoiceNotification;
+import com.group7.minihouse.shared.entity.User;
+import com.group7.minihouse.shared.entity.UserActivityLog;
+import com.group7.minihouse.shared.exception.BusinessException;
+import com.group7.minihouse.toan.dto.CancelInvoiceRequest;
+import com.group7.minihouse.toan.dto.CancelInvoiceResponse;
+import com.group7.minihouse.toan.repository.PaymentTransactionRepository;
+import com.group7.minihouse.toan.repository.PartialPaymentLogRepository;
+import com.group7.minihouse.toan.repository.UserActivityLogRepository;
+import com.group7.minihouse.toan.repository.UserRepository;
 import com.group7.minihouse.toan.repository.InvoiceNotificationRepository;
 import com.group7.minihouse.toan.repository.InvoiceRepository;
 import jakarta.persistence.EntityManager;
@@ -39,18 +48,29 @@ public class InvoiceService {
     private final InvoiceBalanceCalculator calculator;
     private final PrepaymentService prepaymentService;
     private final ObjectProvider<InvoiceMailGateway> mailGateway;
+    private final PaymentTransactionRepository paymentTransactionRepo;
+    private final PartialPaymentLogRepository partialPaymentLogRepo;
+    private final UserActivityLogRepository activityLogRepo;
+    private final UserRepository userRepo;
 
     @PersistenceContext
     private EntityManager em;
 
     public InvoiceService(InvoiceRepository invoiceRepo, InvoiceNotificationRepository notificationRepo,
                           InvoiceBalanceCalculator calculator, PrepaymentService prepaymentService,
-                          ObjectProvider<InvoiceMailGateway> mailGateway) {
+                          ObjectProvider<InvoiceMailGateway> mailGateway,
+                          PaymentTransactionRepository paymentTransactionRepo,
+                          PartialPaymentLogRepository partialPaymentLogRepo,
+                          UserActivityLogRepository activityLogRepo, UserRepository userRepo) {
         this.invoiceRepo = invoiceRepo;
         this.notificationRepo = notificationRepo;
         this.calculator = calculator;
         this.prepaymentService = prepaymentService;
         this.mailGateway = mailGateway;
+        this.paymentTransactionRepo = paymentTransactionRepo;
+        this.partialPaymentLogRepo = partialPaymentLogRepo;
+        this.activityLogRepo = activityLogRepo;
+        this.userRepo = userRepo;
     }
 
     // ------------------------------------------------------------------ UC 79: phat hanh
@@ -115,6 +135,53 @@ public class InvoiceService {
         addNotification(inv, "SYSTEM_APP", "SENT"); // UC 79: thong bao hoa don moi
         prepaymentService.autoDeduct(inv);          // UC 92: can tru tien du ky truoc
         return inv;
+    }
+
+    // ------------------------------------------------------------------ UC126: huy hoa don phat hanh nham
+
+    /** UC126: chỉ hủy hóa đơn chưa phát sinh khoản thu và ghi nhật ký cùng transaction. */
+    @Transactional
+    public CancelInvoiceResponse cancel(Integer invoiceId, CancelInvoiceRequest req,
+                                        Integer actorUserId, String ipAddress) {
+        if (req == null || req.reason() == null || req.reason().isBlank()) {
+            throw new BusinessException("Vui lòng nhập lý do hủy hóa đơn");
+        }
+        if (actorUserId == null) {
+            throw new BusinessException(HttpStatus.UNAUTHORIZED, "Không xác định được người thực hiện");
+        }
+
+        Invoice invoice = invoiceRepo.findByIdForUpdate(invoiceId)
+                .orElseThrow(() -> BusinessException.notFound("Hóa đơn"));
+        if ("CANCELLED".equals(invoice.getPaymentStatus())) {
+            throw new BusinessException(HttpStatus.CONFLICT, "Hóa đơn đã được hủy trước đó");
+        }
+
+        BigDecimal paidAmount = invoice.getPaidAmount() == null ? BigDecimal.ZERO : invoice.getPaidAmount();
+        boolean hasSuccessfulTransaction = paymentTransactionRepo
+                .existsByInvoiceInvoiceIdAndStatus(invoiceId, "SUCCESS");
+        boolean hasPartialCollection = partialPaymentLogRepo
+                .existsByInvoiceInvoiceIdAndAmountGreaterThan(invoiceId, BigDecimal.ZERO);
+        if (paidAmount.signum() > 0 || hasSuccessfulTransaction || hasPartialCollection) {
+            throw new BusinessException(HttpStatus.CONFLICT,
+                    "Không thể hủy hóa đơn vì đã phát sinh khoản thu. Vui lòng xử lý giao dịch theo quy trình hoàn/đảo tiền.");
+        }
+
+        User actor = userRepo.findById(actorUserId)
+                .orElseThrow(() -> BusinessException.notFound("Tài khoản người thực hiện"));
+        LocalDateTime cancelledAt = LocalDateTime.now();
+        invoice.setPaymentStatus("CANCELLED");
+
+        UserActivityLog log = new UserActivityLog();
+        log.setUser(actor);
+        log.setActionType("CANCEL_INVOICE");
+        log.setDescription("Hủy hóa đơn " + invoice.getInvoiceCode() + ". Lý do: " + req.reason().trim());
+        log.setIpAddress(ipAddress);
+        log.setCreatedAt(cancelledAt);
+        activityLogRepo.save(log);
+        invoiceRepo.flush();
+
+        return new CancelInvoiceResponse(invoice.getInvoiceId(), invoice.getInvoiceCode(),
+                invoice.getPaymentStatus(), req.reason().trim(), cancelledAt);
     }
 
     // ------------------------------------------------------------------ UC 78: chi tiet & in

@@ -4,7 +4,9 @@ import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import com.group7.minihouse.shared.entity.Invoice;
@@ -18,6 +20,11 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Integer> {
     boolean existsByCalculatedFeeCalculatedFeeId(Integer calculatedFeeId);
 
     long countByInvoiceCodeStartingWith(String prefix);
+
+    /** UC126: khóa hóa đơn trong lúc kiểm tra và hủy để tránh cập nhật đồng thời. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select i from Invoice i where i.invoiceId = :invoiceId")
+    Optional<Invoice> findByIdForUpdate(@Param("invoiceId") Integer invoiceId);
 
     List<Invoice> findByTenantTenantIdAndPaymentStatusInOrderByDueDateAsc(
             Integer tenantId, Collection<String> statuses);
