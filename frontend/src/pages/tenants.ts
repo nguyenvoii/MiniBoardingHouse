@@ -101,8 +101,32 @@ function open(t: LiveTenant, accounts: Accounts, refresh: () => void): void {
       h('div', { style: 'display:flex;gap:8px;flex-wrap:wrap' }, reset, toggle));
   };
   paint(accounts.get(t.tenantId));
-  d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Đóng'));
+  d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Đóng'),
+    h('button', { class: 'btn secondary', onclick: () => { d.close(); editTenant(t, refresh); } }, icon('edit', 16), 'Sửa hồ sơ'));
   if (!t.roomCode) d.foot.append(h('a', { class: 'btn', href: `#/checkin?tenant=${t.tenantId}`, onclick: d.close }, icon('key', 16), 'Cho khách thuê phòng'));
+}
+
+function editTenant(t: LiveTenant, done: () => void): void {
+  const d = openDialog(`Sửa hồ sơ ${t.name}`, { width: 560 });
+  const err = h('div');
+  const name = input({ value: t.name, maxlength: '100' });
+  const phone = input({ type: 'tel', value: t.phone, maxlength: '20' });
+  const cccd = input({ value: t.idNumber, maxlength: '20' });
+  const email = input({ type: 'email', value: t.email ?? '', placeholder: 'Không bắt buộc' });
+  const job = input({ value: t.job === '–' ? '' : t.job, maxlength: '100', placeholder: 'Không bắt buộc' });
+  d.body.append(err, h('div', { class: 'form-grid' }, field('Họ và tên', name), field('Số điện thoại', phone, 'Đổi số điện thoại thì khách đăng nhập bằng số mới'),
+    field('Số CCCD', cccd), field('Email', email), field('Nghề nghiệp', job)));
+  const ok = h('button', { class: 'btn' }, 'Lưu hồ sơ');
+  d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Hủy'), ok);
+  ok.addEventListener('click', () => busy(ok, async () => {
+    err.replaceChildren();
+    if (!name.value.trim() || !phone.value.trim() || !cccd.value.trim()) { err.replaceChildren(formError('Họ tên, số điện thoại và số CCCD không được để trống.')); return; }
+    try {
+      // email, nghề nghiệp để trống thì gửi chuỗi rỗng (xóa); backend giữ nguyên trường không gửi
+      await api.put(`/api/chi/tenants/${t.tenantId}`, { fullName: name.value.trim(), phoneNumber: phone.value.trim(), identityNumber: cccd.value.trim(), email: email.value.trim(), occupation: job.value.trim() });
+      d.close(); toast('Đã lưu hồ sơ khách'); done();
+    } catch (e) { err.replaceChildren(formError(errText(e))); }
+  }));
 }
 
 function showPassword(phone: string, password: string): void {

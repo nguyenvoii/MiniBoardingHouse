@@ -23,7 +23,7 @@ export async function roomsPage(view: HTMLElement): Promise<void> {
     }
   };
   const tile = (r: LiveRoom) =>
-    h('button', { class: `room-tile ${r.status === 'VACANT' ? 'vacant' : r.status === 'RENTED' ? '' : 'repair'}`, onclick: () => openRoom(r) },
+    h('button', { class: `room-tile ${r.status === 'VACANT' ? 'vacant' : r.status === 'RENTED' ? '' : 'repair'}`, onclick: () => openRoom(r, () => void roomsPage(view)) },
       h('div', { class: 'top' }, plate(r.code, r.status === 'VACANT' ? 'ghost' : r.status === 'RENTED' ? '' : 'off'), statusBadge(r.status)),
       h('div', { class: 'who' }, r.tenantName ?? (r.status === 'VACANT' ? 'Đang trống' : r.status === 'REPAIRING' ? 'Đang sửa chữa' : 'Tạm ngưng cho thuê')),
       h('div', { class: 'meta' }, h('span', null, `${r.area} m²`), h('span', { class: 'money' }, `${money(r.price)} ₫`)));
@@ -43,7 +43,7 @@ export async function roomsPage(view: HTMLElement): Promise<void> {
   );
 }
 
-function openRoom(r: LiveRoom): void {
+function openRoom(r: LiveRoom, done: () => void): void {
   const c = r.contract;
   const d = openDialog(`Phòng ${r.code}`, { drawer: true });
   d.body.append(
@@ -53,8 +53,32 @@ function openRoom(r: LiveRoom): void {
     h('div', null, h('h3', { style: 'margin-bottom:10px' }, 'Người ở cùng (tính tiền dịch vụ theo đầu người)'), residentsBox(r.roomId, r.maxPeople)),
   );
   mount(d.foot, h('button', { class: 'btn secondary', onclick: d.close }, 'Đóng'),
+    h('button', { class: 'btn secondary', onclick: () => { d.close(); editRoom(r, done); } }, icon('edit', 16), 'Sửa phòng'),
     c ? h('a', { class: 'btn', href: `#/contracts?open=${c.contractId}`, onclick: d.close }, icon('file', 16), 'Mở hợp đồng') : null,
     r.status === 'VACANT' ? h('a', { class: 'btn', href: `#/contracts?new=${r.roomId}`, onclick: d.close }, icon('file', 16), 'Lập hợp đồng') : null);
+}
+
+function editRoom(r: LiveRoom, done: () => void): void {
+  const d = openDialog(`Sửa phòng ${r.code}`, { width: 520 });
+  const err = h('div');
+  const code = input({ value: r.code, maxlength: '50' });
+  const area = input({ type: 'number', min: '1', step: '0.5', value: String(r.area), class: 'input num-in' });
+  const people = input({ type: 'number', min: '1', value: String(r.maxPeople), class: 'input num-in' });
+  const rent = input({ type: 'number', min: '0', step: '10000', value: String(r.price), class: 'input num-in' });
+  const dep = input({ type: 'number', min: '0', step: '10000', value: String(r.deposit), class: 'input num-in' });
+  d.body.append(err, ...(r.contract ? [h('p', { class: 'muted' }, 'Phòng đang có hợp đồng: giá và cọc sửa ở đây chỉ áp cho hợp đồng mới, hợp đồng hiện tại giữ nguyên giá đã ký.')] : []),
+    h('div', { class: 'form-grid' }, field('Mã phòng', code), field('Diện tích (m²)', area), field('Số người tối đa', people),
+      field('Giá thuê niêm yết (₫/tháng)', rent), field('Tiền cọc (₫)', dep)));
+  const ok = h('button', { class: 'btn' }, 'Lưu phòng');
+  d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Hủy'), ok);
+  ok.addEventListener('click', () => busy(ok, async () => {
+    err.replaceChildren();
+    if (!code.value.trim()) { err.replaceChildren(formError('Nhập mã phòng.')); return; }
+    try {
+      await api.put(`/api/chi/rooms/${r.roomId}`, { roomCode: code.value.trim(), areaSqm: Number(area.value), maxOccupants: Number(people.value), baseRentPrice: Number(rent.value), depositAmount: Number(dep.value) });
+      d.close(); toast('Đã lưu phòng'); done();
+    } catch (e) { err.replaceChildren(formError(errText(e))); }
+  }));
 }
 
 async function addRoom(done: () => void): Promise<void> {
