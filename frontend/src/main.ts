@@ -44,6 +44,14 @@ const TITLES: Record<string, string> = {
 };
 const ROUTE_PAGES: Record<string, number> = { '/meters': 0, '/billing': 1, '/invoices': 3, '/payments': 4, '/debts': 4 };
 const STAFF_ROLES = ['LANDLORD', 'MANAGER', 'CASHIER', 'METER_READER'] as const;
+/** Vai trò được mở từng màn (khớp menu và backend). Màn không liệt kê thì mọi nhân viên mở được. */
+const PATH_ROLES: Record<string, Array<(typeof STAFF_ROLES)[number]>> = {
+  '/': ['LANDLORD', 'MANAGER', 'CASHIER'], '/meters': ['LANDLORD', 'MANAGER', 'METER_READER'], '/billing': ['LANDLORD', 'MANAGER'],
+  '/invoices': ['LANDLORD', 'MANAGER', 'CASHIER'], '/payments': ['LANDLORD', 'MANAGER', 'CASHIER'], '/debts': ['LANDLORD', 'MANAGER', 'CASHIER'],
+  '/checkin': ['LANDLORD', 'MANAGER'], '/contracts': ['LANDLORD', 'MANAGER'], '/checkout': ['LANDLORD', 'MANAGER'], '/rooms': ['LANDLORD', 'MANAGER'],
+  '/tenants': ['LANDLORD', 'MANAGER'], '/maintenance': ['LANDLORD', 'MANAGER'], '/reports': ['LANDLORD', 'MANAGER'], '/expenses': ['LANDLORD', 'MANAGER'],
+  '/staff': ['LANDLORD', 'MANAGER'], '/settings': ['LANDLORD', 'MANAGER'], '/activity': ['LANDLORD'],
+};
 
 route('/', 'staff', dashboardPage);
 route('/billing', 'staff', billingPage);
@@ -141,6 +149,12 @@ async function render(): Promise<void> {
     return;
   }
   if (!tenant && !STAFF_ROLES.some((r) => can(r))) return;
+  const base = '/' + (path.split('/')[1] ?? '');
+  const allowed = PATH_ROLES[path === '/' ? '/' : base];
+  if (!tenant && allowed && !allowed.some((r) => can(r))) {
+    view.replaceChildren(h('div', { class: 'empty' }, h('h2', { class: 'empty-title' }, 'Bạn không có quyền mở màn này'), h('p', null, 'Màn này dành cho chủ trọ hoặc quản lý. Hãy dùng các mục có trong menu bên trái.'), h('a', { class: 'btn secondary', href: isMeterReaderOnly(s) ? '#/meters' : '#/' }, 'Về màn của bạn')));
+    return;
+  }
   const run = async () => {
     routeObserver?.disconnect(); // ngắt theo dõi của trang trước, kẻo nó chèn thanh tuyến vào trang mới
     routeObserver = null;

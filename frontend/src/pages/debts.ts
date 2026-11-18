@@ -1,6 +1,6 @@
 import { h, busy, mount } from '../lib/dom';
 import { icon } from '../lib/icons';
-import { api, errText, Page } from '../lib/api';
+import { api, can, errText, Page } from '../lib/api';
 import { date, dateTime, money } from '../lib/format';
 import { emptyState, field, formError, input, openDialog, pageHead, panel, plate, select, table, toast } from '../ui/kit';
 
@@ -26,7 +26,8 @@ export async function debtsPage(view: HTMLElement): Promise<void> {
   const holder = h('div');
   const status = select([['ACTIVE_ONLY', 'Còn nợ'], ['', 'Tất cả'], ['NORMAL', 'Đang theo dõi'], ['WARNING_OVERDUE', 'Quá hạn cảnh báo'], ['LONG_TERM_DEBT', 'Nợ kéo dài'], ['CLEARED', 'Đã thanh toán hết']], 'ACTIVE_ONLY', { 'aria-label': 'Lọc theo tình trạng công nợ' });
   // Bảng công nợ là bảng tổng hợp từ hóa đơn: cập nhật lại mỗi lần mở trang để khớp Tổng quan (tính lại an toàn, không ghi trùng).
-  await api.post('/api/debts/recalculate').catch(() => null);
+  const canRefresh = can('LANDLORD', 'MANAGER');
+  if (canRefresh) await api.post('/api/debts/recalculate').catch(() => null);
   const sum = await api.get<DebtSummary>('/api/debts/summary');
   const load = async () => {
     const q = state.status === 'ACTIVE_ONLY' ? '' : `status=${state.status}&`;
@@ -57,7 +58,7 @@ export async function debtsPage(view: HTMLElement): Promise<void> {
   xl.addEventListener('click', () => api.download('/api/debts/export', 'cong-no.xlsx').catch((e) => toast(errText(e), 'err')));
 
   view.replaceChildren(
-    pageHead('Công nợ', 'Các khoản người thuê còn nợ, số ngày quá hạn và lịch sử xử lý.', [xl, recalc, remind]),
+    pageHead('Công nợ', canRefresh ? 'Các khoản người thuê còn nợ, số ngày quá hạn và lịch sử xử lý.' : 'Các khoản người thuê còn nợ. Số liệu do chủ trọ hoặc quản lý làm mới, bạn xem được bản gần nhất.', canRefresh ? [xl, recalc, remind] : [xl]),
     h('div', { class: 'stack' },
       h('div', { class: 'figures' },
         h('div', { class: `figure ${sum.totalOutstanding > 0 ? 'alert' : ''}` }, h('span', { class: 'label' }, 'Tổng công nợ'), h('span', { class: 'value' }, money(sum.totalOutstanding), h('small', null, '₫')), h('span', { class: 'note' }, `${sum.debtorCount} người còn nợ`)),
