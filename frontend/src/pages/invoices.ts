@@ -71,6 +71,7 @@ async function openInvoice(id: number, reload: () => void): Promise<void> {
   print.addEventListener('click', async () => {
     const s = loadSession();
     const res = await fetch(`/api/invoices/${id}/print`, { headers: s ? { Authorization: `Bearer ${s.token}` } : {} });
+    if (!res.ok) { toast(`Không mở được bản in (lỗi ${res.status}).`, 'err'); return; }
     window.open(URL.createObjectURL(new Blob([await res.text()], { type: 'text/html' })), '_blank');
   });
   const mail = h('button', { class: 'btn secondary' }, icon('mail', 16), 'Gửi email');

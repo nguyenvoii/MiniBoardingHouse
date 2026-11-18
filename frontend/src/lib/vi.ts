@@ -18,6 +18,13 @@ const PHRASES: Array<[string, string]> = [
   [' tu phong ', ' từ phòng '], [' vao phong ', ' vào phòng '], [' roi phong', ' rời phòng'], [' khu tro ', ' khu trọ '], [' den ', ' đến '], [' phong)', ' phòng)'],
   ['Sai tai khoan hoac mat khau', 'Sai tài khoản hoặc mật khẩu'], ['Chua dang nhap hoac token het han', 'Chưa đăng nhập hoặc phiên đã hết hạn'],
   ['Tai khoan da bi khoa', 'Tài khoản đã bị khóa'],
+  ['Hop dong dang co yeu cau tra phong chua xu ly: hoan tat thanh ly o muc Tra phong hoac huy yeu cau do truoc', 'Hợp đồng đang có yêu cầu trả phòng chưa xử lý: hoàn tất thanh lý ở mục Trả phòng hoặc hủy yêu cầu đó trước'],
+  ['Hop dong khong con hieu luc, khong the yeu cau tra phong', 'Hợp đồng không còn hiệu lực, không thể yêu cầu trả phòng'],
+  ['khong con hieu luc de thao tac', 'không còn hiệu lực để thao tác'], ['Khach thue chua co tai khoan, hay cap tai khoan', 'Khách thuê chưa có tài khoản, hãy cấp tài khoản'],
+  ['Khong co quyen thuc hien', 'Bạn không có quyền thực hiện thao tác này'], ['Loi he thong', 'Lỗi hệ thống, thử lại sau hoặc báo quản trị'],
+  ['Ky tinh tien chua duoc duyet (dang DRAFT)', 'Kỳ tính tiền chưa được duyệt (đang Nháp)'], ['Phong doi khach giua thang', 'Phòng đổi khách giữa tháng'],
+  ['Thieu chi so dien nuoc', 'Thiếu chỉ số điện nước'], ['Chi so chua xac nhan', 'Chỉ số chưa xác nhận'], ['Chi chap nhan chuyen khoan', 'Chỉ chấp nhận chuyển khoản'],
+  ['da co phieu hoan coc', 'đã có phiếu hoàn cọc'], ['Giao dich da duoc xac nhan', 'Giao dịch đã được xác nhận'],
 ];
 
 export function restoreVi(text: string): string {

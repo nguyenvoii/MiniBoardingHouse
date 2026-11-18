@@ -42,20 +42,24 @@ export async function metersPage(view: HTMLElement): Promise<void> {
     api.get<Alert[]>(`/api/meter-alerts?propertyId=${PROPERTY_ID}&resolved=false`).catch(() => [] as Alert[]),
   ]);
   const reload = () => void metersPage(view);
+  // số mới nhất của kỳ trước, để hiện số cũ và cảnh báo khi nhập thấp hơn
+  const prevPeriod = sorted.find((p) => p.startDate < sel.startDate);
+  const prevReadings = prevPeriod ? await api.get<Reading[]>(`/api/meter-periods/${prevPeriod.periodId}/readings`).catch(() => [] as Reading[]) : [];
+  const olds = new Map(prevReadings.map((r) => [r.roomId, { e: r.newElectric, w: r.newWater }]));
 
   const closeBtn = h('button', { class: 'btn secondary' }, icon('lock', 16), sel.closed ? 'Mở lại kỳ' : 'Đóng kỳ');
   closeBtn.addEventListener('click', () => busy(closeBtn, async () => {
     try { await api.patch(`/api/meter-periods/${sel.periodId}/closed?value=${!sel.closed}`); toast(sel.closed ? 'Đã mở lại kỳ' : 'Đã đóng kỳ'); reload(); }
     catch (e) { toast(errText(e), 'err'); }
   }));
-  const recordBtn = h('button', { class: 'btn', disabled: sel.closed || !missing.length, title: sel.closed ? 'Kỳ đã đóng' : missingError ? missingError : !missing.length ? 'Mọi phòng đã có chỉ số' : null, onclick: () => record(sel, missing, null, reload) }, icon('plus', 16), 'Ghi chỉ số');
+  const recordBtn = h('button', { class: 'btn', disabled: sel.closed || !missing.length, title: sel.closed ? 'Kỳ đã đóng' : missingError ? missingError : !missing.length ? 'Mọi phòng đã có chỉ số' : null, onclick: () => record(sel, missing, null, reload, olds) }, icon('plus', 16), 'Ghi chỉ số');
 
   mount(view,
     pageHead(`Chỉ số điện nước · ${sel.periodName}`, `${date(sel.startDate)} – ${date(sel.endDate)}`, [sel.closed ? statusBadge('CLOSED') : h('span', { class: 'st ok' }, icon('check', 14), 'Đang mở'), closeBtn, recordBtn]),
     h('div', { class: 'stack' },
       missingError ? formError(missingError) : null,
       missing.length && !sel.closed ? panel(`Còn ${missing.length} phòng chưa ghi chỉ số`, h('div', { class: 'panel-body', style: 'display:flex;gap:8px;flex-wrap:wrap' },
-        ...missing.map((c) => h('button', { class: 'btn secondary sm', onclick: () => record(sel, missing, c, reload) }, plate(c.roomCode), 'Ghi'))), { sub: 'Phòng có hợp đồng còn hiệu lực nhưng chưa có chỉ số trong kỳ. Thiếu chỉ số thì tiền điện nước của phòng đó tính bằng 0.' }) : null,
+        ...missing.map((c) => h('button', { class: 'btn secondary sm', onclick: () => record(sel, missing, c, reload, olds) }, plate(c.roomCode), 'Ghi'))), { sub: 'Phòng có hợp đồng còn hiệu lực nhưng chưa có chỉ số trong kỳ. Thiếu chỉ số thì tiền điện nước của phòng đó tính bằng 0.' }) : null,
       alerts.length ? alertPanel(alerts, reload) : null,
       panel('Chỉ số từng phòng', table<Reading>([
         { key: 'r', label: 'Phòng', render: (r) => plate(r.roomCode), sort: (a, b) => a.roomCode.localeCompare(b.roomCode) },
@@ -86,14 +90,20 @@ function rowActions(r: Reading, closed: boolean, reload: () => void): HTMLElemen
   return box;
 }
 
-function record(period: MeterPeriod, missing: MissingRoom[], pre: MissingRoom | null, done: () => void): void {
+function record(period: MeterPeriod, missing: MissingRoom[], pre: MissingRoom | null, done: () => void, olds: Map<number, { e: number; w: number }>): void {
   const d = openDialog('Ghi chỉ số điện nước');
   const err = h('div');
   const room = select(missing.map((c) => [String(c.roomId), `${c.roomCode} · ${c.tenantName}`] as [string, string]), pre ? String(pre.roomId) : '');
   const ne = input({ type: 'number', min: '0', class: 'input num-in', placeholder: 'Số điện hiện tại' });
   const nw = input({ type: 'number', min: '0', class: 'input num-in', placeholder: 'Số nước hiện tại' });
+  const oldHint = h('p', { class: 'muted', 'aria-live': 'polite' });
+  const showOld = () => {
+    const o = olds.get(Number(room.value));
+    oldHint.textContent = o ? `Số cũ của phòng: điện ${o.e}, nước ${o.w}. Số mới không được nhỏ hơn.` : 'Chưa có số kỳ trước: hệ thống lấy số ban đầu của phòng làm số cũ.';
+  };
+  room.addEventListener('change', showOld); showOld();
   d.body.append(err,
-    h('p', { class: 'muted' }, `Kỳ ${period.periodName}. Số cũ tự lấy từ kỳ trước (hoặc số ban đầu của phòng); nhập số công tơ hiện tại.`),
+    h('p', { class: 'muted' }, `Kỳ ${period.periodName}. Nhập số công tơ hiện tại của phòng.`), oldHint,
     field('Phòng', room), h('div', { class: 'form-grid' }, field('Số điện mới (kWh)', ne), field('Số nước mới (m³)', nw)));
   const ok = h('button', { class: 'btn' }, 'Lưu chỉ số');
   d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Hủy'), ok);
@@ -102,6 +112,9 @@ function record(period: MeterPeriod, missing: MissingRoom[], pre: MissingRoom | 
     const s = loadSession();
     if (!s) { err.replaceChildren(formError('Cần đăng nhập để ghi nhận người nhập chỉ số.')); return; }
     if (ne.value === '' || nw.value === '') { err.replaceChildren(formError('Nhập đủ số điện và số nước mới.')); return; }
+    const o = olds.get(Number(room.value));
+    if (o && Number(ne.value) < o.e) { err.replaceChildren(formError(`Số điện mới (${ne.value}) nhỏ hơn số cũ (${o.e}). Kiểm tra lại công tơ.`)); ne.focus(); return; }
+    if (o && Number(nw.value) < o.w) { err.replaceChildren(formError(`Số nước mới (${nw.value}) nhỏ hơn số cũ (${o.w}). Kiểm tra lại công tơ.`)); nw.focus(); return; }
     try {
       await api.post('/api/meter-readings', { periodId: period.periodId, roomId: Number(room.value), newElectric: Number(ne.value), newWater: Number(nw.value), recordedByUserId: s.userId });
       d.close(); toast('Đã lưu chỉ số'); done();

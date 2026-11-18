@@ -1,7 +1,7 @@
 import { h, busy, mount } from '../lib/dom';
 import { icon } from '../lib/icons';
 import { api, errText, loadSession, Page } from '../lib/api';
-import { date, dateTime, money, monthLabel } from '../lib/format';
+import { date, dateTime, money, monthLabel, isoDay } from '../lib/format';
 import type { Contract, ContractDetail, Notification, QrInfo } from '../data/types';
 import { dl, emptyState, field, formError, openDialog, plate, select, statusBadge, toast } from '../ui/kit';
 import { signPad, ADJ, fmtVal, isNum } from './contracts';
@@ -116,10 +116,10 @@ export async function meHomePage(view: HTMLElement): Promise<void> {
 function requestCheckout(c: Contract, done: () => void): void {
   const d = openDialog('Báo trả phòng', { width: 440 });
   const err = h('div');
-  const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
-  const when = h('input', { type: 'date', class: 'input', min: new Date().toISOString().slice(0, 10), value: tomorrow }) as HTMLInputElement;
+  const tomorrow = isoDay(1);
+  const when = h('input', { type: 'date', class: 'input', min: isoDay(), value: tomorrow }) as HTMLInputElement;
   d.body.append(err,
-    h('p', null, `Phòng ${c.roomCode}. Chủ trọ sẽ hẹn giờ kiểm tra phòng cùng bạn, trừ các khoản còn nợ hoặc hư hỏng (nếu có) vào tiền cọc ${money(c.depositAmount)} ₫ rồi hoàn phần còn lại.`),
+    h('p', null, `Phòng ${c.roomCode}. Chủ trọ sẽ hẹn giờ kiểm tra phòng cùng bạn, trừ các khoản còn nợ hoặc hư hỏng (nếu có) vào tiền cọc ${money(c.depositAmount)} ₫ rồi hoàn phần còn lại. Tiền phòng vẫn được tính cho đến ngày trả phòng thực tế, nên hãy chọn đúng ngày bạn dọn đi.`),
     field('Ngày bạn dự định trả phòng', when, 'Báo trước càng sớm càng dễ sắp xếp'));
   const ok = h('button', { class: 'btn' }, 'Gửi báo trả phòng');
   d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Để sau'), ok);

@@ -300,3 +300,6 @@ a.list-row:hover { background: var(--primary-faint); color: inherit; }
   .life-col:nth-child(odd) { border-left: 0; }
 }
 @media (max-width: 560px) { .life-cols { grid-template-columns: 1fr; } .life-col { border-left: 0; border-bottom: 1px solid var(--line); } }
+
+/* Khu người thuê: chữ phụ và nhãn trạng thái lớn hơn một chút cho khách lớn tuổi (audit #11) */
+.m-app .hint, .m-app .muted, .m-app .st, .m-app .btn.sm, .m-app .dl dt { font-size: 14px; }

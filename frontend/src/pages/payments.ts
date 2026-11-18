@@ -1,6 +1,6 @@
 import { h, busy } from '../lib/dom';
 import { icon } from '../lib/icons';
-import { api, can, errText, loadSession, Page } from '../lib/api';
+import { api, ApiError, can, errText, loadSession, Page } from '../lib/api';
 import { dateTime, money, monthLabel } from '../lib/format';
 import { getMonth } from '../lib/ctx';
 import type { Invoice, Payment, QrInfo } from '../data/types';
@@ -30,6 +30,7 @@ export function openPaymentDialog(inv: Invoice, done: () => void): void {
     err.replaceChildren();
     const amt = Number(amount.value);
     if (!(amt > 0)) { err.replaceChildren(formError('Nhập số tiền lớn hơn 0.')); return; }
+    if (method.value !== 'QR' && amt !== inv.remainingAmount && !(await confirmDialog('Số tiền khác số còn lại', `Còn phải trả ${money(inv.remainingAmount)} ₫ nhưng bạn ghi nhận ${money(amt)} ₫ (${amt < inv.remainingAmount ? 'trả một phần' : 'vượt số còn lại'}). Khoản ghi nhận không tự gỡ được, chỉ chủ trọ hoặc quản lý hủy. Đúng số tiền thực nhận?`, 'Đúng, ghi nhận'))) return;
     try {
       if (method.value === 'QR') {
         const q = await api.post<QrInfo>('/api/payments/qr', { invoiceId: inv.invoiceId, method: 'QR_CODE', amount: amt });
@@ -41,7 +42,11 @@ export function openPaymentDialog(inv: Invoice, done: () => void): void {
       d.close();
       toast(`Đã ghi nhận ${money(amt)} ₫`);
       done();
-    } catch (e) { err.replaceChildren(formError(errText(e))); }
+    } catch (e) {
+      // mất mạng sau khi gửi: tiền có thể đã được ghi, bấm lại sẽ ghi trùng
+      const lost = e instanceof ApiError && e.status === 0;
+      err.replaceChildren(formError(lost ? `${errText(e)} Giao dịch có thể đã được ghi: mở danh sách Thanh toán kiểm tra trước khi bấm lại, kẻo ghi trùng.` : errText(e)));
+    }
   }));
 }
 
@@ -195,6 +200,9 @@ function matchDialog(done: () => void): void {
       out.replaceChildren(h('div', null, ...r.matches.map((m) => h('div', { class: 'list-row' },
         h('span', { class: 'plate ghost' }, m.invoiceCode), h('div', { class: 'grow' }, h('b', null, m.tenantName), h('span', null, `còn ${money(m.remaining)} ₫`)),
         h('button', { class: 'btn sm', onclick: async () => {
+          // ưu tiên xác nhận giao dịch QR đang chờ của hóa đơn này, tránh để lại giao dịch chờ mồ côi
+          const pend = await api.get<Page<Payment>>(`/api/payments?invoiceId=${m.invoiceId}&status=FAILED&size=20`).then((r) => r.items).catch(() => [] as Payment[]);
+          if (pend.length) { d.close(); confirmPayment(pend[0], done); return; }
           const inv = await api.get<Invoice>(`/api/invoices/${m.invoiceId}`);
           d.close();
           openPaymentDialog(inv, done);
