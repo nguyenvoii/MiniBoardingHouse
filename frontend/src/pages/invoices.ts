@@ -13,7 +13,7 @@ export async function invoicesPage(view: HTMLElement, _p: Record<string, string>
   const state = { q: query.get('q') ?? '', status: query.get('status') ?? '' };
   const holder = h('div');
   const q = input({ type: 'search', value: state.q, placeholder: 'Mã hóa đơn hoặc mã phòng', 'aria-label': 'Tìm hóa đơn' });
-  const status = select([['', 'Mọi trạng thái'], ['UNPAID', 'Chưa trả'], ['PARTIALLY_PAID', 'Trả một phần'], ['OVERDUE', 'Quá hạn'], ['PAID', 'Đã trả']], state.status, { 'aria-label': 'Lọc theo trạng thái hóa đơn' });
+  const status = select([['', 'Mọi trạng thái'], ['UNPAID', 'Chưa trả'], ['PARTIALLY_PAID', 'Trả một phần'], ['OVERDUE', 'Quá hạn'], ['PAID', 'Đã trả'], ['CANCELLED', 'Đã hủy']], state.status, { 'aria-label': 'Lọc theo trạng thái hóa đơn' });
   const total = h('span', { class: 'muted' });
 
   const load = async () => {
@@ -23,7 +23,7 @@ export async function invoicesPage(view: HTMLElement, _p: Record<string, string>
     if (state.status) qs.set('status', state.status);
     let rows = await api.get<Invoice[]>(`/api/invoices?${qs}`);
     if (state.q && !rows.length) rows = await api.get<Invoice[]>(`/api/invoices?propertyId=${PROPERTY_ID}&roomCode=${encodeURIComponent(state.q)}`);
-    total.textContent = `${rows.length} hóa đơn · còn phải thu ${money(rows.reduce((a, r) => a + r.remainingAmount, 0))} ₫`;
+    total.textContent = `${rows.length} hóa đơn · còn phải thu ${money(rows.filter((r) => r.paymentStatus !== 'CANCELLED').reduce((a, r) => a + r.remainingAmount, 0))} ₫`;
     holder.replaceChildren(table<Invoice>([
       { key: 'c', label: 'Mã hóa đơn', render: (i) => h('span', { class: 'cell-main' }, i.invoiceCode), sort: (a, b) => a.invoiceCode.localeCompare(b.invoiceCode) },
       { key: 'r', label: 'Phòng', render: (i) => plate(i.roomCode), sort: (a, b) => a.roomCode.localeCompare(b.roomCode) },
@@ -75,7 +75,12 @@ async function openInvoice(id: number, reload: () => void): Promise<void> {
   });
   const mail = h('button', { class: 'btn secondary' }, icon('mail', 16), 'Gửi email');
   mail.addEventListener('click', async () => {
-    try { await api.post(`/api/invoices/${id}/send-email`); toast('Đã gửi hóa đơn qua email'); } catch (e) { toast(errText(e), 'err'); }
+    try {
+      const r = await api.post<{ status: string }>(`/api/invoices/${id}/send-email`);
+      if (r?.status === 'SENT') toast('Đã gửi hóa đơn qua email');
+      else if (r?.status === 'FAILED') toast('Gửi email thất bại. Kiểm tra cấu hình thư và địa chỉ email của khách.', 'err');
+      else toast('Chưa gửi được: máy chủ chưa cấu hình gửi thư, hóa đơn mới chỉ được ghi vào hàng chờ.', 'err');
+    } catch (e) { toast(errText(e), 'err'); }
   });
   d.foot.append(print, mail, pay);
 }

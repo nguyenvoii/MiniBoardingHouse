@@ -1,6 +1,6 @@
 import { h, busy } from '../lib/dom';
 import { icon } from '../lib/icons';
-import { api, errText, Page } from '../lib/api';
+import { api, can, errText, Page } from '../lib/api';
 import { dateTime, money, monthLabel } from '../lib/format';
 import { getMonth } from '../lib/ctx';
 import type { Invoice, Payment, QrInfo } from '../data/types';
@@ -58,16 +58,23 @@ function showQr(q: QrInfo, done: () => void): void {
 
 export async function paymentsPage(view: HTMLElement): Promise<void> {
   const month = getMonth();
-  const state = { status: '', keyword: '', all: false };
+  const state = { status: '', keyword: '', all: false, page: 0 };
+  const PAGE = 100;
+  let loaded: Payment[] = [];
   const holder = h('div');
   const status = select([['', 'Mọi trạng thái'], ['FAILED', 'Chờ xác nhận'], ['SUCCESS', 'Thành công'], ['REVERSED', 'Đã hủy giao dịch']], '', { 'aria-label': 'Lọc theo trạng thái giao dịch' });
   const kw = input({ type: 'search', placeholder: 'Mã giao dịch hoặc mã hóa đơn', 'aria-label': 'Tìm giao dịch' });
   const scope = select([['month', monthLabel(month)], ['all', 'Mọi tháng']], 'month', { 'aria-label': 'Chọn tháng của giao dịch' });
   scope.addEventListener('change', () => { state.all = scope.value === 'all'; void load(); });
-  const load = async () => {
-    const r = await api.get<Page<Payment>>(`/api/payments?status=${state.status}&keyword=${encodeURIComponent(state.keyword)}&size=200`);
-    if (!state.all) r.items = r.items.filter((x) => x.paymentDate.startsWith(month));
-    holder.replaceChildren(table<Payment>([
+  const more = h('button', { class: 'btn secondary', style: 'margin:12px' }, 'Tải thêm giao dịch cũ hơn');
+  more.addEventListener('click', () => busy(more, async () => { state.page++; await load(true); }));
+  const load = async (append = false) => {
+    if (!append) { state.page = 0; loaded = []; }
+    const r = await api.get<Page<Payment>>(`/api/payments?status=${state.status}&keyword=${encodeURIComponent(state.keyword)}&page=${state.page}&size=${PAGE}`);
+    loaded = [...loaded, ...r.items];
+    const hasMore = r.page + 1 < r.totalPages;
+    const items = state.all ? loaded : loaded.filter((x) => x.paymentDate.startsWith(month));
+    holder.replaceChildren(h('p', { class: 'muted', style: 'margin:12px 16px 0' }, `Đang hiển thị ${items.length} giao dịch${state.all ? '' : ` của ${monthLabel(month).toLowerCase()}`}, đã tải ${loaded.length}/${r.totalElements} giao dịch mới nhất trước.`), table<Payment>([
       { key: 'd', label: 'Thời điểm', render: (p) => dateTime(p.paymentDate) },
       { key: 'i', label: 'Hóa đơn', render: (p) => h('span', { class: 'plate ghost' }, p.invoiceCode) },
       { key: 'm', label: 'Phương thức', render: (p) => METHODS[p.method] ?? p.method },
@@ -76,11 +83,11 @@ export async function paymentsPage(view: HTMLElement): Promise<void> {
       { key: 'u', label: 'Người nhận', render: (p) => p.receivedByName ?? '–' },
       { key: 's', label: 'Trạng thái', render: (p) => statusBadge(p.status) },
       { key: 'x', label: '', render: (p) => p.status === 'FAILED' ? confirmBtn(p) : '' },
-    ], r.items, { onRow: (p) => openPayment(p, load), empty: emptyState(state.all ? 'Chưa có giao dịch' : `Không có giao dịch trong ${monthLabel(month).toLowerCase()}`, state.all ? 'Khi ghi nhận thanh toán hoặc tạo mã QR, giao dịch hiện ở đây.' : 'Đổi tháng ở thanh trên, hoặc chọn «Mọi tháng» ở bộ lọc.') }));
+    ], items, { onRow: (p) => openPayment(p, () => void load()), empty: emptyState(state.all ? 'Chưa có giao dịch' : `Không có giao dịch trong ${monthLabel(month).toLowerCase()}`, state.all ? 'Khi ghi nhận thanh toán hoặc tạo mã QR, giao dịch hiện ở đây.' : 'Đổi tháng ở thanh trên, hoặc chọn «Mọi tháng» ở bộ lọc.') }), ...(hasMore ? [more] : []));
   };
   const confirmBtn = (p: Payment) => {
     const b = h('button', { class: 'btn sm' }, icon('check', 14), 'Xác nhận');
-    b.addEventListener('click', (e) => { e.stopPropagation(); confirmPayment(p, load); });
+    b.addEventListener('click', (e) => { e.stopPropagation(); confirmPayment(p, () => void load()); });
     return b;
   };
   status.addEventListener('change', () => { state.status = status.value; void load(); });
@@ -89,7 +96,7 @@ export async function paymentsPage(view: HTMLElement): Promise<void> {
 
   view.replaceChildren(
     pageHead('Thanh toán', 'Đối chiếu tiền vào tài khoản với hóa đơn. Giao dịch chờ xác nhận chưa được cộng vào hóa đơn.', [
-      h('button', { class: 'btn', onclick: () => matchDialog(load) }, icon('search', 16), 'Đối chiếu chuyển khoản'),
+      h('button', { class: 'btn', onclick: () => matchDialog(() => void load()) }, icon('search', 16), 'Đối chiếu chuyển khoản'),
     ]),
     h('section', { class: 'panel panel-flush' }, h('div', { class: 'toolbar' }, h('div', { class: 'grow' }, kw), scope, status), holder),
   );
@@ -148,13 +155,23 @@ function openPayment(p: Payment, reload: () => void): void {
     h('dl', { class: 'dl' }, h('dt', null, 'Số tiền'), h('dd', null, `${money(p.amountPaid)} ₫`), h('dt', null, 'Phương thức'), h('dd', null, METHODS[p.method] ?? p.method),
       h('dt', null, 'Thời điểm'), h('dd', null, dateTime(p.paymentDate)), h('dt', null, 'Người nhận'), h('dd', null, p.receivedByName ?? '–')),
   );
-  if (p.status === 'SUCCESS') {
+  if (p.status === 'FAILED') {
+    const close = h('button', { class: 'btn danger' }, 'Đóng giao dịch chờ');
+    close.addEventListener('click', async () => {
+      if (!(await confirmDialog('Đóng giao dịch chờ', `Giao dịch chờ ${money(p.amountPaid)} ₫ của hóa đơn ${p.invoiceCode} sẽ bị đóng, không cộng vào hóa đơn. Dùng khi khách chuyển sai số tiền hoặc bỏ giữa chừng. Tiếp tục?`, 'Đóng giao dịch', true))) return;
+      try { await api.post(`/api/payments/${p.transactionId}/cancel`); d.close(); toast('Đã đóng giao dịch chờ'); reload(); } catch (x) { toast(errText(x), 'err'); }
+    });
+    d.body.append(h('div', { class: 'danger-zone' }, h('p', null, 'Khách chuyển sai số tiền hoặc không trả nữa? Đóng giao dịch chờ này rồi tạo giao dịch mới.'), close));
+  }
+  if (p.status === 'SUCCESS' && can('LANDLORD', 'MANAGER')) {
     const btn = h('button', { class: 'btn danger' }, 'Hủy giao dịch');
     btn.addEventListener('click', async () => {
       if (!(await confirmDialog('Hủy giao dịch thanh toán', `Hủy giao dịch ${money(p.amountPaid)} ₫ của hóa đơn ${p.invoiceCode}? Số tiền sẽ bị trừ khỏi hóa đơn. Chỉ dùng khi ghi nhầm.`, 'Hủy giao dịch', true))) return;
       try { await api.post(`/api/payment-transactions/${p.transactionId}/reverse`); d.close(); toast('Đã hủy giao dịch'); reload(); } catch (x) { toast(errText(x), 'err'); }
     });
     d.body.append(h('div', { class: 'danger-zone' }, h('p', null, 'Ghi nhầm số tiền hoặc hóa đơn? Hủy giao dịch để trừ lại khỏi hóa đơn.'), btn));
+  } else if (p.status === 'SUCCESS') {
+    d.body.append(h('p', { class: 'muted' }, 'Ghi nhầm giao dịch này? Chỉ chủ trọ hoặc quản lý hủy được, hãy báo họ.'));
   }
   d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Đóng'));
 }
