@@ -148,18 +148,25 @@ function expiringPanel(list: Contract[], _dash: Dashboard | null): HTMLElement {
 interface Lifecycle {
   prospects: number; vacant: number; unsigned: number; renting: number; totalRooms: number;
   openTickets: number; awaitingClose: number; checkoutOpen: number; endingSoon: number;
+  unhanded: number; firstUnhanded: number | null;
 }
 
 async function loadLifecycle(): Promise<Lifecycle> {
-  const [live, tickets, checkouts] = await Promise.all([
+  const [live, inspections, tickets, checkouts] = await Promise.all([
     loadLive().catch(() => null),
+    // biên bản nhận phòng: hợp đồng mới (30 ngày) chưa có biên bản là việc còn dang dở
+    api.get<Array<{ contractId: number | null }>>('/api/chi/checkin-inspections').catch(() => null),
     api.get<Page<{ status: string }>>('/api/maintenance-requests?size=200').catch(() => null),
     api.get<Page<{ status: string }>>('/api/checkout-requests?size=200').catch(() => null),
   ]);
   const rooms = live?.rooms ?? [];
   const contracts = live?.contracts ?? [];
   const t = tickets?.items ?? [];
+  const handed = new Set((inspections ?? []).map((x) => x.contractId));
+  const since = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+  const unhandedList = inspections ? contracts.filter((c) => c.startDate >= since && !handed.has(c.contractId)) : [];
   return {
+    unhanded: unhandedList.length, firstUnhanded: unhandedList[0]?.contractId ?? null,
     prospects: (live?.tenants ?? []).filter((x) => !x.roomCode).length,
     vacant: rooms.filter((r) => r.status === 'VACANT').length,
     unsigned: contracts.filter((c) => !c.digitalSignatureUrl).length,
@@ -179,8 +186,9 @@ function lifecyclePanel(l: Lifecycle, overdue: number): HTMLElement {
   const cols: LifeCol[] = [
     { name: 'Tiếp nhận', sub: `${l.prospects} khách chưa thuê`, action: { label: 'Thêm khách', href: '#/tenants' },
       rows: [{ label: 'Khách chưa thuê phòng', n: l.prospects, href: '#/tenants' }, { label: 'Phòng đang trống', n: l.vacant, href: '#/rooms' }] },
-    { name: 'Nhận phòng', sub: l.unsigned ? `${l.unsigned} hợp đồng chưa ký` : 'Không việc tồn', action: { label: 'Nhận khách', href: '#/checkin' },
-      rows: [{ label: 'Hợp đồng chưa ký', n: l.unsigned, href: '#/contracts', hot: l.unsigned > 0 }, { label: 'Phòng sẵn sàng nhận khách', n: l.vacant, href: '#/checkin' }] },
+    { name: 'Nhận phòng', sub: l.unhanded ? `${l.unhanded} chưa bàn giao phòng` : l.unsigned ? `${l.unsigned} hợp đồng chưa ký` : 'Không việc tồn', action: { label: 'Nhận khách', href: '#/checkin' },
+      rows: [{ label: 'Hợp đồng mới chưa bàn giao phòng', n: l.unhanded, href: l.firstUnhanded ? `#/checkin?contract=${l.firstUnhanded}` : '#/contracts', hot: l.unhanded > 0 },
+        { label: 'Hợp đồng chưa ký', n: l.unsigned, href: '#/contracts', hot: l.unsigned > 0 }, { label: 'Phòng sẵn sàng nhận khách', n: l.vacant, href: '#/checkin' }] },
     { name: 'Đang ở', sub: `${l.renting}/${l.totalRooms} phòng có khách`, action: { label: 'Xem công nợ', href: '#/debts' },
       rows: [{ label: 'Hóa đơn quá hạn', n: overdue, href: '#/invoices?status=OVERDUE', hot: overdue > 0 },
         { label: 'Sự cố đang xử lý', n: l.openTickets, href: '#/maintenance', hot: l.openTickets > 0 },

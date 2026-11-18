@@ -6,6 +6,9 @@ import com.group7.minihouse.shared.dto.PageResponse;
 import com.group7.minihouse.shared.entity.CheckoutInspection;
 import com.group7.minihouse.shared.entity.CheckoutRequest;
 import com.group7.minihouse.shared.entity.DepositRefundVoucher;
+import com.group7.minihouse.shared.event.ContractEndedEvent;
+import com.group7.minihouse.shared.util.DepositLedger;
+import org.springframework.context.ApplicationEventPublisher;
 import com.group7.minihouse.shared.entity.Invoice;
 import com.group7.minihouse.shared.entity.RentalContract;
 import com.group7.minihouse.shared.exception.BusinessException;
@@ -55,17 +58,20 @@ public class CheckoutService {
     private final TenantRoomResolver tenantRoomResolver;
     private final ActorResolver actorResolver;
     private final DebtService debtService;
+    private final ApplicationEventPublisher events;
 
     public CheckoutService(CheckoutRequestRepository checkoutRepository,
                            CheckoutInspectionRepository inspectionRepository,
                            DepositRefundVoucherRepository voucherRepository, TenantRoomResolver tenantRoomResolver,
-                           ActorResolver actorResolver, DebtService debtService) {
+                           ActorResolver actorResolver, DebtService debtService,
+                           ApplicationEventPublisher events) {
         this.checkoutRepository = checkoutRepository;
         this.inspectionRepository = inspectionRepository;
         this.voucherRepository = voucherRepository;
         this.tenantRoomResolver = tenantRoomResolver;
         this.actorResolver = actorResolver;
         this.debtService = debtService;
+        this.events = events;
     }
 
     // ---------- UC101: tiep nhan yeu cau ----------
@@ -229,7 +235,10 @@ public class CheckoutService {
         BigDecimal debt = unpaid.stream().map(i -> nz(i.getRemainingAmount())).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal damage = inspectionRepository.findByCheckout_CheckoutId(id)
                 .map(i -> nz(i.getDamageCompensationAmount())).orElse(BigDecimal.ZERO);
-        BigDecimal deposit = nz(c.getContract().getDepositAmount());
+        // Chỉ hoàn phần cọc ĐÃ THU (phiếu thu cọc của hợp đồng), không phải số ghi trên hợp đồng
+        BigDecimal contractDeposit = nz(c.getContract().getDepositAmount());
+        BigDecimal depositCollected = DepositLedger.collected(em, c.getContract().getContractCode());
+        BigDecimal deposit = depositCollected.min(contractDeposit);
         BigDecimal deductedDebt = debt.min(deposit);
         BigDecimal deductedDamage = damage.min(deposit.subtract(deductedDebt));
         BigDecimal refundable = deposit.subtract(deductedDebt).subtract(deductedDamage);
@@ -248,7 +257,17 @@ public class CheckoutService {
         List<UnpaidInvoiceItem> items = unpaid.stream().map(i -> new UnpaidInvoiceItem(i.getInvoiceId(),
                 i.getInvoiceCode(), i.getDueDate(), i.getRemainingAmount())).toList();
         return new SettlementResponse(id, deposit, debt, damage, deductedDebt, deductedDamage, refundable, mustPay,
-                items);
+                items, contractDeposit, depositCollected, finalMonthBilled(c));
+    }
+
+    /** Đã có hóa đơn cho tháng trả phòng chưa (tiền phòng theo ngày và điện nước phần tháng cuối). */
+    private boolean finalMonthBilled(CheckoutRequest c) {
+        java.time.LocalDate d = c.getActualCheckoutDate() != null ? c.getActualCheckoutDate() : c.getExpectedCheckoutDate();
+        String ym = d.getYear() + "-" + String.format("%02d", d.getMonthValue());
+        Long n = (Long) em.createQuery("select count(i) from Invoice i where i.calculatedFee.contract.contractId = :c "
+                        + "and i.calculatedFee.billingPeriod.monthYear = :ym and i.paymentStatus <> 'CANCELLED'")
+                .setParameter("c", c.getContract().getContractId()).setParameter("ym", ym).getSingleResult();
+        return n > 0;
     }
 
     private List<Invoice> unpaidInvoices(Integer contractId) {
@@ -330,7 +349,7 @@ public class CheckoutService {
     // ---------- UC107: ban giao, thanh ly ----------
 
     @Transactional
-    public CheckoutResponse finalizeCheckout(Integer id) {
+    public CheckoutResponse finalizeCheckout(Integer id, Integer actorId) {
         CheckoutRequest c = find(id);
         requireStatus(c, "INSPECTING");
         DepositRefundVoucher v = voucherRepository.findByCheckout_CheckoutId(id)
@@ -345,7 +364,14 @@ public class CheckoutService {
         contract.getRoom().setStatus("VACANT");
         em.merge(contract);
         em.merge(contract.getRoom());
-        return CheckoutResponse.from(checkoutRepository.save(c));
+        CheckoutRequest saved = checkoutRepository.save(c);
+        var ins = inspectionRepository.findByCheckout_CheckoutId(id).orElse(null);
+        events.publishEvent(new ContractEndedEvent(contract.getContractId(), contract.getRoom().getRoomId(),
+                contract.getRoom().getProperty() == null ? null : contract.getRoom().getProperty().getPropertyId(),
+                saved.getActualCheckoutDate(), ins == null ? null : ins.getFinalElectricMeter(),
+                ins == null ? null : ins.getFinalWaterMeter(), "Tra phong, thanh ly hop dong",
+                actorId != null ? actorId : ins == null || ins.getInspectedBy() == null ? null : ins.getInspectedBy().getUserId()));
+        return CheckoutResponse.from(saved);
     }
 
     @Transactional(readOnly = true)

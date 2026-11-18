@@ -19,6 +19,7 @@ interface Inspection {
 interface Settlement {
   originalDeposit: number; debtTotal: number; damageTotal: number; deductedDebt: number; deductedDamage: number; refundable: number; tenantMustPay: number;
   unpaidInvoices: Array<{ invoiceId: number; invoiceCode: string; dueDate: string; remainingAmount: number }>;
+  contractDeposit: number; depositCollected: number; finalMonthBilled: boolean;
 }
 interface Voucher { refundId: number; actualRefundAmount: number; refundDate: string | null; status: string }
 interface Handover { checkout: Checkout; inspection: Inspection | null; settlement: Settlement; refundVoucher: Voucher | null }
@@ -125,8 +126,13 @@ async function openCheckout(id: number, reload: () => void): Promise<void> {
     }
     if (st && (ins || v || c.status === 'FINALIZED')) {
       body.push(card('Quyết toán tiền cọc', [
+        st.finalMonthBilled ? null : h('div', { class: 'route-next', style: 'background:var(--warn-bg);border-color:#e8c46a' }, icon('alert', 20),
+          h('p', { style: 'flex:1' }, h('b', null, 'Chưa tính tiền tháng cuối. '), 'Chưa có hóa đơn cho tháng trả phòng (tiền phòng theo ngày, điện nước). Chốt chỉ số và phát hành hóa đơn tháng này trước khi hoàn cọc để khoản đó được trừ vào cọc.'),
+          h('a', { class: 'btn secondary sm', href: '#/billing' }, 'Mở Tính tiền')),
+        st.depositCollected < st.contractDeposit ? h('div', { class: 'route-next', style: 'background:var(--warn-bg);border-color:#e8c46a' }, icon('alert', 20),
+          h('p', null, h('b', null, 'Cọc chưa thu đủ. '), `Hợp đồng ghi ${money(st.contractDeposit)} ₫ nhưng mới thu ${money(st.depositCollected)} ₫. Chỉ hoàn phần đã thu.`)) : null,
         dl([
-          ['Tiền cọc', `${money(st.originalDeposit)} ₫`], ['Công nợ chưa trả', `${money(st.debtTotal)} ₫`], ['Bồi thường hư hỏng', `${money(st.damageTotal)} ₫`],
+          ['Cọc theo hợp đồng', `${money(st.contractDeposit)} ₫`], ['Cọc đã thu (dùng để quyết toán)', `${money(st.originalDeposit)} ₫`], ['Công nợ chưa trả', `${money(st.debtTotal)} ₫`], ['Bồi thường hư hỏng', `${money(st.damageTotal)} ₫`],
           ['Trừ vào cọc (công nợ)', `${money(st.deductedDebt)} ₫`], ['Trừ vào cọc (hư hỏng)', `${money(st.deductedDamage)} ₫`],
           ['Hoàn lại cho khách', h('b', null, `${money(st.refundable)} ₫`)],
           ['Khách còn phải trả thêm', st.tenantMustPay > 0 ? h('b', { style: 'color:var(--danger)' }, `${money(st.tenantMustPay)} ₫`) : '0 ₫'],

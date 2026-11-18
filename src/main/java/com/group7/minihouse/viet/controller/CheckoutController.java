@@ -104,8 +104,9 @@ public class CheckoutController {
 
     /** UC107: thanh ly hop dong, tra phong ve VACANT (can phieu hoan coc da REFUNDED). */
     @PostMapping("/checkout-requests/{id}/finalize")
-    public ApiResponse<CheckoutResponse> finalizeCheckout(@PathVariable Integer id) {
-        return ApiResponse.ok(service.finalizeCheckout(id));
+    public ApiResponse<CheckoutResponse> finalizeCheckout(@PathVariable Integer id,
+                                                          @AuthenticationPrincipal AuthUser actor) {
+        return ApiResponse.ok(service.finalizeCheckout(id, actor == null ? null : actor.userId()));
     }
 
     /** UC107: du lieu bien ban ban giao phong de in. */

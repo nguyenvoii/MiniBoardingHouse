@@ -56,7 +56,9 @@ public final class CheckoutDtos {
     public record SettlementResponse(Integer checkoutId, BigDecimal originalDeposit, BigDecimal debtTotal,
                                      BigDecimal damageTotal, BigDecimal deductedDebt, BigDecimal deductedDamage,
                                      BigDecimal refundable, BigDecimal tenantMustPay,
-                                     List<UnpaidInvoiceItem> unpaidInvoices) {
+                                     List<UnpaidInvoiceItem> unpaidInvoices,
+                                     BigDecimal contractDeposit, BigDecimal depositCollected,
+                                     boolean finalMonthBilled) {
     }
 
     public record RefundVoucherResponse(Integer refundId, Integer checkoutId, BigDecimal originalDepositAmount,

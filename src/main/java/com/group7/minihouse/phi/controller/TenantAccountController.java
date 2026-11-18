@@ -53,4 +53,13 @@ public class TenantAccountController {
         return ApiResponse.ok(service.createAccount(tenantId, actor == null ? null : actor.userId(),
                 http.getRemoteAddr()));
     }
+    /** Cấp lại mật khẩu tạm cho người thuê quên mật khẩu; trả về mật khẩu mới (chỉ hiện 1 lần). */
+    @PostMapping("/{tenantId}/account/reset-password")
+    @PreAuthorize("hasAnyRole('LANDLORD','MANAGER')")
+    public ApiResponse<TenantAccountResponse> resetPassword(@PathVariable Integer tenantId,
+                                                            @AuthenticationPrincipal AuthUser actor,
+                                                            HttpServletRequest http) {
+        return ApiResponse.ok(service.resetPassword(tenantId, actor == null ? null : actor.userId(),
+                http.getRemoteAddr()));
+    }
 }

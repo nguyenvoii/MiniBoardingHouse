@@ -16,11 +16,14 @@ Bước 1. Khách hàng: chọn chị An (hoặc thêm khách mới ngay tại �
 Bước 2. Phòng và hợp đồng: chọn phòng H101 (chỉ hiện phòng trống), ngày bắt đầu, thời hạn 12 tháng, giá thuê, tiền cọc, hạn trả mỗi tháng (ví dụ ngày 5), phạt trễ hạn. Bấm Lập hợp đồng.
 Bước 3. Bàn giao phòng: cùng chị An đọc chỉ số điện nước ban đầu, ghi số chìa khóa, ghi tình trạng phòng và đồ đạc. Đây là biên bản nhận phòng, sau này dùng để đối chiếu khi trả phòng.
 Bước 4. Thu cọc và tài khoản:
-  Thu tiền cọc: nhận 2.950.000 đồng (tiền mặt hoặc chuyển khoản), bấm Đã nhận để lập phiếu thu cọc.
+  Thu tiền cọc: nhập số tiền vừa nhận (2.950.000 đồng, tiền mặt hoặc chuyển khoản), bấm Ghi nhận thu cọc. Hệ thống lập phiếu thu và ghi đã thu bao nhiêu. Có thể thu làm nhiều lần cho tới khi đủ. Chưa thu đủ cọc thì chưa bấm Hoàn tất nhận phòng được.
   Khách ký hợp đồng: chị An ký trên màn hình.
   Cấp tài khoản: hệ thống tạo mật khẩu tạm, chủ trọ đưa cho chị An. Chị đăng nhập bằng số điện thoại.
+  Người ở cùng và xe: khai báo ngay tại bước này để tính đúng phí theo đầu người và phí gửi xe từ tháng đầu.
 
 Kết quả: phòng H101 chuyển sang Đang thuê, chị An có hợp đồng, biên bản nhận phòng, phiếu thu cọc và tài khoản.
+
+Làm dở giữa chừng: nếu đóng trình duyệt giữa các bước, Tổng quan hiện việc "Hợp đồng mới chưa bàn giao phòng". Bấm vào là quay lại đúng bước đang dở. Trong cửa sổ hợp đồng cũng có khung "Tình trạng nhận phòng" cho biết còn thiếu biên bản hay tiền cọc, kèm nút làm tiếp.
 
 Tiền: cọc 2.950.000 đồng đã thu, giữ đến lúc trả phòng. Tiền phòng tháng đầu CHƯA thu lúc này, vì tiền phòng thu theo hóa đơn hằng tháng (giai đoạn 3).
 
@@ -46,15 +49,20 @@ GIAI ĐOẠN 4. TRẢ PHÒNG (menu Trả phòng)
 Chị An báo trước trong ứng dụng (nút Báo trả phòng ở trang chủ), hoặc chủ trọ tạo hộ. Thứ tự:
   1. Yêu cầu: chờ chủ trọ xác nhận lịch.
   2. Kiểm tra phòng: ghi chỉ số điện nước cuối, thiết bị hư hỏng, tiền bồi thường. Đối chiếu với biên bản nhận phòng ở giai đoạn 2.
-  3. Quyết toán: hệ thống lấy tiền cọc, trừ công nợ chưa trả và tiền hư hỏng. Còn lại bao nhiêu thì hoàn cho chị An. Nếu nợ nhiều hơn cọc thì chị An phải trả thêm.
+  Trước khi hoàn cọc: chốt chỉ số điện nước và phát hành hóa đơn của tháng trả phòng (tiền phòng tính theo ngày ở thực tế). Màn quyết toán có khung vàng nhắc việc này nếu chưa có hóa đơn tháng đó, để khoản này được trừ vào cọc.
+  3. Quyết toán: hệ thống lấy phần tiền cọc ĐÃ THU (không phải số ghi trên hợp đồng), trừ công nợ chưa trả và tiền hư hỏng. Còn lại bao nhiêu thì hoàn cho chị An. Nếu nợ nhiều hơn cọc thì chị An phải trả thêm.
   4. Hoàn cọc: lập phiếu hoàn cọc, bấm đã hoàn khi đưa tiền.
-  5. Thanh lý: hợp đồng chấm dứt, phòng H101 về Trống, sẵn sàng nhận khách mới.
+  5. Thanh lý: hợp đồng chấm dứt, phòng H101 về Trống, sẵn sàng nhận khách mới. Hệ thống tự: ghi lịch sử chấm dứt (để dừng tính tiền phòng từ sau ngày trả), ghi lịch sử ở và gỡ người ở khỏi phòng (để không tính phí đầu người cho khách sau), và chốt chỉ số điện nước cuối vào kỳ đang mở nếu có (khách sau tính tiếp từ số này).
 
 Ví dụ: cọc 2.950.000, còn nợ tiền điện 200.000, hư hỏng 150.000. Hoàn lại 2.950.000 trừ 200.000 trừ 150.000 bằng 2.600.000 đồng.
 
 CHẤM DỨT HỢP ĐỒNG SỚM (hiếm)
 
 Khác với trả phòng. Chỉ dùng khi hợp đồng phải dừng ngay, ví dụ nhập nhầm. Phải ghi lý do ít nhất 10 ký tự, gõ lại đúng mã phòng, và không được còn nợ. Khách trả phòng bình thường thì luôn đi qua mục Trả phòng.
+
+KHÁCH QUÊN MẬT KHẨU
+
+Chủ trọ vào Khách hàng, mở khách đó, bấm Cấp lại mật khẩu tạm. Mật khẩu cũ mất hiệu lực ngay. Mật khẩu mới hiện một lần để đọc cho khách.
 
 BA NGƯỜI, BA MÀN HÌNH
 

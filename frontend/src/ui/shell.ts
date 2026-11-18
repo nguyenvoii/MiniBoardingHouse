@@ -177,8 +177,7 @@ function propertyPicker(): HTMLElement {
     h('option', { value: String(PROPERTY_ID) }, 'Khu trọ…')) as HTMLSelectElement;
   sel.addEventListener('change', () => {
     setProperty(Number(sel.value));
-    location.hash = '#/';
-    location.reload();
+    location.reload(); // giữ nguyên màn đang xem, chỉ nạp lại dữ liệu của khu mới
   });
   loadProperties().then((list) => {
     if (!list.length) { sel.hidden = true; return; }

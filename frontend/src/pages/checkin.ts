@@ -7,6 +7,7 @@ import type { Contract } from '../data/types';
 import { card, dl, field, formError, input, pageHead, plate, select, toast, openDialog } from '../ui/kit';
 import { addTenant } from './tenants';
 import { signPad } from './contracts';
+import { residentsBox, vehiclesBox } from '../ui/occupancy';
 
 // Nhận khách thuê phòng: một luồng liền mạch từ lúc khách đến cho tới khi nhận phòng.
 // 1 Khách hàng → 2 Phòng và hợp đồng → 3 Bàn giao phòng → 4 Thu cọc, ký và cấp tài khoản.
@@ -25,14 +26,14 @@ interface State {
   roomId: number | null; roomCode: string;
   contract: Contract | null;
   handedOver: boolean;
-  depositPaid: boolean; signed: boolean; accountDone: boolean;
+  depositPaid: boolean; depositCollected: number; signed: boolean; accountDone: boolean;
 }
 
 export async function checkinPage(view: HTMLElement, _p: Record<string, string>, query: URLSearchParams): Promise<void> {
   const live = await loadLive();
   const st: State = {
     step: 0, tenantId: null, tenantName: '', tenantPhone: '', roomId: null, roomCode: '', contract: null,
-    handedOver: false, depositPaid: false, signed: false, accountDone: false,
+    handedOver: false, depositPaid: false, depositCollected: 0, signed: false, accountDone: false,
   };
   const preTenant = Number(query.get('tenant')) || null;
   const preRoom = Number(query.get('room')) || null;
@@ -47,8 +48,25 @@ export async function checkinPage(view: HTMLElement, _p: Record<string, string>,
   if (preContract) {
     // Tiếp tục một hợp đồng đã lập nhưng chưa bàn giao phòng
     const c = live.contracts.find((x) => x.contractId === preContract) ?? await api.get<{ contract: Contract }>(`/api/contracts/${preContract}`).then((r) => r.contract).catch(() => null);
-    if (c) { st.contract = c; st.tenantId = c.tenantId; st.tenantName = c.tenantName; st.roomId = c.roomId; st.roomCode = c.roomCode; st.step = 2; }
+    if (c) { st.contract = c; st.tenantId = c.tenantId; st.tenantName = c.tenantName; st.roomId = c.roomId; st.roomCode = c.roomCode; st.step = 2; await loadProgress(); }
   } else if (st.tenantId) st.step = 1;
+
+  /** Hợp đồng đã lập từ trước: xem đã làm tới đâu (biên bản, cọc, ký, tài khoản) để tiếp tục đúng chỗ. */
+  async function loadProgress(): Promise<void> {
+    const c = st.contract;
+    if (!c) return;
+    const [dep, ins, acct] = await Promise.all([
+      api.get<{ collected: number; remaining: number }>(`/api/contracts/${c.contractId}/deposit`).catch(() => null),
+      api.get<Array<{ contractId: number | null }>>(`/api/chi/checkin-inspections?roomId=${c.roomId}`).catch(() => [] as Array<{ contractId: number | null }>),
+      api.get<{ exists: boolean }>(`/api/tenants/${c.tenantId}/account`).catch(() => null),
+    ]);
+    st.depositCollected = dep?.collected ?? 0;
+    st.depositPaid = !!dep && dep.remaining <= 0;
+    st.handedOver = ins.some((x) => x.contractId === c.contractId);
+    st.signed = !!c.digitalSignatureUrl;
+    st.accountDone = !!acct?.exists;
+    st.step = st.handedOver ? 3 : 2;
+  }
 
   const body = h('div', { class: 'stack', style: 'gap:16px' });
   const side = h('aside', { class: 'sum' });
@@ -177,18 +195,21 @@ export async function checkinPage(view: HTMLElement, _p: Record<string, string>,
     ]);
   }
 
-  // ---- Bước 4: thu cọc, ký hợp đồng, cấp tài khoản ----
+  // ---- Bước 4: thu cọc, ký hợp đồng, cấp tài khoản, người ở cùng và xe ----
   function step4(): HTMLElement {
     const c = st.contract!;
+    const remaining = Math.max(c.depositAmount - st.depositCollected, 0);
     const todo = (title: string, text: string, done: boolean, action: HTMLElement) =>
       h('div', { class: 'panel', style: 'padding:14px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap' },
-        h('div', null, h('b', null, title), h('p', { class: 'muted', style: 'margin:2px 0 0' }, text)),
+        h('div', { style: 'flex:1;min-width:220px' }, h('b', null, title), h('p', { class: 'muted', style: 'margin:2px 0 0' }, text)),
         done ? h('span', { class: 'st ok' }, icon('check', 14), 'Xong') : action);
-    const deposit = h('button', { class: 'btn' }, icon('wallet', 16), `Đã nhận ${money(c.depositAmount)} ₫`);
+    const amount = input({ type: 'number', min: '0', step: '10000', value: String(remaining), class: 'input num-in', 'aria-label': 'Số tiền cọc vừa nhận (₫)', style: 'width:150px' });
+    const deposit = h('button', { class: 'btn' }, icon('wallet', 16), 'Ghi nhận thu cọc');
     deposit.addEventListener('click', () => busy(deposit, async () => {
       try {
-        await api.post('/api/receipts', { voucherType: 'DEPOSIT', amount: c.depositAmount, note: `Thu cọc hợp đồng ${c.contractCode} phòng ${c.roomCode}` });
-        st.depositPaid = true; toast('Đã lập phiếu thu cọc'); paint();
+        const r = await api.post<{ collected: number; remaining: number }>(`/api/contracts/${c.contractId}/deposit`, { amount: Number(amount.value) });
+        st.depositCollected = r.collected; st.depositPaid = r.remaining <= 0;
+        toast('Đã lập phiếu thu cọc'); paint();
       } catch (e) { toast(errText(e), 'err'); }
     }));
     const sign = h('button', { class: 'btn secondary' }, icon('sign', 16), 'Khách ký');
@@ -203,14 +224,31 @@ export async function checkinPage(view: HTMLElement, _p: Record<string, string>,
         if (/da co|đã có|exist/i.test(errText(e))) { st.accountDone = true; paint(); } else toast(errText(e), 'err');
       }
     }));
-    const finish = h('a', { class: 'btn', href: `#/contracts?open=${c.contractId}` }, 'Hoàn tất nhận phòng', icon('right', 16));
+    const room = live.rooms.find((r) => r.roomId === st.roomId);
+    const missing: string[] = [];
+    if (!st.depositPaid) missing.push(`thu đủ tiền cọc (còn ${money(remaining)} ₫)`);
+    const advice: string[] = [];
+    if (!st.signed) advice.push('khách chưa ký hợp đồng');
+    if (!st.accountDone) advice.push('khách chưa có tài khoản để xem hóa đơn');
+    const finish = missing.length
+      ? h('button', { class: 'btn', disabled: true, title: 'Cần thu đủ cọc trước' }, 'Hoàn tất nhận phòng', icon('right', 16))
+      : h('a', { class: 'btn', href: `#/contracts?open=${c.contractId}` }, 'Hoàn tất nhận phòng', icon('right', 16));
+    const depositText = st.depositCollected > 0
+      ? `Đã thu ${money(st.depositCollected)} ₫ trên ${money(c.depositAmount)} ₫. Khi trả phòng chỉ hoàn phần cọc đã thu ở đây.`
+      : `Cần thu ${money(c.depositAmount)} ₫ (tiền mặt hoặc chuyển khoản). Khi trả phòng chỉ hoàn phần cọc đã thu ở đây.`;
     return card(`4. Hoàn tất nhận phòng ${st.roomCode}`, [
-      h('p', { class: 'muted' }, 'Ba việc cuối. Tiền phòng từng tháng không thu lúc này: mỗi tháng hệ thống chốt điện nước, tính tiền và phát hành hóa đơn; khách trả bằng QR trên điện thoại hoặc nộp tiền mặt tại quầy.'),
-      todo('Thu tiền cọc', `${money(c.depositAmount)} ₫ nhận tiền mặt hoặc chuyển khoản; lập phiếu thu để đối chiếu khi hoàn cọc.`, st.depositPaid, deposit),
+      h('p', { class: 'muted' }, 'Tiền phòng từng tháng không thu lúc này: mỗi tháng hệ thống chốt điện nước, tính tiền và phát hành hóa đơn; khách trả bằng QR trên điện thoại hoặc nộp tiền mặt tại quầy.'),
+      todo('Thu tiền cọc', depositText, st.depositPaid, h('div', { style: 'display:flex;gap:8px;align-items:center;flex-wrap:wrap' }, amount, deposit)),
       todo('Khách ký hợp đồng', 'Ký trên màn hình, chỉ ký được một lần cho mỗi hợp đồng.', st.signed, sign),
       todo('Cấp tài khoản cho khách', `Khách đăng nhập bằng số điện thoại ${st.tenantPhone} để xem hóa đơn, trả tiền QR và báo sự cố.`, st.accountDone, acct),
+      h('div', { class: 'panel', style: 'padding:14px;display:flex;flex-direction:column;gap:10px' },
+        h('div', null, h('b', null, 'Người ở cùng và xe'), h('p', { class: 'muted', style: 'margin:2px 0 0' }, 'Khai báo ngay để tính đúng phí theo đầu người và phí gửi xe từ tháng đầu tiên.')),
+        residentsBox(st.roomId!, room?.maxPeople ?? 2),
+        vehiclesBox(st.tenantId!)),
+      missing.length ? h('p', { style: 'color:var(--danger);font-weight:600' }, `Còn thiếu: ${missing.join(', ')}.`)
+        : advice.length ? h('p', { class: 'muted' }, `Có thể hoàn tất, nhưng lưu ý: ${advice.join('; ')}. Làm sau ở mục Hợp đồng và Khách hàng.`) : null,
       h('div', { style: 'display:flex;gap:10px;flex-wrap:wrap' }, finish),
-    ]);
+    ].filter(Boolean) as Node[]);
   }
 
   function doneBox(title: string, text: string, next: () => void): HTMLElement {

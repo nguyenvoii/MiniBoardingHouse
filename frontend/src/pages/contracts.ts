@@ -92,6 +92,8 @@ async function openContract(id: number, reload: () => void): Promise<void> {
   const live = c.status === 'ACTIVE' || c.status === 'EXPIRING_SOON';
   const d = openDialog(`Hợp đồng ${c.contractCode}`, { drawer: true, width: 620 });
   const refresh = () => { d.close(); reload(); void openContract(id, reload); };
+  const status = h('div', { class: 'stack', style: 'gap:8px' });
+  void fillStatus(status, c, live, refresh, d.close);
 
   d.body.append(
     h('div', { style: 'display:flex;gap:10px;align-items:center;flex-wrap:wrap' }, plate(c.roomCode, 'lg'), h('b', { style: 'font-size:16px' }, c.tenantName), statusBadge(c.status)),
@@ -101,6 +103,7 @@ async function openContract(id: number, reload: () => void): Promise<void> {
       ['Điều khoản điện', c.electricTerms ?? '–'], ['Điều khoản nước', c.waterTerms ?? '–'], ['Điều kiện hoàn cọc', c.depositRefundConditions ?? '–'],
       ['Chữ ký', c.digitalSignatureUrl ? h('img', { src: c.digitalSignatureUrl, alt: 'Chữ ký', style: 'height:56px;border:1px solid var(--line);border-radius:6px;background:#fff' }) : 'Chưa ký'],
     ]),
+    status,
     h('div', null, h('h3', { style: 'margin-bottom:10px' }, 'Lịch sử thay đổi'),
       history.length
         ? h('ol', { class: 'timeline' }, ...history.map((a) => h('li', null, h('span', { class: 'pip' }),
@@ -238,5 +241,40 @@ export function signPad(id: number, done: () => void, mine = false): void {
     if (!blob) return;
     try { await api.upload(mine ? `/api/me/contracts/${id}/sign` : `/api/contracts/${id}/sign`, blob); d.close(); toast('Đã lưu chữ ký'); done(); }
     catch (x) { err.replaceChildren(formError(errText(x))); }
+  }));
+}
+
+interface DepositInfo { required: number; collected: number; remaining: number }
+
+/** Hợp đồng đã đủ thủ tục nhận phòng chưa: biên bản bàn giao và tiền cọc đã thu. */
+async function fillStatus(box: HTMLElement, c: Contract, live: boolean, refresh: () => void, closeDrawer: () => void): Promise<void> {
+  const [dep, ins] = await Promise.all([
+    api.get<DepositInfo>(`/api/contracts/${c.contractId}/deposit`).catch(() => null),
+    api.get<Array<{ contractId: number | null }>>(`/api/chi/checkin-inspections?roomId=${c.roomId}`).catch(() => [] as Array<{ contractId: number | null }>),
+  ]);
+  if (!dep) return;
+  const handed = ins.some((x) => x.contractId === c.contractId);
+  const row = (ok: boolean, title: string, text: string, action?: HTMLElement) =>
+    h('div', { style: 'display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:10px 12px;border:1px solid var(--line);border-radius:8px' },
+      h('span', { style: 'display:flex;gap:8px;align-items:center' }, icon(ok ? 'check' : 'alert', 16), h('span', null, h('b', null, title), ` ${text}`)), action ?? null);
+  box.replaceChildren(
+    h('h3', { style: 'margin-bottom:2px' }, 'Tình trạng nhận phòng'),
+    row(handed, 'Bàn giao phòng:', handed ? 'đã có biên bản' : 'chưa có biên bản',
+      !handed && live ? h('a', { class: 'btn sm', href: `#/checkin?contract=${c.contractId}`, onclick: closeDrawer }, 'Bàn giao phòng') : undefined),
+    row(dep.remaining <= 0, 'Tiền cọc:', `đã thu ${money(dep.collected)} trên ${money(dep.required)} ₫`,
+      dep.remaining > 0 && live ? h('button', { class: 'btn sm', onclick: () => collectDeposit(c, dep.remaining, refresh) }, 'Thu cọc') : undefined),
+  );
+}
+
+function collectDeposit(c: Contract, remaining: number, done: () => void): void {
+  const d = openDialog('Thu tiền cọc', { width: 420 });
+  const err = h('div');
+  const amount = input({ type: 'number', min: '0', step: '10000', value: String(remaining), class: 'input num-in' });
+  d.body.append(err, h('p', null, `Hợp đồng ${c.contractCode} còn thiếu ${money(remaining)} ₫ tiền cọc.`), field('Số tiền vừa nhận (₫)', amount));
+  const ok = h('button', { class: 'btn' }, 'Ghi nhận thu cọc');
+  d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Hủy'), ok);
+  ok.addEventListener('click', () => busy(ok, async () => {
+    try { await api.post(`/api/contracts/${c.contractId}/deposit`, { amount: Number(amount.value) }); d.close(); toast('Đã lập phiếu thu cọc'); done(); }
+    catch (e) { err.replaceChildren(formError(errText(e))); }
   }));
 }

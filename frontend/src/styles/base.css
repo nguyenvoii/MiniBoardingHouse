@@ -30,6 +30,8 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 ::selection { background: var(--plate); color: var(--plate-ink); }
 input, textarea { caret-color: var(--primary); accent-color: var(--primary); }
 :focus-visible { outline: 3px solid var(--plate); outline-offset: 2px; border-radius: var(--r-sm); box-shadow: 0 0 0 5px var(--plate-ink); }
+/* Vùng nội dung chỉ nhận tiêu điểm bằng mã (sau khi đổi trang) để trình đọc màn hình biết; không vẽ viền vàng quanh cả trang */
+[tabindex='-1']:focus, [tabindex='-1']:focus-visible { outline: none; box-shadow: none; }
 .rail :focus-visible, .m-top :focus-visible { box-shadow: none; outline-color: var(--plate); }
 * { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
 ::-webkit-scrollbar { width: 10px; height: 10px; }

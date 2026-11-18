@@ -81,6 +81,27 @@ public class TenantAccountService {
         return new TenantAccountResponse(saved.getUserId(), phone, tempPassword);
     }
 
+    /** Cấp lại mật khẩu tạm cho người thuê quên mật khẩu (nhân viên đọc cho khách). Mật khẩu cũ mất hiệu lực ngay. */
+    @Transactional
+    public TenantAccountResponse resetPassword(Integer tenantId, Integer actorUserId, String ip) {
+        Tenant tenant = tenantRepository.findById(tenantId)
+                .orElseThrow(() -> BusinessException.notFound("Khach thue"));
+        String phone = tenant.getPhoneNumber() == null ? "" : tenant.getPhoneNumber().trim();
+        User account = userRepository.findByPhoneNumber(phone)
+                .orElseThrow(() -> BusinessException.notFound("Tai khoan cua khach thue"));
+        if (!userRoleRepository.findRoleCodesByUserId(account.getUserId()).contains("TENANT")) {
+            throw new BusinessException(HttpStatus.CONFLICT, "So dien thoai nay dang duoc tai khoan nhan vien su dung");
+        }
+        String tempPassword = PasswordGenerator.generate();
+        account.setPasswordHash(passwordEncoder.encode(tempPassword));
+        userRepository.save(account);
+        if (actorUserId != null) {
+            activityLogService.log(actorUserId, "RESET_TENANT_PASSWORD",
+                    "Cap lai mat khau tam cho nguoi thue cua khach thue " + tenantId + " (user " + account.getUserId() + ")", ip);
+        }
+        return new TenantAccountResponse(account.getUserId(), phone, tempPassword);
+    }
+
     /** Xem khach thue da co tai khoan dang nhap chua (cung quy tac nhan dien tai khoan nhu khi khoa/mo khoa). */
     @Transactional(readOnly = true)
     public TenantAccountInfo accountInfo(Integer tenantId) {

@@ -89,7 +89,16 @@ function open(t: LiveTenant, accounts: Accounts, refresh: () => void): void {
         refresh();
       } catch (e) { toast(errText(e), 'err'); }
     });
-    acct.append(h('div', { style: 'display:flex;gap:10px;align-items:center;flex-wrap:wrap' }, statusBadge(locked ? 'LOCKED' : 'ACTIVE'), h('span', { class: 'muted' }, `Đăng nhập bằng số điện thoại ${a.phoneNumber ?? t.phone}`)), toggle);
+    const reset = h('button', { class: 'btn secondary' }, icon('key', 16), 'Cấp lại mật khẩu tạm');
+    reset.addEventListener('click', async () => {
+      if (!(await confirmDialog('Cấp lại mật khẩu', `Mật khẩu cũ của ${t.name} mất hiệu lực ngay. Bạn sẽ đưa mật khẩu mới cho khách.`, 'Cấp lại'))) return;
+      try {
+        const r = await api.post<{ phoneNumber: string; temporaryPassword: string }>(`/api/tenants/${t.tenantId}/account/reset-password`);
+        showPassword(r.phoneNumber, r.temporaryPassword);
+      } catch (e) { toast(errText(e), 'err'); }
+    });
+    acct.append(h('div', { style: 'display:flex;gap:10px;align-items:center;flex-wrap:wrap' }, statusBadge(locked ? 'LOCKED' : 'ACTIVE'), h('span', { class: 'muted' }, `Đăng nhập bằng số điện thoại ${a.phoneNumber ?? t.phone}`)),
+      h('div', { style: 'display:flex;gap:8px;flex-wrap:wrap' }, reset, toggle));
   };
   paint(accounts.get(t.tenantId));
   d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Đóng'));
