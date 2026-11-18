@@ -1,6 +1,6 @@
 import { h, busy, mount } from '../lib/dom';
 import { icon } from '../lib/icons';
-import { api, errText, Page, PROPERTY_ID } from '../lib/api';
+import { api, ApiError, can, errText, Page, PROPERTY_ID } from '../lib/api';
 import { getMonth } from '../lib/ctx';
 import { date, money, monthLabel } from '../lib/format';
 import type { Anomaly, Calculation, EligibleContract, Fee, Invoice, Issue, Period } from '../data/types';
@@ -83,15 +83,38 @@ export async function billingDetailPage(view: HTMLElement, params: Record<string
     } catch (e) { toast(errText(e), 'err'); }
   });
   const approveBtn = h('button', { class: 'btn', disabled: !draft || !p.roomCount }, icon('check', 16), 'Duyệt kỳ');
-  approveBtn.addEventListener('click', async () => {
-    if (!(await confirmDialog('Duyệt kỳ tính tiền', `Sau khi duyệt, ${monthLabel(p.monthYear)} bị khóa, không sửa hoặc tính lại được. Tiếp tục?`, 'Duyệt kỳ'))) return;
+  const approve = async (force: boolean) => {
     try {
-      await api.post(`/api/billing/periods/${id}/approve`);
+      await api.post(`/api/billing/periods/${id}/approve${force ? '?force=true' : ''}`);
       toast('Đã duyệt kỳ');
       await reload();
-    } catch (e) { toast(errText(e), 'err'); }
+    } catch (e) {
+      // 409 thiếu chỉ số: cho xem danh sách phòng và quyết định "Vẫn duyệt" (điện nước đang tính 0)
+      if (!force && e instanceof ApiError && e.status === 409 && /thieu chi so|thiếu chỉ số/i.test(e.message)) {
+        const rooms = /\[(.*?)\]/.exec(e.message)?.[1];
+        const msg = `Phòng thiếu chỉ số điện nước${rooms ? `: ${rooms}` : ''}. Điện nước các phòng này đang bằng 0. Nên ghi chỉ số rồi tính lại; chỉ bấm «Vẫn duyệt» nếu đúng là không tính điện nước.`;
+        if (await confirmDialog('Còn phòng thiếu chỉ số', msg, 'Vẫn duyệt', true)) await approve(true);
+        return;
+      }
+      toast(errText(e), 'err');
+    }
+  };
+  approveBtn.addEventListener('click', async () => {
+    if (!(await confirmDialog('Duyệt kỳ tính tiền', `Sau khi duyệt, ${monthLabel(p.monthYear)} bị khóa, không sửa hoặc tính lại được (muốn sửa thì dùng «Mở lại kỳ» khi chưa có hóa đơn hiệu lực). Tiếp tục?`, 'Duyệt kỳ'))) return;
+    await approve(false);
   });
-  const issueBtn = h('button', { class: 'btn plate', disabled: p.status === 'DRAFT' || invoices.length >= calc.fees.length && calc.fees.length > 0 }, icon('send', 16), 'Phát hành hóa đơn');
+  const reopenBtn = h('button', { class: 'btn secondary' }, icon('refresh', 16), 'Mở lại kỳ');
+  reopenBtn.addEventListener('click', async () => {
+    if (!(await confirmDialog('Mở lại kỳ', 'Kỳ trở về Nháp để sửa và tính lại. Chỉ mở được khi không còn hóa đơn đang hiệu lực (hóa đơn đã hủy thì được). Tiếp tục?', 'Mở lại kỳ'))) return;
+    busy(reopenBtn, async () => {
+      try { await api.post(`/api/billing/periods/${id}/reopen`); toast('Đã mở lại kỳ về Nháp'); await reload(); }
+      catch (e) { toast(errText(e), 'err'); }
+    });
+  });
+  const activeInvoices = invoices.filter((i) => i.paymentStatus !== 'CANCELLED').length;
+  const cancelledInvoices = invoices.filter((i) => i.paymentStatus === 'CANCELLED').length;
+  const canReopen = p.status === 'APPROVED' && activeInvoices === 0 && can('LANDLORD', 'MANAGER');
+  const issueBtn = h('button', { class: 'btn plate', disabled: p.status === 'DRAFT' || activeInvoices >= calc.fees.length && calc.fees.length > 0 }, icon('send', 16), cancelledInvoices ? 'Phát hành hóa đơn còn thiếu' : 'Phát hành hóa đơn');
   issueBtn.addEventListener('click', () => busy(issueBtn, async () => {
     try {
       const list = await api.post<Invoice[]>('/api/invoices/batch', { billingPeriodId: Number(id) });
@@ -100,24 +123,25 @@ export async function billingDetailPage(view: HTMLElement, params: Record<string
     } catch (e) { toast(errText(e), 'err'); }
   }));
 
-  const paidCount = invoices.filter((i) => i.paymentStatus === 'PAID').length;
-  const flags = [true, p.roomCount > 0, !draft, invoices.length > 0, invoices.length > 0 && paidCount === invoices.length];
+  const live = invoices.filter((i) => i.paymentStatus !== 'CANCELLED');
+  const paidCount = live.filter((i) => i.paymentStatus === 'PAID').length;
+  const flags = [true, p.roomCount > 0, !draft, live.length > 0, live.length > 0 && paidCount === live.length];
   const cur = flags.findIndex((f) => !f);
   const st = (i: number): Stop['state'] => (cur === -1 || i < cur ? 'done' : i === cur ? 'current' : 'todo');
-  const stuckAt = [0, 0, p.roomCount, Math.max(p.roomCount - invoices.length, 0), invoices.length - paidCount];
+  const stuckAt = [0, 0, p.roomCount, Math.max(p.roomCount - live.length, 0), live.length - paidCount];
   const stops: Stop[] = [
     { name: 'Chỉ số và kỳ', sub: 'Đã tạo', state: st(0), href: '#/meters' },
     { name: 'Tính tiền', sub: p.roomCount ? `${p.roomCount} phòng` : 'Chưa tính', state: st(1) },
     { name: 'Duyệt kỳ', sub: draft ? 'Chờ duyệt' : 'Đã duyệt', state: st(2) },
-    { name: 'Phát hành', sub: invoices.length ? `${invoices.length} hóa đơn` : 'Chưa phát hành', state: st(3) },
-    { name: 'Thu tiền', sub: invoices.length ? `${paidCount}/${invoices.length} đã trả` : '–', state: st(4), href: '#/payments' },
+    { name: 'Phát hành', sub: live.length ? `${live.length} hóa đơn${cancelledInvoices ? `, ${cancelledInvoices} đã hủy` : ''}` : 'Chưa phát hành', state: st(3) },
+    { name: 'Thu tiền', sub: live.length ? `${paidCount}/${live.length} đã trả` : '–', state: st(4), href: '#/payments' },
   ];
   if (cur >= 0) stops[cur].stuck = stuckAt[cur];
-  const why = !draft ? 'Kỳ đã duyệt nên bị khóa: không tính lại hoặc duyệt lại được.' : !p.roomCount ? 'Bấm Tính tiền trước, rồi mới duyệt được.' : '';
+  const why = !draft ? (canReopen ? 'Kỳ đã duyệt nên bị khóa. Cần sửa thì bấm Mở lại kỳ (khi chưa có hóa đơn hiệu lực).' : 'Kỳ đã duyệt nên bị khóa: muốn sửa phải hủy hết hóa đơn hiệu lực rồi mở lại kỳ.') : !p.roomCount ? 'Bấm Tính tiền trước, rồi mới duyệt được.' : '';
 
   view.replaceChildren(
     h('p', null, h('a', { href: '#/billing' }, '← Các kỳ tính tiền')),
-    pageHead(`Kỳ ${monthLabel(p.monthYear).toLowerCase()}`, why, [statusBadge(p.status), calcBtn, approveBtn, issueBtn]),
+    pageHead(`Kỳ ${monthLabel(p.monthYear).toLowerCase()}`, why, [statusBadge(p.status), calcBtn, approveBtn, canReopen ? reopenBtn : null, issueBtn].filter(Boolean) as Node[]),
     h('div', { class: 'stack' },
       h('section', { class: 'panel route' }, routeLine(stops)),
       issues.length || calc.warnings.length ? issuesPanel(issues, calc.warnings) : null,
