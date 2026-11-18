@@ -239,7 +239,7 @@ a.list-row:hover { background: var(--primary-faint); color: inherit; }
 }
 
 /* ---------- Tuyến tháng thu gọn (đầu các màn chốt tháng) ---------- */
-.route.compact { padding: 10px 20px 12px; }
+.route.compact { padding: 10px 20px 12px; margin-bottom: 20px; }
 .route.compact .route-line { margin: 0; }
 .route.compact .stop::before { top: 11px; height: 4px; }
 .route.compact .stop .node { width: 26px; height: 26px; border-width: 3px; font-size: 11px; }
