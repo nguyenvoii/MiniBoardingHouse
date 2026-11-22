@@ -24,6 +24,11 @@ backups/
 frontend/node_modules/
 src/main/resources/static/
 
+# Audit E2E: dependencies/cache không commit; script và screenshots giữ lại làm bằng chứng
+audit/e2e/node_modules/
+audit/e2e/screens/
+audit/e2e/package-lock.json
+
 # Ghi chu thiet ke cua AI: chi giu tren may (hoi truoc khi dua len GitHub)
 PRODUCT.md
 DESIGN.md

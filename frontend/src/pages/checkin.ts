@@ -30,6 +30,7 @@ interface State {
   contract: Contract | null;
   handedOver: boolean;
   depositPaid: boolean; depositCollected: number; signed: boolean; accountDone: boolean;
+  progressLoadFailed: boolean;
 }
 
 export async function checkinPage(view: HTMLElement, _p: Record<string, string>, query: URLSearchParams): Promise<void> {
@@ -37,6 +38,7 @@ export async function checkinPage(view: HTMLElement, _p: Record<string, string>,
   const st: State = {
     step: 0, tenantId: null, tenantName: '', tenantPhone: '', roomId: null, roomCode: '', contract: null,
     handedOver: false, depositPaid: false, depositCollected: 0, signed: false, accountDone: false,
+    progressLoadFailed: false,
   };
   const preTenant = Number(query.get('tenant')) || null;
   const preRoom = Number(query.get('room')) || null;
@@ -58,16 +60,20 @@ export async function checkinPage(view: HTMLElement, _p: Record<string, string>,
   async function loadProgress(): Promise<void> {
     const c = st.contract;
     if (!c) return;
-    const [dep, ins, acct] = await Promise.all([
-      api.get<{ collected: number; remaining: number; paidInFull?: boolean }>(`/api/contracts/${c.contractId}/deposit`).catch(() => null),
-      api.get<Array<{ contractId: number | null }>>(`/api/chi/checkin-inspections?roomId=${c.roomId}`).catch(() => [] as Array<{ contractId: number | null }>),
-      api.get<{ exists: boolean }>(`/api/tenants/${c.tenantId}/account`).catch(() => null),
+    const [dep, ins, acct] = await Promise.allSettled([
+      api.get<{ collected: number; remaining: number; paidInFull?: boolean }>(`/api/contracts/${c.contractId}/deposit`),
+      api.get<Array<{ contractId: number | null }>>(`/api/chi/checkin-inspections?roomId=${c.roomId}`),
+      api.get<{ exists: boolean }>(`/api/tenants/${c.tenantId}/account`),
     ]);
-    st.depositCollected = dep?.collected ?? 0;
-    st.depositPaid = !!dep && (dep.paidInFull ?? dep.remaining <= 0);
-    st.handedOver = ins.some((x) => x.contractId === c.contractId);
+    st.progressLoadFailed = [dep, ins, acct].some((r) => r.status === 'rejected');
+    const depValue = dep.status === 'fulfilled' ? dep.value : null;
+    const insValue = ins.status === 'fulfilled' ? ins.value : [];
+    const acctValue = acct.status === 'fulfilled' ? acct.value : null;
+    st.depositCollected = depValue?.collected ?? 0;
+    st.depositPaid = !!depValue && (depValue.paidInFull ?? depValue.remaining <= 0);
+    st.handedOver = insValue.some((x) => x.contractId === c.contractId);
     st.signed = !!c.digitalSignatureUrl;
-    st.accountDone = !!acct?.exists;
+    st.accountDone = !!acctValue?.exists;
     st.step = st.handedOver ? 3 : 2;
   }
 
@@ -85,6 +91,7 @@ export async function checkinPage(view: HTMLElement, _p: Record<string, string>,
 
   // ---- Tóm tắt bên phải: luôn cho thấy "khách A đang vào phòng nào, đã làm gì" ----
   const summary = () => card('Hồ sơ nhận phòng', [
+    st.progressLoadFailed ? h('div', { class: 'form-error', role: 'alert' }, icon('alert', 16), h('span', null, 'Không thể kiểm tra tiến độ nhận phòng. Đóng và mở lại để thử lại.')) : null,
     dl([
       ['Khách hàng', st.tenantId ? h('b', null, st.tenantName) : '–'],
       ['Điện thoại', st.tenantPhone || '–'],
@@ -96,7 +103,7 @@ export async function checkinPage(view: HTMLElement, _p: Record<string, string>,
     h('ul', { class: 'checklist', style: 'list-style:none;margin:12px 0 0;padding:0;display:grid;gap:6px' },
       ...[['Đã lập hợp đồng', !!st.contract], ['Đã bàn giao phòng', st.handedOver], ['Đã thu cọc', st.depositPaid], ['Khách đã ký', st.signed], ['Đã cấp tài khoản', st.accountDone]]
         .map(([l, ok]) => h('li', { style: `display:flex;gap:8px;align-items:center;color:${ok ? 'var(--primary)' : 'var(--ink-3)'}` }, icon(ok ? 'check' : 'clock', 14), l as string))),
-  ]);
+  ].filter(Boolean) as Node[]);
 
   // ---- Bước 1: chọn hoặc thêm khách ----
   function step1(): HTMLElement {

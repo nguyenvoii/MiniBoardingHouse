@@ -33,6 +33,7 @@ import com.group7.minihouse.toan.service.MeterReadingService;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -139,6 +140,7 @@ public class ContractService {
         c.setPaymentDueDay(dueDay);
         c.setLateFeePerDay(req.lateFeePerDay() != null ? req.lateFeePerDay() : BigDecimal.ZERO);
         c.setStatus("ACTIVE");
+        c.setCreatedAt(LocalDateTime.now());
         RentalContract saved = repo.save(c);
         saved.setPdfContractUrl("/api/contracts/" + saved.getContractId() + "/pdf");
         room.setStatus("RENTED");

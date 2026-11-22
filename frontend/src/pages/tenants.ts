@@ -11,11 +11,8 @@ type Accounts = Map<number, AccountInfo | null>;
 
 export async function tenantsPage(view: HTMLElement): Promise<void> {
   const { tenants } = await loadLive();
-  // tình trạng tài khoản đăng nhập của từng khách (null = hồ sơ khách chưa có trong DB)
+  // Chỉ tải trạng thái tài khoản khi mở hồ sơ; danh sách không tạo N+1 request.
   const accounts: Accounts = new Map();
-  await Promise.all(tenants.map(async (t) => {
-    accounts.set(t.tenantId, await api.get<AccountInfo>(`/api/tenants/${t.tenantId}/account`).catch(() => null));
-  }));
 
   const holder = h('div');
   const q = input({ type: 'search', placeholder: 'Tên, số điện thoại hoặc phòng', 'aria-label': 'Tìm khách hàng' });
@@ -59,7 +56,11 @@ function open(t: LiveTenant, accounts: Accounts, refresh: () => void): void {
   );
   const paint = (a: AccountInfo | null | undefined) => {
     acct.replaceChildren();
-    if (a === null || a === undefined) {
+    if (a === undefined) {
+      acct.append(h('p', { class: 'muted' }, 'Đang kiểm tra tài khoản…'));
+      return;
+    }
+    if (a === null) {
       acct.append(h('p', { class: 'muted' }, 'Chưa lấy được tình trạng tài khoản của khách này. Hãy đóng cửa sổ và thử lại.'));
       return;
     }
@@ -101,6 +102,11 @@ function open(t: LiveTenant, accounts: Accounts, refresh: () => void): void {
       h('div', { style: 'display:flex;gap:8px;flex-wrap:wrap' }, reset, toggle));
   };
   paint(accounts.get(t.tenantId));
+  if (!accounts.has(t.tenantId)) {
+    void api.get<AccountInfo>(`/api/tenants/${t.tenantId}/account`)
+      .then((a) => { accounts.set(t.tenantId, a); paint(a); })
+      .catch(() => { accounts.set(t.tenantId, null); paint(null); });
+  }
   d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Đóng'),
     h('button', { class: 'btn secondary', onclick: () => { d.close(); editTenant(t, refresh); } }, icon('edit', 16), 'Sửa hồ sơ'));
   if (!t.roomCode) d.foot.append(h('a', { class: 'btn', href: `#/checkin?tenant=${t.tenantId}`, onclick: d.close }, icon('key', 16), 'Cho khách thuê phòng'));

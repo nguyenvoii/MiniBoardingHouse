@@ -136,6 +136,9 @@ class ContractServiceTest {
         assertEquals(5, r.paymentDueDay());
         assertEquals("RENTED", room.getStatus());
         assertEquals("HD20260301-P101", r.contractCode());
+        ArgumentCaptor<RentalContract> saved = ArgumentCaptor.forClass(RentalContract.class);
+        verify(repo).save(saved.capture());
+        assertNotNull(saved.getValue().getCreatedAt());
     }
 
     @Test
