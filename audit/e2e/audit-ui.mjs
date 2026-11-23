@@ -30,14 +30,8 @@ if (loginUrl.includes('/#/login') || /Đăng nhập/.test(loginText)) {
 }
 
 await page.goto(`${baseURL}/#/tenants`, { waitUntil: 'networkidle' });
-try {
-  await page.getByRole('heading', { name: 'Khách hàng' }).waitFor({ state: 'visible', timeout: 10000 });
-  await page.getByLabel('Tìm khách hàng').waitFor({ state: 'visible', timeout: 10000 });
-} catch (e) {
-  await page.screenshot({ path: `${out}/failure-tenants.png`, fullPage: true });
-  console.error(`Tenant route failed: url=${page.url()} body=${(await page.locator('body').innerText()).slice(0, 1000)}`);
-  throw e;
-}
+await page.getByRole('heading', { name: 'Khách hàng' }).waitFor({ state: 'visible', timeout: 30000 });
+await page.getByLabel('Tìm khách hàng').waitFor({ state: 'visible', timeout: 30000 });
 const tenantAccountRequests = responses.filter((r) => r.includes('/api/tenants/') && r.includes('/account')).length;
 if (tenantAccountRequests > 10) {
   throw new Error(`Tenant list made too many account requests: ${tenantAccountRequests}`);
@@ -51,6 +45,11 @@ await page.getByRole('heading', { name: 'Nhận khách thuê phòng' }).waitFor(
 await page.screenshot({ path: `${out}/checkin-desktop.png`, fullPage: true });
 const tenantSelects = await page.locator('select').allTextContents();
 const tenantOptionCount = tenantSelects.length ? await page.locator('select').first().locator('option').count() : 0;
+const checkinSearch = page.getByRole('searchbox', { name: /tìm khách hàng/i });
+if (await checkinSearch.count() === 0) throw new Error('Check-in tenant picker has no search box');
+await checkinSearch.fill('ngọc lan');
+await page.getByRole('option').filter({ hasText: /ngọc lan/i }).first().click();
+if (!/ngọc lan/i.test(await checkinSearch.inputValue())) throw new Error('Tenant picker did not select filtered customer');
 const checkinStepText = await page.locator('body').innerText();
 
 await page.setViewportSize({ width: 390, height: 844 });

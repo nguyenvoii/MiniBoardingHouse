@@ -4,7 +4,7 @@ import { api, errText } from '../lib/api';
 import { money, isoDay } from '../lib/format';
 import { loadLive } from '../data/live';
 import type { Contract } from '../data/types';
-import { card, dl, field, formError, input, pageHead, plate, select, toast, openDialog } from '../ui/kit';
+import { card, dl, field, formError, input, pageHead, plate, select, searchablePicker, toast, openDialog } from '../ui/kit';
 import { addTenant } from './tenants';
 import { signPad } from './contracts';
 import { residentsBox, vehiclesBox } from '../ui/occupancy';
@@ -108,15 +108,15 @@ export async function checkinPage(view: HTMLElement, _p: Record<string, string>,
   // ---- Bước 1: chọn hoặc thêm khách ----
   function step1(): HTMLElement {
     const available = live.tenants.filter((t) => !t.roomCode);
-    const sel = select([['', '— Chọn khách chưa thuê —'], ...available.map((t) => [String(t.tenantId), `${t.name} · ${t.phone}`] as [string, string])], st.tenantId ? String(st.tenantId) : '');
+    const tenantPicker = searchablePicker(available.map((t) => [String(t.tenantId), `${t.name} · ${t.phone}`] as [string, string]), st.tenantId ? String(st.tenantId) : '', { label: 'Tìm khách hàng' });
     const next = h('button', { class: 'btn' }, 'Tiếp tục', icon('right', 16));
     next.addEventListener('click', () => {
-      if (!sel.value) { toast('Hãy chọn khách hoặc thêm khách mới', 'err'); return; }
-      pick(Number(sel.value)); go(1);
+      if (!tenantPicker.value()) { toast('Hãy chọn khách hoặc thêm khách mới', 'err'); return; }
+      pick(Number(tenantPicker.value())); go(1);
     });
     return card('1. Khách đến thuê phòng là ai?', [
       h('p', { class: 'muted' }, 'Chọn khách đã có hồ sơ (người đến hỏi thuê trước đó). Nếu là khách mới, thêm hồ sơ rồi tiếp tục. Chỉ hiện khách chưa đang thuê phòng nào.'),
-      field('Khách hàng', sel),
+      field('Khách hàng', tenantPicker.root),
       h('div', { class: 'row', style: 'display:flex;gap:10px;flex-wrap:wrap' },
         h('button', { class: 'btn secondary', onclick: () => addTenant((c) => {
           if (!c) return;
@@ -130,7 +130,7 @@ export async function checkinPage(view: HTMLElement, _p: Record<string, string>,
     if (st.contract) return doneBox('Đã lập hợp đồng ' + st.contract.contractCode, 'Hợp đồng đã tạo, không lập lại. Tiếp tục bàn giao phòng.', () => go(2));
     const err = h('div');
     const vacant = live.rooms.filter((r) => r.status === 'VACANT');
-    const room = select([['', '— Chọn phòng trống —'], ...vacant.map((r) => [String(r.roomId), `${r.code} · tầng ${r.floor} · ${money(r.price)} ₫/tháng`] as [string, string]).sort()], st.roomId ? String(st.roomId) : '');
+    const roomPicker = searchablePicker(vacant.map((r) => [String(r.roomId), `${r.code} · tầng ${r.floor} · ${money(r.price)} ₫/tháng`] as [string, string]), st.roomId ? String(st.roomId) : '', { label: 'Tìm phòng trống' });
     const start = input({ type: 'date', value: today() });
     const months = select([['6', '6 tháng'], ['12', '12 tháng'], ['24', '24 tháng']], '12');
     const rent = input({ type: 'number', min: '0', step: '10000', class: 'input num-in' });
@@ -144,23 +144,22 @@ export async function checkinPage(view: HTMLElement, _p: Record<string, string>,
     type Bk = { bookingId: number; roomId: number; tenantId: number; depositPaid: number | null };
     let bookings: Bk[] = [];
     const syncBooking = () => {
-      const fit = bookings.filter((b) => b.roomId === Number(room.value) && b.tenantId === st.tenantId);
+      const fit = bookings.filter((b) => b.roomId === Number(roomPicker.value()) && b.tenantId === st.tenantId);
       booking.replaceChildren(...[['', fit.length ? 'Không gắn giữ chỗ' : 'Không có giữ chỗ đã duyệt cho phòng và khách này'], ...fit.map((b) => [String(b.bookingId), `Giữ chỗ #${b.bookingId}${b.depositPaid ? ` · đã giữ ${money(b.depositPaid)} ₫` : ''}`])].map(([v, l]) => h('option', { value: v }, l)));
     };
     void api.get<Bk[]>('/api/chi/bookings?status=APPROVED').then((r) => { bookings = r; syncBooking(); }).catch(() => undefined);
-    room.addEventListener('change', syncBooking);
     const onRoom = () => {
-      const r = live.rooms.find((x) => String(x.roomId) === room.value);
+      const r = live.rooms.find((x) => String(x.roomId) === roomPicker.value());
       if (r) { rent.value = String(r.price); dep.value = String(r.deposit); info.textContent = `Phòng ${r.code}: ${r.area} m², tối đa ${r.maxPeople} người. Có thể điều chỉnh giá và cọc cho hợp đồng này.`; } else info.textContent = '';
     };
-    room.addEventListener('change', onRoom); onRoom();
+    roomPicker.input.addEventListener('input', () => { syncBooking(); onRoom(); }); onRoom();
     const ok = h('button', { class: 'btn' }, 'Lập hợp đồng và tiếp tục');
     ok.addEventListener('click', () => busy(ok, async () => {
       err.replaceChildren();
-      if (!room.value) { err.replaceChildren(formError('Chọn phòng cho khách.')); return; }
+      if (!roomPicker.value()) { err.replaceChildren(formError('Chọn phòng cho khách.')); return; }
       try {
         const c = await api.post<Contract>('/api/contracts', {
-          roomId: Number(room.value), tenantId: st.tenantId, startDate: start.value, endDate: addMonths(start.value, Number(months.value)),
+          roomId: Number(roomPicker.value()), tenantId: st.tenantId, startDate: start.value, endDate: addMonths(start.value, Number(months.value)),
           monthlyRentPrice: Number(rent.value), depositAmount: Number(dep.value),
           paymentCycleMonths: Number(cycle.value), paymentDueDay: Number(due.value), lateFeePerDay: Number(late.value),
           bookingId: booking.value ? Number(booking.value) : null,
@@ -173,7 +172,7 @@ export async function checkinPage(view: HTMLElement, _p: Record<string, string>,
     }));
     return card(`2. ${st.tenantName} thuê phòng nào, điều khoản ra sao?`, [
       err,
-      h('div', { class: 'form-grid' }, field('Phòng (chỉ phòng trống)', room), field('Ngày bắt đầu thuê', start), field('Thời hạn', months),
+      h('div', { class: 'form-grid' }, field('Phòng (chỉ phòng trống)', roomPicker.root), field('Ngày bắt đầu thuê', start), field('Thời hạn', months),
         field('Giá thuê (₫/tháng)', rent), field('Tiền cọc (₫)', dep), field('Chu kỳ thanh toán', cycle),
         field('Hạn trả mỗi kỳ (ngày trong tháng)', due, 'Hóa đơn phát hành sau khi chốt điện nước, hạn trả vào ngày này'), field('Phạt trễ hạn (₫/ngày)', late), field('Giữ chỗ đã duyệt', booking, 'Tiền giữ chỗ được tính vào tiền cọc')),
       info,

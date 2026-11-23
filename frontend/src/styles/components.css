@@ -1,4 +1,11 @@
-/* ---------- Nút ---------- */
+/* ---------- Searchable picker ---------- */
+.search-picker { position: relative; }
+.search-picker-list { position: absolute; z-index: 20; left: 0; right: 0; top: calc(100% + 5px); max-height: 260px; overflow: auto; padding: 5px; border: 1px solid var(--line-strong); border-radius: var(--r); background: var(--panel); box-shadow: var(--shadow-2); }
+.search-picker-option { display: block; width: 100%; padding: 10px 11px; border: 0; border-radius: var(--r); background: transparent; color: var(--ink); text-align: left; cursor: pointer; font: inherit; }
+.search-picker-option:hover, .search-picker-option.selected { background: var(--primary-faint); color: var(--primary); }
+.search-picker-empty { padding: 12px; margin: 0; color: var(--ink-3); }
+
+
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 36px; padding: 7px 14px;
   border-radius: var(--r); border: 1px solid transparent; font-weight: 600; font-size: 13.5px; line-height: 1.2;

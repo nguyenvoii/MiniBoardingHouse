@@ -3,7 +3,7 @@ import { icon } from '../lib/icons';
 import { api, ApiError, errText, Page } from '../lib/api';
 import { date, dateTime, money, isoDay } from '../lib/format';
 import { liveContracts } from '../data/live';
-import { confirmDialog, dl, emptyState, field, formError, input, openDialog, pageHead, card, plate, select, statusBadge, table, toast } from '../ui/kit';
+import { confirmDialog, dl, emptyState, field, formError, input, openDialog, pageHead, card, plate, searchablePicker, select, statusBadge, table, toast } from '../ui/kit';
 
 // Trả phòng, quyết toán, hoàn cọc, thanh lý hợp đồng (UC101 đến 107).
 // Luồng: Chờ xác nhận → Kiểm tra phòng → Quyết toán → Hoàn cọc → Thanh lý.
@@ -76,15 +76,15 @@ async function createCheckout(done: (id: number) => void, preContract: number | 
     d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Đóng'));
     return;
   }
-  const contract = select(contracts.map((c) => [String(c.contractId), `${c.roomCode} · ${c.tenantName} · ${c.contractCode}${c.status === 'EXPIRED' ? ' · đã hết hạn, khách còn ở' : ''}`] as [string, string]), preContract ? String(preContract) : '');
+  const contractPicker = searchablePicker(contracts.map((c) => [String(c.contractId), `${c.roomCode} · ${c.tenantName} · ${c.contractCode}${c.status === 'EXPIRED' ? ' · đã hết hạn, khách còn ở' : ''}`] as [string, string]), preContract ? String(preContract) : '', { label: 'Tìm hợp đồng' });
   const expected = input({ type: 'date', value: isoDay(), min: isoDay() });
-  d.body.append(err, field('Hợp đồng', contract), field('Ngày trả phòng dự kiến', expected, 'Không chọn ngày trong quá khứ'));
+  d.body.append(err, field('Hợp đồng', contractPicker.root), field('Ngày trả phòng dự kiến', expected, 'Không chọn ngày trong quá khứ'));
   const ok = h('button', { class: 'btn' }, 'Tạo yêu cầu');
   d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Hủy'), ok);
   ok.addEventListener('click', () => busy(ok, async () => {
     err.replaceChildren();
     try {
-      const c = await api.post<Checkout>('/api/checkout-requests', { contractId: Number(contract.value), expectedCheckoutDate: expected.value });
+      const c = await api.post<Checkout>('/api/checkout-requests', { contractId: Number(contractPicker.value()), expectedCheckoutDate: expected.value });
       d.close();
       toast('Đã tạo yêu cầu trả phòng');
       done(c.checkoutId);

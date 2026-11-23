@@ -166,6 +166,30 @@ export function select(options: Array<[string, string]>, value = '', attrs: Reco
   return s;
 }
 
+export function searchablePicker(options: Array<[string, string]>, value = '', attrs: { label?: string; placeholder?: string } = {}): { root: HTMLElement; input: HTMLInputElement; value: () => string } {
+  let selected = options.find(([v]) => v === value) ?? ['', ''];
+  const root = h('div', { class: 'search-picker' });
+  const search = input({ type: 'search', class: 'input', placeholder: attrs.placeholder ?? 'Tìm theo tên, số điện thoại hoặc mã…', 'aria-label': attrs.label ?? 'Tìm kiếm' });
+  const list = h('div', { class: 'search-picker-list', role: 'listbox' });
+  const paint = () => {
+    const q = search.value.trim().toLocaleLowerCase('vi');
+    const found = options.filter(([, text]) => !q || text.toLocaleLowerCase('vi').includes(q));
+    const items = found.length
+      ? found.map(([v, text]) => h('button', { type: 'button', class: `search-picker-option${v === selected[0] ? ' selected' : ''}`, role: 'option', 'aria-selected': v === selected[0] ? 'true' : 'false' }, text, v === selected[0] ? ' ✓' : null))
+      : [h('p', { class: 'search-picker-empty' }, 'Không tìm thấy kết quả')];
+    list.replaceChildren(...items);
+    list.querySelectorAll('button').forEach((b, i) => b.addEventListener('click', () => { selected = found[i]; search.value = selected[1]; list.hidden = true; search.dispatchEvent(new Event('input')); }));
+  };
+  search.value = selected[1];
+  search.addEventListener('focus', () => { list.hidden = false; paint(); });
+  search.addEventListener('input', () => { list.hidden = false; paint(); });
+  search.addEventListener('keydown', (e) => { if (e.key === 'Escape') { list.hidden = true; search.blur(); } });
+  document.addEventListener('click', (e) => { if (!root.contains(e.target as Node)) list.hidden = true; });
+  list.hidden = true;
+  root.append(search, list);
+  return { root, input: search, value: () => selected[0] };
+}
+
 export function formError(msg: string): HTMLElement {
   return h('div', { class: 'form-error', role: 'alert' }, icon('alert'), h('span', null, msg));
 }
