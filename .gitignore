@@ -33,3 +33,5 @@ audit/e2e/package-lock.json
 PRODUCT.md
 DESIGN.md
 .impeccable/
+
+.worktrees/
