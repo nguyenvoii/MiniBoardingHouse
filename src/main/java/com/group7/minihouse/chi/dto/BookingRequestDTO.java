@@ -19,6 +19,10 @@ public class BookingRequestDTO {
         private String status;
         private String rejectionReason;
         private LocalDateTime createdAt;
+        private LocalDateTime holdUntil;
+
+        public LocalDateTime getHoldUntil() { return holdUntil; }
+        public void setHoldUntil(LocalDateTime holdUntil) { this.holdUntil = holdUntil; }
 
         public Integer getBookingId() { return bookingId; }
         public void setBookingId(Integer bookingId) { this.bookingId = bookingId; }

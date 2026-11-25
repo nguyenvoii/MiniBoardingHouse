@@ -35,9 +35,12 @@ public class BookingRequestController {
         return ApiResponse.ok("Gửi yêu cầu thuê phòng thành công! Chủ nhà sẽ sớm liên hệ lại với bạn.", bookingRequestService.createPublicRequest(req));
     }
 
+    public record ApproveRequest(java.time.LocalDateTime holdUntil) {}
+
     @PatchMapping("/{id}/approve")
-    public ApiResponse<BookingRequestDTO.Response> approve(@PathVariable Integer id) {
-        return ApiResponse.ok("Đã duyệt yêu cầu đặt phòng", bookingRequestService.approve(id));
+    public ApiResponse<BookingRequestDTO.Response> approve(@PathVariable Integer id, @RequestBody(required = false) ApproveRequest request) {
+        return ApiResponse.ok("Đã duyệt yêu cầu đặt phòng", request == null || request.holdUntil() == null
+                ? bookingRequestService.approve(id) : bookingRequestService.approve(id, request.holdUntil()));
     }
 
     @PatchMapping("/{id}/reject")

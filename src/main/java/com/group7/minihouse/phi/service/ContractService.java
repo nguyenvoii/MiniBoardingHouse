@@ -104,6 +104,11 @@ public class ContractService {
             throw bad("Ngay ket thuc phai sau ngay bat dau");
         }
         Room room = room(req.roomId());
+        em.refresh(room, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        var hold = room.activeHold(LocalDateTime.now());
+        if (hold != null && !hold.getBookingId().equals(req.bookingId())) {
+            throw conflict("Phòng đang được giữ chỗ. Hãy chọn đúng yêu cầu giữ chỗ khi lập hợp đồng.");
+        }
         Tenant tenant = tenant(req.tenantId());
         if (!"VACANT".equals(room.getStatus())) {
             throw conflict("Phong " + room.getRoomCode() + " khong o trang thai trong (VACANT)");
@@ -168,6 +173,9 @@ public class ContractService {
         if (!b.getRoom().getRoomId().equals(c.getRoom().getRoomId())
                 || !b.getTenant().getTenantId().equals(c.getTenant().getTenantId())) {
             throw bad("Yeu cau giu cho khong thuoc phong va khach da chon");
+        }
+        if (b.getHoldUntil() != null && !b.getHoldUntil().isAfter(LocalDateTime.now())) {
+            throw conflict("Yêu cầu giữ chỗ đã hết hạn");
         }
         BigDecimal held = b.getDepositPaid() == null ? BigDecimal.ZERO : b.getDepositPaid();
         BigDecimal toCollect = held.min(c.getDepositAmount());
@@ -435,6 +443,10 @@ public class ContractService {
             throw bad("Phong moi trung phong hien tai");
         }
         Room newRoom = room(req.newRoomId());
+        em.refresh(newRoom, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        if (newRoom.activeHold(LocalDateTime.now()) != null) {
+            throw conflict("Phòng đang được giữ chỗ");
+        }
         if (!"VACANT".equals(newRoom.getStatus()) || repo.countLiveByRoom(newRoom.getRoomId(), 0) > 0) {
             throw conflict("Phong " + newRoom.getRoomCode() + " khong trong");
         }

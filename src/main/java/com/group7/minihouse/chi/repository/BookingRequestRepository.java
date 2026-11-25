@@ -14,5 +14,8 @@ public interface BookingRequestRepository extends JpaRepository<BookingRequest, 
     List<BookingRequest> findAllByOrderByCreatedAtDesc();
 
     @EntityGraph(attributePaths = {"room", "tenant"})
+    boolean existsByRoom_RoomIdAndGuestPhoneAndExpectedStartDateAndStatus(
+            Integer roomId, String guestPhone, java.time.LocalDate expectedStartDate, String status);
+
     List<BookingRequest> findByStatusOrderByCreatedAtDesc(String status);
 }

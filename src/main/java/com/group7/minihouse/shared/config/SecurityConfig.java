@@ -55,6 +55,8 @@ public class SecurityConfig {
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/uploads/rooms/**", "/api/auth/avatars/*", "/api/bank-accounts/qr/*", "/api/contracts/signatures/*").permitAll()
                         // cong thanh toan goi ve (tu kiem tra bi mat qua header X-Callback-Secret trong controller)
                         .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/payments/callback").permitAll() // /ui/**: giao dien tinh xem thu (chi co tren may nao dat thu muc demo-ui)
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/public/booking/rooms").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/public/booking").permitAll()
                         .requestMatchers("/api/auth/**").authenticated()
                         // Khu vuc nguoi thue: API cua nguoi thue DAT DUOI /api/me/** (vd /api/me/invoices)
                         .requestMatchers("/api/me/**").hasRole("TENANT")

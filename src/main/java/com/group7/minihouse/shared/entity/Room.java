@@ -55,6 +55,18 @@ public class Room {
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "held_booking_id")
+    private BookingRequest heldBooking;
+
+    public void setHeldBooking(BookingRequest heldBooking) { this.heldBooking = heldBooking; }
+
+    public BookingRequest activeHold(LocalDateTime now) {
+        return heldBooking != null && "APPROVED".equals(heldBooking.getStatus())
+                && heldBooking.getHoldUntil() != null && heldBooking.getHoldUntil().isAfter(now)
+                ? heldBooking : null;
+    }
+
     public Room() {}
 
     public Integer getRoomId() { return roomId; }

@@ -3,7 +3,7 @@ import { manageBookings } from './bookings';
 import { roomFurnishings } from './roomFurnishings';
 import { h, mount } from '../lib/dom';
 import { icon } from '../lib/icons';
-import { date, money } from '../lib/format';
+import { date, dateTime, money } from '../lib/format';
 import { loadLive, LiveRoom } from '../data/live';
 import { residentsBox } from '../ui/occupancy';
 import { busy } from '../lib/dom';
@@ -42,7 +42,7 @@ export async function roomsPage(view: HTMLElement): Promise<void> {
   };
   const tile = (r: LiveRoom) =>
     h('button', { class: `room-tile ${r.status === 'VACANT' ? 'vacant' : r.status === 'RENTED' ? '' : 'repair'}`, onclick: () => openRoom(r, types, () => void roomsPage(view)) },
-      h('div', { class: 'top' }, plate(r.code, r.status === 'VACANT' ? 'ghost' : r.status === 'RENTED' ? '' : 'off'), statusBadge(r.status)),
+      h('div', { class: 'top' }, plate(r.code, r.status === 'VACANT' ? 'ghost' : r.status === 'RENTED' ? '' : 'off'), r.holdUntil ? h('span', { class: 'st wait' }, 'Đang giữ chỗ') : statusBadge(r.status)),
       h('div', { class: 'who' }, r.tenantName ?? (r.status === 'VACANT' ? 'Đang trống' : r.status === 'REPAIRING' ? 'Đang sửa chữa' : 'Tạm ngưng cho thuê')),
       h('div', { class: 'meta' }, h('span', null, `${r.area} m²`), h('span', { class: 'money' }, `${money(r.price)} ₫`)));
   const seg = h('div', { class: 'seg', role: 'group', 'aria-label': 'Lọc theo trạng thái' });
@@ -76,8 +76,8 @@ function openRoom(r: LiveRoom, types: RoomType[], done: () => void): void {
   const c = r.contract;
   const d = openDialog(`Phòng ${r.code}`, { drawer: true });
   d.body.append(
-    h('div', { style: 'display:flex;gap:10px;align-items:center;flex-wrap:wrap' }, plate(r.code, 'lg'), statusBadge(r.status)),
-    dl([['Tầng', r.floor], ['Loại phòng', r.roomTypeName ?? 'Chưa gán'], ['Diện tích', `${r.area} m²`], ['Giá thuê niêm yết', `${money(r.price)} ₫/tháng`], ['Tiền cọc', `${money(r.deposit)} ₫`], ['Số người tối đa', r.maxPeople],
+    h('div', { style: 'display:flex;gap:10px;align-items:center;flex-wrap:wrap' }, plate(r.code, 'lg'), r.holdUntil ? h('span', { class: 'st wait' }, 'Đang giữ chỗ') : statusBadge(r.status)),
+    dl([['Tầng', r.floor], ['Giữ đến', r.holdUntil ? dateTime(r.holdUntil) : '–'], ['Loại phòng', r.roomTypeName ?? 'Chưa gán'], ['Diện tích', `${r.area} m²`], ['Giá thuê niêm yết', `${money(r.price)} ₫/tháng`], ['Tiền cọc', `${money(r.deposit)} ₫`], ['Số người tối đa', r.maxPeople],
       ['Người thuê', c ? c.tenantName : 'Chưa có'], ['Hợp đồng', c ? `${c.contractCode} (${date(c.startDate)} – ${date(c.endDate)})` : '–']]),
     roomPhotos(r),
     roomFurnishings(r.roomId),

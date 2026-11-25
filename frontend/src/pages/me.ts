@@ -238,7 +238,7 @@ interface MyTicket { requestId: number; roomCode: string; category: string; desc
 
 export async function meSupportPage(view: HTMLElement): Promise<void> {
   const list = await api.get<MyTicket[]>('/api/me/maintenance-requests');
-  const booking = h('button', { class: 'btn secondary block', onclick: requestBooking }, 'Gửi yêu cầu thuê phòng');
+  const booking = h('button', { class: 'btn secondary block', onclick: () => requestBooking() }, 'Gửi yêu cầu thuê phòng');
   const send = h('button', { class: 'btn lg block', onclick: () => newTicket(() => void meSupportPage(view)) }, icon('plus', 20), 'Báo sự cố');
   mount(view,
     h('h2', null, 'Hỗ trợ'),

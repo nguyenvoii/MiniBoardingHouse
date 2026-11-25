@@ -23,6 +23,10 @@ public interface RoomRepository extends JpaRepository<Room, Integer> {
     @EntityGraph(attributePaths = {"property", "floor", "roomType"})
     List<Room> findByProperty_PropertyId(Integer propertyId);
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("select r from Room r where r.roomId = :id")
+    Optional<Room> lockForBooking(@org.springframework.data.repository.query.Param("id") Integer id);
+
     long countByProperty_PropertyId(Integer propertyId);
     List<Room> findByStatus(String status);
     Optional<Room> findByProperty_PropertyIdAndRoomCode(Integer propertyId, String roomCode);

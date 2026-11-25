@@ -9,6 +9,9 @@ public class RoomDTO {
     private String floorName;
     private Integer floorNumber;
     private String roomCode;
+    private java.time.LocalDateTime holdUntil;
+    public java.time.LocalDateTime getHoldUntil() { return holdUntil; }
+    public void setHoldUntil(java.time.LocalDateTime holdUntil) { this.holdUntil = holdUntil; }
     private Integer roomTypeId;
     private String roomTypeName;
     private boolean roomTypeSpecified;

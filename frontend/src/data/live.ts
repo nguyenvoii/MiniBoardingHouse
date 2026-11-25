@@ -15,6 +15,7 @@ export interface RoomType {
 }
 
 export interface LiveRoom {
+  holdUntil?: string | null;
   roomTypeId?: number | null;
   roomTypeName?: string | null;
   initialElectricMeter?: number;
@@ -56,6 +57,7 @@ export interface PropertyInfo {
 }
 
 interface ApiRoom {
+  holdUntil?: string | null;
   roomTypeId?: number | null; roomTypeName?: string | null;
   initialElectricMeter?: number; initialWaterMeter?: number;
   roomId: number; roomCode: string; floorNumber: number | null; areaSqm: number; baseRentPrice: number;
@@ -115,6 +117,7 @@ export async function loadLive(): Promise<{ rooms: LiveRoom[]; tenants: LiveTena
       const c = byRoom.get(r.roomId);
       return {
         roomId: r.roomId,
+        holdUntil: r.holdUntil,
         roomTypeId: r.roomTypeId,
         roomTypeName: r.roomTypeName,
         initialElectricMeter: r.initialElectricMeter,

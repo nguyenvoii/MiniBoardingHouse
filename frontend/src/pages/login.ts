@@ -1,3 +1,4 @@
+import { requestBooking } from './bookings';
 import { busy, h } from '../lib/dom';
 import { icon } from '../lib/icons';
 import { api, clearMustChangePassword, errText, login, logout } from '../lib/api';
@@ -16,6 +17,7 @@ export function renderLogin(root: HTMLElement, onDone: () => void): void {
     field('Email hoặc số điện thoại', id),
     field('Mật khẩu', pw),
     btn,
+    h('button', { type: 'button', class: 'btn secondary', onclick: () => requestBooking(true) }, 'Gửi yêu cầu thuê phòng'),
     h('button', { type: 'button', class: 'link-btn', style: 'align-self:flex-start', onclick: () => forgot() }, 'Quên mật khẩu?'),
   );
   form.addEventListener('submit', async (e) => {

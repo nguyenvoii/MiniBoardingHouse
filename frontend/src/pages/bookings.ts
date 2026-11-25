@@ -1,7 +1,7 @@
 import type { LiveRoom } from '../data/live';
 import { busy, h } from '../lib/dom';
 import { api, errText } from '../lib/api';
-import { date, isoDay, money } from '../lib/format';
+import { date, dateTime, isoDay, money } from '../lib/format';
 import { confirmDialog, field, formError, input, openDialog, select, statusBadge, table, toast } from '../ui/kit';
 
 interface AvailableRoom { roomId: number; roomCode: string; maxOccupants: number }
@@ -16,29 +16,33 @@ interface Booking {
   depositPaid: number;
   status: string;
   rejectionReason: string | null;
+  holdUntil: string | null;
 }
 
-export function requestBooking(): void {
+export function requestBooking(guest = false): void {
   const dialog = openDialog('Gửi yêu cầu thuê phòng');
   const error = h('div', { role: 'alert' }, 'Đang tải phòng trống…');
   const room = select([['', 'Chọn phòng']]);
+  const name = input({ maxlength: '100', required: true, autocomplete: 'name' });
+  const phone = input({ type: 'tel', maxlength: '20', required: true, autocomplete: 'tel' });
   const start = input({ type: 'date', min: isoDay(), required: true });
   const occupants = input({ type: 'number', min: '1', step: '1', value: '1', required: true });
   const send = h('button', { class: 'btn', disabled: true }, 'Gửi yêu cầu');
-  dialog.body.append(error, field('Phòng trống', room), field('Ngày dự kiến thuê', start), field('Số người ở', occupants));
+  dialog.body.append(error, field('Phòng trống', room), ...(guest ? [field('Họ tên khách', name), field('Số điện thoại khách', phone)] : []), field('Ngày dự kiến thuê', start), field('Số người ở', occupants));
   dialog.foot.append(h('button', { class: 'btn secondary', onclick: dialog.close }, 'Đóng'), send);
-  void api.get<AvailableRoom[]>('/api/me/bookings/available-rooms').then((rooms) => {
+  void api.get<AvailableRoom[]>(guest ? '/api/public/booking/rooms' : '/api/me/bookings/available-rooms').then((rooms) => {
     room.append(...rooms.map((item) => h('option', { value: String(item.roomId) }, item.roomCode + ' · tối đa ' + item.maxOccupants + ' người')));
     error.textContent = rooms.length ? '' : 'Hiện chưa có phòng trống.';
     send.disabled = !rooms.length;
   }).catch((e) => error.replaceChildren(formError(errText(e))));
   send.addEventListener('click', () => busy(send, async () => {
-    if (!room.value || !start.checkValidity() || !occupants.checkValidity()) {
-      error.replaceChildren(formError('Chọn phòng, ngày thuê và số người ở.'));
+    if (!room.value || !start.checkValidity() || !occupants.checkValidity() || (guest && (!name.value.trim() || !phone.value.trim()))) {
+      error.replaceChildren(formError(guest ? 'Nhập phòng, họ tên, số điện thoại, ngày thuê và số người ở.' : 'Chọn phòng, ngày thuê và số người ở.'));
       return;
     }
     try {
-      await api.post('/api/me/bookings', {
+      await api.post(guest ? '/api/public/booking' : '/api/me/bookings', {
+        ...(guest ? { fullName: name.value.trim(), phoneNumber: phone.value.trim() } : {}),
         roomId: Number(room.value), expectedStartDate: start.value, occupantsCount: occupants.valueAsNumber,
       });
       dialog.close();
@@ -51,7 +55,7 @@ export function manageBookings(rooms: LiveRoom[]): void {
   const dialog = openDialog('Yêu cầu thuê phòng', { width: 900 });
   const roomIds = new Set(rooms.map((room) => room.roomId));
   const body = h('div', null, 'Đang tải yêu cầu…');
-  const vacant = rooms.filter((room) => room.status === 'VACANT');
+  const vacant = rooms.filter((room) => room.status === 'VACANT' && !room.holdUntil);
   dialog.body.append(h('div', { class: 'toolbar' }, h('button', { class: 'btn secondary', disabled: !vacant.length, onclick: () => createGuestBooking(vacant, reload) }, 'Nhập yêu cầu của khách')), body);
   dialog.foot.append(h('button', { class: 'btn secondary', onclick: dialog.close }, 'Đóng'));
   const reload = async () => {
@@ -63,7 +67,7 @@ export function manageBookings(rooms: LiveRoom[]): void {
         { key: 'day', label: 'Ngày thuê', render: (b) => date(b.expectedStartDate) },
         { key: 'people', label: 'Số người', render: (b) => String(b.occupantsCount) },
         { key: 'deposit', label: 'Đã cọc (₫)', render: (b) => money(b.depositPaid) },
-        { key: 'status', label: 'Trạng thái', render: (b) => h('div', null, statusBadge(b.status), b.rejectionReason ? h('p', null, b.rejectionReason) : null) },
+        { key: 'status', label: 'Trạng thái', render: (b) => h('div', null, statusBadge(b.status), b.holdUntil ? h('p', null, 'Giữ đến ' + dateTime(b.holdUntil)) : null, b.rejectionReason ? h('p', null, b.rejectionReason) : null) },
         { key: 'action', label: '', render: (b) => bookingActions(b, reload) ?? "" },
       ], all.filter((b) => roomIds.has(b.roomId))));
     } catch (e) { body.replaceChildren(formError(errText(e))); }
@@ -103,16 +107,37 @@ function createGuestBooking(rooms: LiveRoom[], reload: () => Promise<void>): voi
 function bookingActions(booking: Booking, reload: () => Promise<void>): HTMLElement | null {
   if (booking.status !== 'PENDING' && booking.status !== 'APPROVED') return null;
   const path = '/api/chi/bookings/' + booking.bookingId;
-  const approve = h('button', { class: 'btn secondary sm' }, 'Duyệt');
-  approve.addEventListener('click', () => busy(approve, async () => {
-    if (!(await confirmDialog('Duyệt yêu cầu thuê', 'Duyệt yêu cầu phòng ' + booking.roomCode + '?', 'Duyệt'))) return;
-    try { await api.patch(path + '/approve'); await reload(); }
+  const approve = h('button', { class: 'btn secondary sm', onclick: () => approveBooking(booking, reload) }, 'Duyệt');
+  const cancel = h('button', { class: 'btn secondary sm' }, 'Hủy giữ chỗ');
+  cancel.addEventListener('click', () => busy(cancel, async () => {
+    if (!(await confirmDialog('Hủy giữ chỗ', 'Hủy giữ chỗ phòng ' + booking.roomCode + '?', 'Hủy giữ chỗ'))) return;
+    try { await api.patch(path + '/cancel'); await reload(); }
     catch (e) { toast(errText(e), 'err'); }
   }));
   return h('div', { class: 'row-actions' },
     booking.status === 'PENDING' ? approve : null,
     booking.status === 'PENDING' ? h('button', { class: 'btn secondary sm', onclick: () => editBooking(booking, 'reject', reload) }, 'Từ chối') : null,
-    h('button', { class: 'btn secondary sm', onclick: () => editBooking(booking, 'deposit', reload) }, 'Ghi nhận cọc'));
+    h('button', { class: 'btn secondary sm', onclick: () => editBooking(booking, 'deposit', reload) }, 'Ghi nhận cọc'),
+    booking.status === 'APPROVED' ? cancel : null);
+}
+
+function approveBooking(booking: Booking, reload: () => Promise<void>): void {
+  const dialog = openDialog('Duyệt yêu cầu thuê');
+  const error = h('div', { role: 'alert' });
+  const until = input({ type: 'datetime-local', required: true });
+  const save = h('button', { class: 'btn' }, 'Giữ phòng');
+  dialog.body.append(error,
+    h('p', null, 'Xác nhận số điện thoại ' + booking.tenantPhone + ' của ' + booking.tenantName + ' trước khi duyệt.'),
+    field('Giữ phòng đến', until, 'Theo giờ địa phương của khu trọ'));
+  dialog.foot.append(h('button', { class: 'btn secondary', onclick: dialog.close }, 'Hủy'), save);
+  save.addEventListener('click', () => busy(save, async () => {
+    if (!until.value) { error.replaceChildren(formError('Chọn thời điểm hết hạn.')); return; }
+    try {
+      await api.patch('/api/chi/bookings/' + booking.bookingId + '/approve', { holdUntil: until.value });
+      dialog.close();
+      await reload();
+    } catch (e) { error.replaceChildren(formError(errText(e))); }
+  }));
 }
 
 function editBooking(booking: Booking, action: 'reject' | 'deposit', reload: () => Promise<void>): void {

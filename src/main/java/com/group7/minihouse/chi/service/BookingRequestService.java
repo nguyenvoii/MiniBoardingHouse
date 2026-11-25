@@ -45,7 +45,9 @@ public class BookingRequestService {
 
     @Transactional(readOnly = true)
     public List<AvailableRoom> availableRooms() {
+        LocalDateTime now = LocalDateTime.now();
         return roomRepository.findByStatus("VACANT").stream()
+                .filter(room -> room.activeHold(now) == null)
                 .map(room -> new AvailableRoom(room.getRoomId(), room.getRoomCode(), room.getMaxOccupants()))
                 .toList();
     }
@@ -56,7 +58,7 @@ public class BookingRequestService {
             throw new BusinessException("Chọn phòng, ngày thuê và số người ở");
         }
         Room room = roomRepository.findById(roomId).orElseThrow(() -> BusinessException.notFound("Phòng"));
-        if (!"VACANT".equals(room.getStatus())) {
+        if (!"VACANT".equals(room.getStatus()) || room.activeHold(LocalDateTime.now()) != null) {
             throw new BusinessException(HttpStatus.CONFLICT, "Phòng hiện không trống");
         }
         BookingRequestDTO.CreateRequest req = new BookingRequestDTO.CreateRequest();
@@ -110,7 +112,7 @@ public class BookingRequestService {
         Room room = roomRepository.findById(req.getRoomId())
                 .orElseThrow(() -> BusinessException.notFound("Phòng"));
 
-        if (!"VACANT".equals(room.getStatus())) {
+        if (!"VACANT".equals(room.getStatus()) || room.activeHold(LocalDateTime.now()) != null) {
             throw new BusinessException(HttpStatus.CONFLICT, "Phòng hiện không trống");
         }
         if (req.getExpectedStartDate().isBefore(java.time.LocalDate.now())) {
@@ -156,10 +158,68 @@ public class BookingRequestService {
         return toResponse(bookingRequestRepository.save(b));
     }
 
+    public void submitGuest(Integer roomId, String name, String phone, java.time.LocalDate start, Integer people) {
+        String fullName = name == null ? "" : name.trim();
+        String number = phone == null ? "" : phone.trim();
+        if (roomId == null || fullName.isEmpty() || fullName.length() > 100
+                || !number.matches("[+]?[0-9]{8,19}") || start == null
+                || start.isBefore(java.time.LocalDate.now()) || people == null || people < 1) {
+            throw new BusinessException("Kiểm tra phòng, họ tên, số điện thoại, ngày thuê và số người");
+        }
+        Room room = roomRepository.lockForBooking(roomId).orElseThrow(() -> BusinessException.notFound("Phòng"));
+        if (!"VACANT".equals(room.getStatus()) || room.activeHold(LocalDateTime.now()) != null) {
+            throw new BusinessException(HttpStatus.CONFLICT, "Phòng hiện không nhận yêu cầu mới");
+        }
+        if (people > room.getMaxOccupants()) throw new BusinessException("Số người vượt sức chứa của phòng");
+        if (bookingRequestRepository.existsByRoom_RoomIdAndGuestPhoneAndExpectedStartDateAndStatus(roomId, number, start, "PENDING")) {
+            return;
+        }
+        BookingRequest booking = new BookingRequest();
+        booking.setRoom(room);
+        booking.setGuestName(fullName);
+        booking.setGuestPhone(number);
+        booking.setExpectedStartDate(start);
+        booking.setOccupantsCount(people);
+        booking.setDepositPaid(BigDecimal.ZERO);
+        booking.setStatus("PENDING");
+        booking.setCreatedAt(LocalDateTime.now());
+        bookingRequestRepository.save(booking);
+    }
+
+    public BookingRequestDTO.Response approve(Integer bookingId, LocalDateTime holdUntil) {
+        BookingRequest booking = bookingRequestRepository.findById(bookingId)
+                .orElseThrow(() -> BusinessException.notFound("Yêu cầu đặt phòng"));
+        LocalDateTime now = LocalDateTime.now();
+        if (holdUntil == null || !holdUntil.isAfter(now)) throw new BusinessException("Chọn thời điểm hết hạn trong tương lai");
+        Room room = roomRepository.lockForBooking(booking.getRoom().getRoomId())
+                .orElseThrow(() -> BusinessException.notFound("Phòng"));
+        requireStatus(booking, "duyệt", "PENDING");
+        if (!"VACANT".equals(room.getStatus()) || room.activeHold(now) != null) {
+            throw new BusinessException(HttpStatus.CONFLICT, "Phòng không trống hoặc đang được giữ chỗ");
+        }
+        if (booking.getTenant() == null) {
+            Tenant tenant = tenantRepository.findByPhoneNumber(booking.getGuestPhone()).orElseGet(() -> {
+                Tenant guest = new Tenant();
+                guest.setFullName(booking.getGuestName());
+                guest.setPhoneNumber(booking.getGuestPhone());
+                guest.setIdentityNumber("GUEST-" + booking.getBookingId());
+                guest.setIsVerified(false);
+                guest.setCreatedAt(now);
+                return tenantRepository.save(guest);
+            });
+            booking.setTenant(tenant);
+        }
+        booking.setHoldUntil(holdUntil);
+        booking.setStatus("APPROVED");
+        room.setHeldBooking(booking);
+        return toResponse(bookingRequestRepository.save(booking));
+    }
+
     public BookingRequestDTO.Response approve(Integer bookingId) {
         BookingRequest b = bookingRequestRepository.findById(bookingId)
                 .orElseThrow(() -> BusinessException.notFound("Yêu cầu đặt phòng"));
         requireStatus(b, "duyệt", "PENDING");
+        if (b.getGuestPhone() != null && b.getTenant() == null) throw new BusinessException("Yêu cầu của khách cần thời điểm hết hạn giữ chỗ");
         b.setStatus("APPROVED");
         return toResponse(bookingRequestRepository.save(b));
     }
@@ -177,6 +237,9 @@ public class BookingRequestService {
         BookingRequest b = bookingRequestRepository.findById(bookingId)
                 .orElseThrow(() -> BusinessException.notFound("Yêu cầu đặt phòng"));
         requireStatus(b, "cập nhật tiền cọc", "PENDING", "APPROVED");
+        if (b.getGuestPhone() != null && b.getTenant() == null) {
+            throw new BusinessException("Duyệt yêu cầu của khách trước khi ghi nhận cọc");
+        }
         if (depositAmount != null) {
             if (depositAmount.signum() < 0) {
                 throw new BusinessException("Tiền đặt cọc không được âm");
@@ -223,6 +286,11 @@ public class BookingRequestService {
         r.setStatus(b.getStatus());
         r.setRejectionReason(b.getRejectionReason());
         r.setCreatedAt(b.getCreatedAt());
+        if (b.getTenant() == null) {
+            r.setTenantName(b.getGuestName());
+            r.setTenantPhone(b.getGuestPhone());
+        }
+        r.setHoldUntil(b.getHoldUntil());
         return r;
     }
 }

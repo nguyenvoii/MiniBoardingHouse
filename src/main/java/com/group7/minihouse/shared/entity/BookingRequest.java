@@ -21,8 +21,8 @@ public class BookingRequest {
     @JoinColumn(name = "room_id", nullable = false)
     private Room room;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "tenant_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "tenant_id")
     private Tenant tenant;
 
     @Column(name = "expected_start_date", nullable = false)
@@ -42,6 +42,20 @@ public class BookingRequest {
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
+
+    @Column(name = "guest_name", length = 100)
+    private String guestName;
+    @Column(name = "guest_phone", length = 20)
+    private String guestPhone;
+    @Column(name = "hold_until")
+    private LocalDateTime holdUntil;
+
+    public String getGuestName() { return guestName; }
+    public void setGuestName(String guestName) { this.guestName = guestName; }
+    public String getGuestPhone() { return guestPhone; }
+    public void setGuestPhone(String guestPhone) { this.guestPhone = guestPhone; }
+    public LocalDateTime getHoldUntil() { return holdUntil; }
+    public void setHoldUntil(LocalDateTime holdUntil) { this.holdUntil = holdUntil; }
 
     public BookingRequest() {}
 

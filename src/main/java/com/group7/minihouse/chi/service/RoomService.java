@@ -255,6 +255,8 @@ public class RoomService {
             dto.setRoomTypeId(r.getRoomType().getRoomTypeId());
             dto.setRoomTypeName(r.getRoomType().getTypeName());
         }
+        var hold = r.activeHold(LocalDateTime.now());
+        if (hold != null) dto.setHoldUntil(hold.getHoldUntil());
         dto.setRoomCode(r.getRoomCode());
         dto.setAreaSqm(r.getAreaSqm());
         dto.setMaxOccupants(r.getMaxOccupants());
