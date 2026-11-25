@@ -36,6 +36,22 @@ public class RoomFurnishingController {
         return ApiResponse.ok(furnishingService.getStandardCatalog());
     }
 
+    @PostMapping("/standard-catalog")
+    public ApiResponse<RoomFurnishingDTO> createStandardItem(@RequestBody RoomFurnishingDTO dto) {
+        return ApiResponse.ok(furnishingService.saveStandardItem(null, dto));
+    }
+
+    @PutMapping("/standard-catalog/{id}")
+    public ApiResponse<RoomFurnishingDTO> updateStandardItem(@PathVariable Integer id, @RequestBody RoomFurnishingDTO dto) {
+        return ApiResponse.ok(furnishingService.saveStandardItem(id, dto));
+    }
+
+    @DeleteMapping("/standard-catalog/{id}")
+    public ApiResponse<Void> deleteStandardItem(@PathVariable Integer id) {
+        furnishingService.deleteStandardItem(id);
+        return ApiResponse.ok(null);
+    }
+
     // UC 24: Áp dụng bộ nội thất chuẩn cho phòng
     @PostMapping("/apply-standard/{roomId}")
     public ApiResponse<List<RoomFurnishingDTO>> applyStandard(@PathVariable Integer roomId) {

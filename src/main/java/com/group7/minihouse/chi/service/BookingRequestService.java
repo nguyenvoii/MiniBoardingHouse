@@ -41,6 +41,32 @@ public class BookingRequestService {
         return list.stream().map(this::toResponse).collect(Collectors.toList());
     }
 
+    public record AvailableRoom(Integer roomId, String roomCode, Integer maxOccupants) {}
+
+    @Transactional(readOnly = true)
+    public List<AvailableRoom> availableRooms() {
+        return roomRepository.findByStatus("VACANT").stream()
+                .map(room -> new AvailableRoom(room.getRoomId(), room.getRoomCode(), room.getMaxOccupants()))
+                .toList();
+    }
+
+    public BookingRequestDTO.Response requestAsTenant(Integer tenantId, Integer roomId,
+                                                       java.time.LocalDate startDate, Integer occupants) {
+        if (roomId == null || startDate == null || occupants == null) {
+            throw new BusinessException("Chọn phòng, ngày thuê và số người ở");
+        }
+        Room room = roomRepository.findById(roomId).orElseThrow(() -> BusinessException.notFound("Phòng"));
+        if (!"VACANT".equals(room.getStatus())) {
+            throw new BusinessException(HttpStatus.CONFLICT, "Phòng hiện không trống");
+        }
+        BookingRequestDTO.CreateRequest req = new BookingRequestDTO.CreateRequest();
+        req.setTenantId(tenantId);
+        req.setRoomId(roomId);
+        req.setExpectedStartDate(startDate);
+        req.setOccupantsCount(occupants);
+        return create(req);
+    }
+
     public BookingRequestDTO.Response create(BookingRequestDTO.CreateRequest req) {
         if (req.getRoomId() == null) throw new BusinessException("Chưa chọn phòng");
         if (req.getTenantId() == null) throw new BusinessException("Chưa chọn khách thuê");

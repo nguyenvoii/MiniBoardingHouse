@@ -24,8 +24,11 @@ export interface DialogHandle {
   foot: HTMLElement;
 }
 
-export function openDialog(title: string, opts: { drawer?: boolean; width?: number; locked?: boolean } = {}): DialogHandle {
-  const dlg = h('dialog', { class: `dlg ${opts.drawer ? 'drawer' : ''}`, 'aria-labelledby': 'dlg-title' }) as HTMLDialogElement;
+let dialogSequence = 0;
+
+export function openDialog(title: string, opts: { drawer?: boolean; width?: number; locked?: boolean; onClose?: () => void } = {}): DialogHandle {
+  const titleId = 'dlg-title-' + ++dialogSequence;
+  const dlg = h('dialog', { class: `dlg ${opts.drawer ? 'drawer' : ''}`, 'aria-labelledby': titleId }) as HTMLDialogElement;
   if (opts.width) dlg.style.width = `min(${opts.width}px, calc(100vw - 16px))`;
   const body = h('div', { class: 'dlg-body' });
   const foot = h('div', { class: 'dlg-foot' });
@@ -36,13 +39,14 @@ export function openDialog(title: string, opts: { drawer?: boolean; width?: numb
     const done = () => {
       dlg.close();
       dlg.remove();
+      opts.onClose?.();
     };
     if (reducedMotion()) return done();
     dlg.classList.add('closing');
     setTimeout(done, 170);
   };
   dlg.append(
-    h('div', { class: 'dlg-head' }, h('h2', { id: 'dlg-title' }, title), opts.locked ? null : h('button', { class: 'icon-btn', 'aria-label': 'Đóng', onclick: close }, icon('x'))),
+    h('div', { class: 'dlg-head' }, h('h2', { id: titleId }, title), opts.locked ? null : h('button', { class: 'icon-btn', 'aria-label': 'Đóng', onclick: close }, icon('x'))),
     body,
     foot,
   );
@@ -60,11 +64,11 @@ export function openDialog(title: string, opts: { drawer?: boolean; width?: numb
 
 export function confirmDialog(title: string, message: string, okLabel: string, danger = false): Promise<boolean> {
   return new Promise((resolve) => {
-    const d = openDialog(title);
+    const d = openDialog(title, { onClose: () => resolve(false) });
     d.body.append(h('p', null, message));
     d.foot.append(
-      h('button', { class: 'btn secondary', onclick: () => { d.close(); resolve(false); } }, 'Hủy'),
-      h('button', { class: `btn ${danger ? 'danger' : ''}`, onclick: () => { d.close(); resolve(true); } }, okLabel),
+      h('button', { class: 'btn secondary', onclick: d.close }, 'Hủy'),
+      h('button', { class: `btn ${danger ? 'danger' : ''}`, onclick: () => { resolve(true); d.close(); } }, okLabel),
     );
   });
 }

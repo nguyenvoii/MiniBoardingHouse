@@ -9,6 +9,9 @@ public class RoomDTO {
     private String floorName;
     private Integer floorNumber;
     private String roomCode;
+    private Integer roomTypeId;
+    private String roomTypeName;
+    private boolean roomTypeSpecified;
     private BigDecimal areaSqm;
     private Integer maxOccupants;
     private BigDecimal baseRentPrice;
@@ -33,6 +36,15 @@ public class RoomDTO {
 
     public String getFloorName() { return floorName; }
     public void setFloorName(String floorName) { this.floorName = floorName; }
+
+    public Integer getRoomTypeId() { return roomTypeId; }
+    public void setRoomTypeId(Integer roomTypeId) {
+        this.roomTypeId = roomTypeId;
+        roomTypeSpecified = true;
+    }
+    public boolean roomTypeSpecified() { return roomTypeSpecified; }
+    public String getRoomTypeName() { return roomTypeName; }
+    public void setRoomTypeName(String roomTypeName) { this.roomTypeName = roomTypeName; }
 
     public String getRoomCode() { return roomCode; }
     public void setRoomCode(String roomCode) { this.roomCode = roomCode; }

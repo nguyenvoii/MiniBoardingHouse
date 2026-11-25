@@ -116,7 +116,7 @@ export function buildStaffShell(s: Session): StaffShell {
     bell,
   );
 
-  const skip = h('a', { class: 'skip-link', href: '#view', onclick: (e: Event) => { e.preventDefault(); view.focus(); } }, 'Bỏ qua điều hướng');
+  const skip = h('a', { class: 'skip-link', href: '#view', onclick: (e: Event) => { e.preventDefault(); document.getElementById('view')?.focus(); } }, 'Bỏ qua điều hướng');
   const root = h('div', { class: 'app' }, skip, rail, h('div', { class: 'main' }, topbar, view));
   rail.addEventListener('click', (e) => {
     if ((e.target as HTMLElement).closest('a')) rail.classList.remove('open');

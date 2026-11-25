@@ -5,7 +5,20 @@ import type { Contract } from './types';
 
 export type RoomStatus = 'RENTED' | 'VACANT' | 'REPAIRING' | 'SUSPENDED';
 
+export interface RoomType {
+  roomTypeId: number;
+  propertyId: number;
+  typeName: string;
+  description: string | null;
+  defaultRentPrice: number;
+  defaultDepositAmount: number;
+}
+
 export interface LiveRoom {
+  roomTypeId?: number | null;
+  roomTypeName?: string | null;
+  initialElectricMeter?: number;
+  initialWaterMeter?: number;
   roomId: number;
   code: string;
   floor: number;
@@ -43,6 +56,8 @@ export interface PropertyInfo {
 }
 
 interface ApiRoom {
+  roomTypeId?: number | null; roomTypeName?: string | null;
+  initialElectricMeter?: number; initialWaterMeter?: number;
   roomId: number; roomCode: string; floorNumber: number | null; areaSqm: number; baseRentPrice: number;
   depositAmount: number; maxOccupants: number; status: string;
 }
@@ -62,6 +77,10 @@ export async function liveContracts(): Promise<Contract[]> {
   };
   const [a, b, c] = await Promise.all([all('ACTIVE'), all('EXPIRING_SOON'), all('EXPIRED').catch(() => [] as Contract[])]);
   return [...a, ...b, ...c];
+}
+
+export function loadRoomTypes(): Promise<RoomType[]> {
+  return api.get<RoomType[]>('/api/chi/room-types?propertyId=' + PROPERTY_ID);
 }
 
 export function loadProperties(): Promise<PropertyInfo[]> {
@@ -96,6 +115,10 @@ export async function loadLive(): Promise<{ rooms: LiveRoom[]; tenants: LiveTena
       const c = byRoom.get(r.roomId);
       return {
         roomId: r.roomId,
+        roomTypeId: r.roomTypeId,
+        roomTypeName: r.roomTypeName,
+        initialElectricMeter: r.initialElectricMeter,
+        initialWaterMeter: r.initialWaterMeter,
         code: r.roomCode,
         floor: r.floorNumber ?? 0,
         area: Number(r.areaSqm),

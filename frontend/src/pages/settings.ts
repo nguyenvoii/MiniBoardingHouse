@@ -1,20 +1,20 @@
+import { roomFurnishings } from './roomFurnishings';
 import { h, busy } from '../lib/dom';
 import { icon } from '../lib/icons';
 import { api, errText, loadSession, PROPERTY_ID } from '../lib/api';
 import { date, money, isoDay } from '../lib/format';
-import { loadLive, loadProperties, type PropertyInfo } from '../data/live';
+import { loadLive, loadProperties, loadRoomTypes, type PropertyInfo, type RoomType } from '../data/live';
 import { confirmDialog, emptyState, field, formError, input, openDialog, pageHead, select, table, toast } from '../ui/kit';
 
 interface Plan { planId: number; planName: string; electricUnitPrice: number; waterUnitPrice: number; effectiveStartDate: string; effectiveEndDate: string | null }
 interface Svc { rateId: number; propertyId: number; serviceName: string; chargeType: string; unitPrice: number; active: boolean }
 interface Custom { customRateId: number; roomId: number; rateName: string; customPrice: number; notes: string | null; kind: string }
 interface Bank { bankAccountId: number; propertyId: number; bankName: string; accountNumber: string; accountHolder: string; qrImageUrl: string | null; isDefault: boolean; isActive: boolean }
-interface RoomType { roomTypeId: number; propertyId: number; typeName: string; description: string | null; defaultRentPrice: number; defaultDepositAmount: number }
 
 const CHARGE: Record<string, string> = {
   FIXED_ROOM: 'Cố định mỗi phòng', PER_PERSON: 'Theo đầu người', PER_VEHICLE: 'Theo số xe', PER_METER_UNIT: 'Theo đơn vị công tơ (chưa tự tính)',
 };
-const TABS = [['rates', 'Đơn giá điện nước'], ['services', 'Dịch vụ hàng tháng'], ['custom', 'Phụ thu và giảm trừ'], ['property', 'Khu trọ và tầng'], ['room-types', 'Loại phòng'], ['bank', 'Ngân hàng và mã QR']] as const;
+const TABS = [['rates', 'Đơn giá điện nước'], ['services', 'Dịch vụ hàng tháng'], ['custom', 'Phụ thu và giảm trừ'], ['property', 'Khu trọ và tầng'], ['room-types', 'Loại phòng'], ['furnishings', 'Thiết bị chuẩn'], ['bank', 'Ngân hàng và mã QR']] as const;
 
 export async function settingsPage(view: HTMLElement, _p: Record<string, string>, query: URLSearchParams): Promise<void> {
   let tab = query.get('tab') ?? 'rates';
@@ -24,7 +24,7 @@ export async function settingsPage(view: HTMLElement, _p: Record<string, string>
     tabs.replaceChildren(...TABS.map(([k, l]) => h('button', { role: 'tab', 'aria-selected': String(k === tab), onclick: () => { tab = k; void paint(); } }, l)));
     body.replaceChildren(h('div', { class: 'panel-body' }, h('div', { class: 'skel', style: 'height:80px' })));
     try {
-      body.replaceChildren(tab === 'property' ? await propertyTab(paint) : tab === 'rates' ? await ratesTab(paint) : tab === 'services' ? await servicesTab(paint) : tab === 'custom' ? await customTab() : tab === 'room-types' ? await roomTypesTab(paint) : await bankTab(paint));
+      body.replaceChildren(tab === 'furnishings' ? h('div', { class: 'panel-body' }, roomFurnishings()) : tab === 'property' ? await propertyTab(paint) : tab === 'rates' ? await ratesTab(paint) : tab === 'services' ? await servicesTab(paint) : tab === 'custom' ? await customTab() : tab === 'room-types' ? await roomTypesTab(paint) : await bankTab(paint));
     } catch (e) { body.replaceChildren(emptyState('Chưa tải được', errText(e))); }
   };
   view.replaceChildren(pageHead('Cài đặt', 'Đơn giá, dịch vụ và tài khoản nhận tiền. Tính tiền hàng tháng đọc trực tiếp các mục này.'), h('section', { class: 'panel panel-flush' }, tabs, body));
@@ -238,7 +238,7 @@ function floorDialog(floor: Floor | undefined, done: () => void): void {
 
 // ------------------------------------------------------------------ loại phòng
 async function roomTypesTab(reload: () => void): Promise<HTMLElement> {
-  const list = await api.get<RoomType[]>(`/api/chi/room-types?propertyId=${PROPERTY_ID}`);
+  const list = await loadRoomTypes();
   return h('div', null,
     h('div', { class: 'toolbar' }, h('p', { class: 'grow muted' }, 'Giá và tiền cọc mặc định dùng khi lập phòng/hợp đồng mới.'),
       h('button', { class: 'btn', onclick: () => roomTypeDialog(null, reload) }, icon('plus', 16), 'Thêm loại phòng')),

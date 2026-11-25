@@ -1,3 +1,4 @@
+import { requestBooking } from './bookings';
 import { h, busy, mount } from '../lib/dom';
 import { icon } from '../lib/icons';
 import { api, errText, loadSession, Page } from '../lib/api';
@@ -237,10 +238,12 @@ interface MyTicket { requestId: number; roomCode: string; category: string; desc
 
 export async function meSupportPage(view: HTMLElement): Promise<void> {
   const list = await api.get<MyTicket[]>('/api/me/maintenance-requests');
+  const booking = h('button', { class: 'btn secondary block', onclick: requestBooking }, 'Gửi yêu cầu thuê phòng');
   const send = h('button', { class: 'btn lg block', onclick: () => newTicket(() => void meSupportPage(view)) }, icon('plus', 20), 'Báo sự cố');
   mount(view,
     h('h2', null, 'Hỗ trợ'),
     send,
+    booking,
     list.length
       ? h('section', { class: 'panel panel-flush' }, ...list.map((t) => h('div', { class: 'inv-row' },
           h('div', { class: 'inv-top' }, h('b', null, SUPPORT_CATEGORIES.find((c) => c[0] === t.category)?.[1] ?? t.category), (() => { const [l, tone] = TICKET_LABEL[t.status] ?? [t.status, 'off']; return h('span', { class: `st ${tone}` }, l); })()),

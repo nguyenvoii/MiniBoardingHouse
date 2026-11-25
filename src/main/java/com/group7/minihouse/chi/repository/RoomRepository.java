@@ -11,16 +11,16 @@ import java.util.Optional;
 @Repository
 public interface RoomRepository extends JpaRepository<Room, Integer> {
 
-    @EntityGraph(attributePaths = {"property", "floor"})
+    @EntityGraph(attributePaths = {"property", "floor", "roomType"})
     List<Room> findAll();
 
-    @EntityGraph(attributePaths = {"property", "floor"})
+    @EntityGraph(attributePaths = {"property", "floor", "roomType"})
     Optional<Room> findById(Integer id);
 
-    @EntityGraph(attributePaths = {"property", "floor"})
+    @EntityGraph(attributePaths = {"property", "floor", "roomType"})
     List<Room> findByFloor_FloorId(Integer floorId);
 
-    @EntityGraph(attributePaths = {"property", "floor"})
+    @EntityGraph(attributePaths = {"property", "floor", "roomType"})
     List<Room> findByProperty_PropertyId(Integer propertyId);
 
     long countByProperty_PropertyId(Integer propertyId);

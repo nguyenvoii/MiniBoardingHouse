@@ -138,7 +138,10 @@ async function render(): Promise<void> {
   if (mustChangePassword()) forcePasswordChange();
   const m = match(path);
   document.title = `${TITLES[path] ?? (path.startsWith('/billing/') ? 'Kỳ tính tiền' : 'Stayly')} · Stayly`.replace('Stayly · Stayly', 'Stayly');
-  const view = shell.view;
+  // Trang cũ có thể vẫn đang tải khi người dùng chuyển màn.
+  const view = shell.view.cloneNode(false) as HTMLElement;
+  shell.view.replaceWith(view);
+  shell.view = view;
   shell.setActive(path);
   if (offMonth) {
     offMonth();
@@ -156,11 +159,13 @@ async function render(): Promise<void> {
     return;
   }
   const run = async () => {
+    if (!view.isConnected) return;
     routeObserver?.disconnect(); // ngắt theo dõi của trang trước, kẻo nó chèn thanh tuyến vào trang mới
     routeObserver = null;
     view.replaceChildren(skeletonRows(6));
     try {
       await m.route.handler(view, m.params, current().query);
+      if (!view.isConnected) return;
       enterView(view);
       keepMonthRoute(view, path);
     } catch (e) {

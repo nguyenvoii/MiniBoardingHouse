@@ -4,6 +4,8 @@ import com.group7.minihouse.chi.dto.RoomFurnishingDTO;
 import com.group7.minihouse.chi.repository.RoomFurnishingRepository;
 import com.group7.minihouse.chi.repository.RoomRepository;
 import com.group7.minihouse.shared.entity.Room;
+import com.group7.minihouse.shared.entity.StandardFurnishing;
+import com.group7.minihouse.chi.repository.StandardFurnishingRepository;
 import com.group7.minihouse.shared.entity.RoomFurnishing;
 import com.group7.minihouse.shared.exception.BusinessException;
 import org.springframework.stereotype.Service;
@@ -19,10 +21,12 @@ public class RoomFurnishingService {
 
     private final RoomFurnishingRepository furnishingRepository;
     private final RoomRepository roomRepository;
+    private final StandardFurnishingRepository catalogRepository;
 
-    public RoomFurnishingService(RoomFurnishingRepository furnishingRepository, RoomRepository roomRepository) {
+    public RoomFurnishingService(RoomFurnishingRepository furnishingRepository, RoomRepository roomRepository, StandardFurnishingRepository catalogRepository) {
         this.furnishingRepository = furnishingRepository;
         this.roomRepository = roomRepository;
+        this.catalogRepository = catalogRepository;
     }
 
     public List<RoomFurnishingDTO> getFurnishingsByRoom(Integer roomId) {
@@ -39,51 +43,42 @@ public class RoomFurnishingService {
 
     // UC 24: Danh mục thiết bị, nội thất chuẩn
     public List<RoomFurnishingDTO> getStandardCatalog() {
-        List<RoomFurnishingDTO> catalog = new ArrayList<>();
+        return catalogRepository.findAllByOrderByItemNameAsc().stream().map(this::catalogDto).toList();
+    }
 
-        RoomFurnishingDTO item1 = new RoomFurnishingDTO();
-        item1.setItemName("Máy lạnh Inverter 1.5 HP");
-        item1.setQuantity(1);
-        item1.setConditionStatus("Mới / Hoạt động tốt");
-        item1.setNotes("Kèm remote điều khiển chính hãng");
-        catalog.add(item1);
+    @Transactional
+    public RoomFurnishingDTO saveStandardItem(Integer id, RoomFurnishingDTO dto) {
+        String name = dto.getItemName() == null ? "" : dto.getItemName().trim();
+        String condition = dto.getConditionStatus() == null ? "" : dto.getConditionStatus().trim();
+        if (name.isEmpty() || name.length() > 100 || condition.isEmpty() || condition.length() > 100
+                || dto.getQuantity() == null || dto.getQuantity() < 1
+                || (dto.getNotes() != null && dto.getNotes().length() > 255)) {
+            throw new BusinessException("Nhập tên, tình trạng và số lượng hợp lệ");
+        }
+        StandardFurnishing item = id == null ? new StandardFurnishing() : catalogRepository.findById(id)
+                .orElseThrow(() -> BusinessException.notFound("Thiết bị chuẩn"));
+        item.setItemName(name);
+        item.setConditionStatus(condition);
+        item.setQuantity(dto.getQuantity());
+        item.setNotes(dto.getNotes());
+        return catalogDto(catalogRepository.save(item));
+    }
 
-        RoomFurnishingDTO item2 = new RoomFurnishingDTO();
-        item2.setItemName("Giường ngủ gỗ tự nhiên 1m6 x 2m");
-        item2.setQuantity(1);
-        item2.setConditionStatus("Mới / Tốt");
-        item2.setNotes("Khung giường chắc chắn, vạt phản phẳng");
-        catalog.add(item2);
+    @Transactional
+    public void deleteStandardItem(Integer id) {
+        StandardFurnishing item = catalogRepository.findById(id)
+                .orElseThrow(() -> BusinessException.notFound("Thiết bị chuẩn"));
+        catalogRepository.delete(item);
+    }
 
-        RoomFurnishingDTO item3 = new RoomFurnishingDTO();
-        item3.setItemName("Tủ quần áo gỗ 2 cánh");
-        item3.setQuantity(1);
-        item3.setConditionStatus("Mới / Tốt");
-        item3.setNotes("Có ngăn kéo và chìa khóa tủ");
-        catalog.add(item3);
-
-        RoomFurnishingDTO item4 = new RoomFurnishingDTO();
-        item4.setItemName("Bình nóng lạnh Ariston 20L");
-        item4.setQuantity(1);
-        item4.setConditionStatus("Mới / Hoạt động tốt");
-        item4.setNotes("Có chống giật ELCB an toàn");
-        catalog.add(item4);
-
-        RoomFurnishingDTO item5 = new RoomFurnishingDTO();
-        item5.setItemName("Bàn ghế làm việc / học tập");
-        item5.setQuantity(1);
-        item5.setConditionStatus("Mới / Tốt");
-        item5.setNotes("Bàn gỗ chân sắt + ghế xoay êm");
-        catalog.add(item5);
-
-        RoomFurnishingDTO item6 = new RoomFurnishingDTO();
-        item6.setItemName("Tủ lạnh mini 90L");
-        item6.setQuantity(1);
-        item6.setConditionStatus("Mới / Hoạt động tốt");
-        item6.setNotes("Tiết kiệm điện năng");
-        catalog.add(item6);
-
-        return catalog;
+    private RoomFurnishingDTO catalogDto(StandardFurnishing item) {
+        RoomFurnishingDTO dto = new RoomFurnishingDTO();
+        dto.setFurnishingId(item.getStandardId());
+        dto.setItemName(item.getItemName());
+        dto.setQuantity(item.getQuantity());
+        dto.setConditionStatus(item.getConditionStatus());
+        dto.setNotes(item.getNotes());
+        return dto;
     }
 
     // UC 24: Áp dụng bộ nội thất chuẩn cho phòng
@@ -107,6 +102,7 @@ public class RoomFurnishingService {
                 f.setConditionStatus(std.getConditionStatus());
                 f.setNotes(std.getNotes());
                 added.add(toDTO(furnishingRepository.save(f)));
+                existingNames.add(std.getItemName().toLowerCase().trim());
             }
         }
 

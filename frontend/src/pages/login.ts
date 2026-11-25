@@ -1,4 +1,4 @@
-import { h } from '../lib/dom';
+import { busy, h } from '../lib/dom';
 import { icon } from '../lib/icons';
 import { api, clearMustChangePassword, errText, login, logout } from '../lib/api';
 import { field, formError, input, openDialog, toast } from '../ui/kit';
@@ -43,19 +43,43 @@ export function renderLogin(root: HTMLElement, onDone: () => void): void {
     }
   });
 
-  async function forgot(): Promise<void> {
-    const v = id.value.trim();
-    if (!v) {
-      err.replaceChildren(formError('Nhập email hoặc số điện thoại ở ô trên rồi bấm Quên mật khẩu.'));
-      id.focus();
-      return;
-    }
-    try {
-      await api.post('/api/auth/forgot-password', { identifier: v });
-      toast('Nếu tài khoản tồn tại, mã xác nhận đã được gửi.');
-    } catch (ex) {
-      toast(errText(ex), 'err');
-    }
+  function forgot(): void {
+    const dialog = openDialog('Đặt lại mật khẩu');
+    const identifier = input({ value: id.value.trim(), autocomplete: 'username', required: true });
+    const code = input({ autocomplete: 'one-time-code', inputmode: 'numeric', required: true });
+    const password = input({ type: 'password', autocomplete: 'new-password', required: true });
+    const confirmation = input({ type: 'password', autocomplete: 'new-password', required: true });
+    const message = h('div', { role: 'status' });
+    const send = h('button', { class: 'btn secondary' }, 'Gửi mã xác nhận');
+    const save = h('button', { class: 'btn' }, 'Đặt lại mật khẩu');
+    dialog.body.append(message, field('Email hoặc số điện thoại', identifier), send,
+      field('Mã xác nhận', code), field('Mật khẩu mới', password, 'Từ 8 ký tự, có cả chữ và số'),
+      field('Nhập lại mật khẩu mới', confirmation));
+    dialog.foot.append(h('button', { class: 'btn secondary', onclick: dialog.close }, 'Hủy'), save);
+    send.addEventListener('click', () => busy(send, async () => {
+      if (!identifier.value.trim()) {
+        message.replaceChildren(formError('Nhập email hoặc số điện thoại.'));
+        return;
+      }
+      try {
+        await api.post('/api/auth/forgot-password', { identifier: identifier.value.trim() });
+        message.textContent = 'Nếu tài khoản tồn tại, mã xác nhận đã được gửi.';
+        code.focus();
+      } catch (e) { message.replaceChildren(formError(errText(e))); }
+    }));
+    save.addEventListener('click', () => busy(save, async () => {
+      if (!identifier.value.trim() || !code.value.trim() || !password.value || password.value !== confirmation.value) {
+        message.replaceChildren(formError('Nhập tài khoản, mã xác nhận và hai mật khẩu mới giống nhau.'));
+        return;
+      }
+      try {
+        await api.post('/api/auth/reset-password', { identifier: identifier.value.trim(), code: code.value.trim(), newPassword: password.value });
+        id.value = identifier.value.trim();
+        pw.value = '';
+        dialog.close();
+        toast('Đã đặt lại mật khẩu. Hãy đăng nhập bằng mật khẩu mới.');
+      } catch (e) { message.replaceChildren(formError(errText(e))); }
+    }));
   }
 
   root.replaceChildren(

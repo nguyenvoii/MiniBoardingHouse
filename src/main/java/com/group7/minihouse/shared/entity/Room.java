@@ -24,6 +24,10 @@ public class Room {
     @JoinColumn(name = "floor_id", nullable = false)
     private PropertyFloor floor;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "room_type_id")
+    private RoomType roomType;
+
     @Column(name = "room_code", nullable = false, length = 50)
     private String roomCode;
 
@@ -61,6 +65,9 @@ public class Room {
 
     public PropertyFloor getFloor() { return floor; }
     public void setFloor(PropertyFloor floor) { this.floor = floor; }
+
+    public RoomType getRoomType() { return roomType; }
+    public void setRoomType(RoomType roomType) { this.roomType = roomType; }
 
     public String getRoomCode() { return roomCode; }
     public void setRoomCode(String roomCode) { this.roomCode = roomCode; }

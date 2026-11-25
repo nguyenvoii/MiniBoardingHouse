@@ -6,6 +6,7 @@ import com.group7.minihouse.chi.repository.RoomRepository;
 import com.group7.minihouse.shared.entity.Property;
 import com.group7.minihouse.shared.entity.PropertyFloor;
 import com.group7.minihouse.shared.entity.Room;
+import com.group7.minihouse.shared.entity.RoomType;
 import com.group7.minihouse.shared.exception.BusinessException;
 import jakarta.persistence.EntityManager;
 import org.springframework.stereotype.Service;
@@ -103,12 +104,6 @@ public class RoomService {
         if (dto.getMaxOccupants() == null || dto.getMaxOccupants() < 1) {
             throw new BusinessException("Số người tối đa phải từ 1 trở lên");
         }
-        if (dto.getBaseRentPrice() == null || dto.getBaseRentPrice().compareTo(BigDecimal.ZERO) < 0) {
-            throw new BusinessException("Giá thuê không hợp lệ");
-        }
-        if (dto.getDepositAmount() == null || dto.getDepositAmount().compareTo(BigDecimal.ZERO) < 0) {
-            throw new BusinessException("Tiền cọc không hợp lệ");
-        }
         if ((dto.getInitialElectricMeter() != null && dto.getInitialElectricMeter() < 0)
                 || (dto.getInitialWaterMeter() != null && dto.getInitialWaterMeter() < 0)) {
             throw new BusinessException("Chỉ số điện nước ban đầu không được âm");
@@ -125,6 +120,12 @@ public class RoomService {
                 .orElseThrow(() -> BusinessException.notFound("Tầng"));
         Property property = floor.getProperty();
 
+        RoomType type = findRoomType(dto.getRoomTypeId(), property);
+        BigDecimal rent = dto.getBaseRentPrice() == null && type != null ? type.getDefaultRentPrice() : dto.getBaseRentPrice();
+        BigDecimal deposit = dto.getDepositAmount() == null && type != null ? type.getDefaultDepositAmount() : dto.getDepositAmount();
+        if (rent == null || rent.signum() < 0) throw new BusinessException("Giá thuê không hợp lệ");
+        if (deposit == null || deposit.signum() < 0) throw new BusinessException("Tiền cọc không hợp lệ");
+
         if (roomRepository.existsByProperty_PropertyIdAndRoomCode(property.getPropertyId(), code)) {
             throw new BusinessException("Mã phòng " + code + " đã tồn tại trong nhà này");
         }
@@ -132,11 +133,12 @@ public class RoomService {
         Room room = new Room();
         room.setProperty(property);
         room.setFloor(floor);
+        room.setRoomType(type);
         room.setRoomCode(code);
         room.setAreaSqm(dto.getAreaSqm());
         room.setMaxOccupants(dto.getMaxOccupants());
-        room.setBaseRentPrice(dto.getBaseRentPrice());
-        room.setDepositAmount(dto.getDepositAmount());
+        room.setBaseRentPrice(rent);
+        room.setDepositAmount(deposit);
         room.setInitialElectricMeter(dto.getInitialElectricMeter() != null ? dto.getInitialElectricMeter() : 0);
         room.setInitialWaterMeter(dto.getInitialWaterMeter() != null ? dto.getInitialWaterMeter() : 0);
         room.setStatus(status);
@@ -151,9 +153,20 @@ public class RoomService {
         Room room = roomRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("Không tìm thấy phòng có ID: " + id));
 
+        if (dto.roomTypeSpecified()) {
+            room.setRoomType(findRoomType(dto.getRoomTypeId(), room.getProperty()));
+        }
+        if ((dto.getInitialElectricMeter() != null && dto.getInitialElectricMeter() < 0)
+                || (dto.getInitialWaterMeter() != null && dto.getInitialWaterMeter() < 0)) {
+            throw new BusinessException("Chỉ số điện nước ban đầu không được âm");
+        }
+
         if (dto.getFloorId() != null && !dto.getFloorId().equals(room.getFloor().getFloorId())) {
             PropertyFloor floor = floorRepository.findById(dto.getFloorId())
                     .orElseThrow(() -> new BusinessException("Tầng không tồn tại"));
+            if (!room.getProperty().getPropertyId().equals(floor.getProperty().getPropertyId())) {
+                throw new BusinessException("Tầng phải thuộc cùng khu trọ");
+            }
             room.setFloor(floor);
         }
 
@@ -220,6 +233,15 @@ public class RoomService {
         return toDTO(roomRepository.save(room));
     }
 
+    private RoomType findRoomType(Integer id, Property property) {
+        if (id == null) return null;
+        RoomType type = em.find(RoomType.class, id);
+        if (type == null || !property.getPropertyId().equals(type.getProperty().getPropertyId())) {
+            throw new BusinessException("Loại phòng không thuộc khu trọ đang chọn");
+        }
+        return type;
+    }
+
     private RoomDTO toDTO(Room r) {
         RoomDTO dto = new RoomDTO();
         dto.setRoomId(r.getRoomId());
@@ -228,6 +250,10 @@ public class RoomService {
             dto.setFloorId(r.getFloor().getFloorId());
             dto.setFloorName(r.getFloor().getFloorName());
             dto.setFloorNumber(r.getFloor().getFloorNumber());
+        }
+        if (r.getRoomType() != null) {
+            dto.setRoomTypeId(r.getRoomType().getRoomTypeId());
+            dto.setRoomTypeName(r.getRoomType().getTypeName());
         }
         dto.setRoomCode(r.getRoomCode());
         dto.setAreaSqm(r.getAreaSqm());
