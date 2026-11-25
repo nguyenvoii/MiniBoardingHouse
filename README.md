@@ -17,7 +17,7 @@ Công nghệ: Java 17, Spring Boot 3, Spring Data JPA, SQL Server. Giao diện: 
 
 ## 1. Tình trạng dự án
 
-Phạm vi nghiệm thu là **123 use case có tên (UC1–UC123)** trong sheet **Phân Công** của `group-7.xlsx`, kiểm trực tiếp theo cột STT và Tên Usecase / Chức năng. Danh sách 132 mục trong tài liệu phân công cũ là mốc lịch sử. Chưa nghiệm thu đủ 123 use case.
+Phạm vi nghiệm thu là **123 use case có tên (UC1–UC123)** trong sheet **Phân Công** của `group-7.xlsx`, kiểm trực tiếp theo cột STT và Tên Usecase / Chức năng. Danh sách 132 mục trong tài liệu phân công cũ là mốc lịch sử.
 
 | Use case | Thao tác trong Stayly |
 |---|---|
@@ -33,9 +33,12 @@ Phạm vi nghiệm thu là **123 use case có tên (UC1–UC123)** trong sheet *
 | UC37–39 | Người thuê đăng nhập vào **Hỗ trợ** để gửi yêu cầu thuê phòng trống. Chủ trọ và quản lý mở **Phòng → Yêu cầu thuê phòng** để duyệt, từ chối kèm lý do hoặc ghi nhận tổng cọc đã nhận. Khách chưa có tài khoản có thể tự gửi ở màn đăng nhập hoặc nhờ nhân viên nhập hộ. Khi duyệt, nhân viên xác nhận thông tin liên hệ và chọn hạn giữ phòng. Phòng đang giữ chỉ lập hợp đồng kèm đúng yêu cầu đã duyệt. Phòng nhận yêu cầu mới khi hết hạn hoặc khi nhân viên hủy giữ chỗ. |
 | UC123 | **Thông báo** của người thuê → đánh dấu từng mục hoặc tất cả đã đọc và xóa từng mục đã đọc. |
 
+[Bảng đối chiếu từng use case](docs/NGHIEM_THU_123_USE_CASE.xlsx) ghi mã nguồn, bằng chứng và các bước còn phải thử cho từng mục. Có 19 mục đã chạy thao tác chính, 64 mục đã nối giao diện và API, 7 mục có API, 29 mục làm một phần và 4 mục chờ tích hợp ngoài. Chưa đủ bằng chứng nghiệm thu toàn bộ 123 mục.
+
 ### Kiểm thử
 
 - Maven/Surefire chạy 429 test, 0 lỗi, 0 thất bại, 0 bỏ qua.
+- Đợt đối chiếu trên SQL Server QA: 26 API đọc trả HTTP 200 và 18 màn hình nhân viên hiển thị. Workbook ghi đường dẫn và kết quả từng lần kiểm tra.
 - `npm run build` thành công, gồm TypeScript và Vite.
 - Spring Boot khởi động với SQL Server QA và `ddl-auto=validate` sau khi áp dụng đến patch 10.
 - Chromium với SQL Server QA chạy thành công các luồng nhân viên: đăng nhập, lọc và đổi trạng thái phòng, tải hai ảnh phòng, đổi ảnh bìa và xóa ảnh, tải và xem ảnh đại diện, sửa khu trọ, thêm/sửa/xóa tầng, tìm khách theo CCCD và mở lịch sử thuê.
