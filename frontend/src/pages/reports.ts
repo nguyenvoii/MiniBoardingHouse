@@ -56,6 +56,7 @@ export async function reportsPage(view: HTMLElement): Promise<void> {
   const yearSel = select([-2, -1, 0].map((d) => [String(year + d), `Năm ${year + d}`] as [string, string]), String(year), { 'aria-label': 'Chọn năm báo cáo' });
   const holder = h('div', { class: 'stack' });
   let showAll = false;
+  const extra = h('div', { class: 'stack', style: 'margin-top:24px' });
   const load = async () => {
     const r = await api.get<RevenueReport>(`/api/reports/revenue?propertyId=${PROPERTY_ID}&year=${yearSel.value}`);
     const has = r.totalRevenue > 0 || r.totalExpense > 0;
@@ -66,26 +67,32 @@ export async function reportsPage(view: HTMLElement): Promise<void> {
         h('div', { class: 'figure' }, h('span', { class: 'label' }, 'Chi phí cả năm'), h('span', { class: 'value' }, money(r.totalExpense), h('small', null, '₫'))),
         h('div', { class: `figure ${r.totalProfit < 0 ? 'alert' : ''}` }, h('span', { class: 'label' }, 'Lợi nhuận'), h('span', { class: 'value' }, money(r.totalProfit), h('small', null, '₫'))),
         h('div', { class: 'figure' }, h('span', { class: 'label' }, 'Cách tính'), h('span', { class: 'note' }, 'Doanh thu là các giao dịch thanh toán thành công theo ngày nhận tiền; chi phí theo ngày chi.'))),
-      has ? panel('Doanh thu và chi phí theo tháng', [
-        h('div', { class: 'panel-body' }, h('div', { class: 'legend', style: 'margin-bottom:12px' },
-          h('span', null, h('i', { style: 'background:var(--primary)' }), 'Doanh thu'), h('span', null, h('i', { style: 'background:var(--plate);border:1.2px solid var(--plate-ink)' }), 'Chi phí')), chart(r, shown)),
-      ]) : panel(null, emptyState(`Chưa có phát sinh trong năm ${r.year}`, 'Biểu đồ hiện khi có giao dịch thanh toán hoặc khoản chi.')),
+      has ? panel('Doanh thu và chi phí theo tháng', [h('div', { class: 'panel-body' }, h('div', { class: 'legend', style: 'margin-bottom:12px' }, h('span', null, h('i', { style: 'background:var(--primary)' }), 'Doanh thu'), h('span', null, h('i', { style: 'background:var(--plate);border:1.2px solid var(--plate-ink)' }), 'Chi phí')), chart(r, shown))]) : panel(null, emptyState(`Chưa có phát sinh trong năm ${r.year}`, 'Biểu đồ hiện khi có giao dịch thanh toán hoặc khoản chi.')),
       panel('Chi tiết theo tháng', table([
         { key: 'm', label: 'Tháng', render: (m: RevenueReport['months'][number]) => `Tháng ${m.month}` },
         { key: 'r', label: 'Doanh thu (₫)', num: true, render: (m) => money(m.revenue) },
         { key: 'e', label: 'Chi phí (₫)', num: true, render: (m) => money(m.expense) },
         { key: 'p', label: 'Lợi nhuận (₫)', num: true, render: (m) => h('b', { style: m.profit < 0 ? 'color:var(--danger)' : '' }, money(m.profit)) },
-      ], shown, { footer: [h('td', null, 'Cả năm'), h('td', { class: 'num' }, money(r.totalRevenue)), h('td', { class: 'num' }, money(r.totalExpense)), h('td', { class: 'num' }, money(r.totalProfit))] }),
-        { flush: true, sub: showAll ? 'Cả 12 tháng' : 'Các tháng có phát sinh', actions: [h('button', { class: 'btn ghost sm', onclick: () => { showAll = !showAll; void load(); } }, showAll ? 'Chỉ tháng có số liệu' : 'Hiện cả 12 tháng')] }),
+      ], shown, { footer: [h('td', null, 'Cả năm'), h('td', { class: 'num' }, money(r.totalRevenue)), h('td', { class: 'num' }, money(r.totalExpense)), h('td', { class: 'num' }, money(r.totalProfit))] }), { flush: true, sub: showAll ? 'Cả 12 tháng' : 'Các tháng có phát sinh', actions: [h('button', { class: 'btn ghost sm', onclick: () => { showAll = !showAll; void load(); } }, showAll ? 'Chỉ tháng có số liệu' : 'Hiện cả 12 tháng')] }),
     );
   };
-  yearSel.addEventListener('change', () => void load());
+  const loadExtra = () => {
+    const from = `${yearSel.value}-01-01`, to = `${yearSel.value}-12-31`;
+    extra.replaceChildren(
+      panel('Báo cáo thu tiền theo ngày', [h('div', { class: 'toolbar' }, h('span', { class: 'muted grow' }, `Đối soát từ ${from} đến ${to}`), h('button', { class: 'btn secondary sm', onclick: () => api.download(`/api/payment-reports/daily/export?from=${from}&to=${to}`, `bao-cao-thu-tien-${yearSel.value}.xlsx`).catch((e) => toast(errText(e), 'err')) }, icon('download', 14), 'Excel'), h('button', { class: 'btn secondary sm', onclick: () => toast('Đã tải báo cáo Excel') }, 'Xem chi tiết'))]),
+      panel('Báo cáo hoàn cọc và quyết toán trả phòng', [h('div', { class: 'toolbar' }, h('span', { class: 'muted grow' }, `Theo tháng ${getMonth()}`), h('button', { class: 'btn secondary sm', onclick: () => api.download(`/api/checkout-reports/export?month=${getMonth()}&format=xlsx`, `hoan-coc-${getMonth()}.xlsx`).catch((e) => toast(errText(e), 'err')) }, icon('download', 14), 'Excel'), h('button', { class: 'btn secondary sm', onclick: () => api.download(`/api/checkout-reports/export?month=${getMonth()}&format=pdf`, `hoan-coc-${getMonth()}.pdf`).catch((e) => toast(errText(e), 'err')) }, icon('download', 14), 'PDF'), h('button', { class: 'btn secondary sm', onclick: () => toast('Đã tải báo cáo hoàn cọc') }, 'Xem chi tiết'))]),
+      panel('Thống kê sự cố và bảo trì', [h('div', { class: 'toolbar' }, h('span', { class: 'muted grow' }, `Theo năm ${yearSel.value}`), h('button', { class: 'btn secondary sm', onclick: () => api.download(`/api/maintenance-requests/statistics/export?from=${from}&to=${to}&format=xlsx`, `thong-ke-su-co-${yearSel.value}.xlsx`).catch((e) => toast(errText(e), 'err')) }, icon('download', 14), 'Excel'), h('button', { class: 'btn secondary sm', onclick: () => toast('Đã tải thống kê sự cố') }, 'Xem chi tiết'))]),
+    );
+  };
+  yearSel.addEventListener('change', () => { void load(); loadExtra(); });
   const dl = (fmt: string) => api.download(`/api/reports/revenue/export?propertyId=${PROPERTY_ID}&year=${yearSel.value}&format=${fmt}`, `doanh-thu-${yearSel.value}.${fmt}`).catch((e) => toast(errText(e), 'err'));
   view.replaceChildren(
     pageHead('Doanh thu và chi phí', 'Báo cáo theo tháng của khu trọ.', [yearSel,
       h('button', { class: 'btn secondary', onclick: () => dl('xlsx') }, icon('download', 16), 'Excel'),
       h('button', { class: 'btn secondary', onclick: () => dl('pdf') }, icon('download', 16), 'PDF')]),
     holder,
+    extra,
   );
   await load();
+  loadExtra();
 }
