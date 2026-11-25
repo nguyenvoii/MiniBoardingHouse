@@ -1,3 +1,4 @@
+import { contractTemplateField } from './contractTemplates';
 import { h, busy } from '../lib/dom';
 import { icon } from '../lib/icons';
 import { api, errText } from '../lib/api';
@@ -140,6 +141,7 @@ export async function checkinPage(view: HTMLElement, _p: Record<string, string>,
     const late = input({ type: 'number', min: '0', step: '1000', value: '10000', class: 'input num-in' });
     const info = h('p', { class: 'muted' });
     // giữ chỗ đã duyệt đúng phòng và khách: chọn thì tiền giữ chỗ thành tiền cọc
+    const template = contractTemplateField();
     const booking = select([['', 'Không gắn giữ chỗ']], '');
     type Bk = { bookingId: number; roomId: number; tenantId: number; depositPaid: number | null };
     let bookings: Bk[] = [];
@@ -162,7 +164,7 @@ export async function checkinPage(view: HTMLElement, _p: Record<string, string>,
           roomId: Number(roomPicker.value()), tenantId: st.tenantId, startDate: start.value, endDate: addMonths(start.value, Number(months.value)),
           monthlyRentPrice: Number(rent.value), depositAmount: Number(dep.value),
           paymentCycleMonths: Number(cycle.value), paymentDueDay: Number(due.value), lateFeePerDay: Number(late.value),
-          bookingId: booking.value ? Number(booking.value) : null,
+          templateId: template.value(), bookingId: booking.value ? Number(booking.value) : null,
         });
         st.contract = c; st.roomId = c.roomId; st.roomCode = c.roomCode;
         st.depositPaid = c.depositAmount <= 0; // cọc 0 thì không có gì để thu, mở sẵn nút Hoàn tất
@@ -174,7 +176,7 @@ export async function checkinPage(view: HTMLElement, _p: Record<string, string>,
       err,
       h('div', { class: 'form-grid' }, field('Phòng (chỉ phòng trống)', roomPicker.root), field('Ngày bắt đầu thuê', start), field('Thời hạn', months),
         field('Giá thuê (₫/tháng)', rent), field('Tiền cọc (₫)', dep), field('Chu kỳ thanh toán', cycle),
-        field('Hạn trả mỗi kỳ (ngày trong tháng)', due, 'Hóa đơn phát hành sau khi chốt điện nước, hạn trả vào ngày này'), field('Phạt trễ hạn (₫/ngày)', late), field('Giữ chỗ đã duyệt', booking, 'Tiền giữ chỗ được tính vào tiền cọc')),
+        field('Hạn trả mỗi kỳ (ngày trong tháng)', due, 'Hóa đơn phát hành sau khi chốt điện nước, hạn trả vào ngày này'), field('Phạt trễ hạn (₫/ngày)', late), template.root, field('Giữ chỗ đã duyệt', booking, 'Tiền giữ chỗ được tính vào tiền cọc')),
       info,
       h('div', { style: 'display:flex;gap:10px;flex-wrap:wrap' }, h('button', { class: 'btn secondary', onclick: () => go(0) }, icon('left', 16), 'Quay lại'), ok),
     ]);

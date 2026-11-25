@@ -65,13 +65,17 @@ public class ContractTemplateService {
     }
 
     public ContractTemplateDTO.Response update(Integer id, ContractTemplateDTO.Request req) {
-        ContractTemplate t = templateRepository.findById(id)
+        ContractTemplate t = templateRepository.findForUpdate(id)
                 .orElseThrow(() -> BusinessException.notFound("Mẫu hợp đồng"));
 
         if (req.getTemplateName() != null && !req.getTemplateName().isBlank()) {
-            t.setTemplateName(req.getTemplateName());
+            if (req.getTemplateName().trim().length() > 100) {
+                throw new BusinessException("Tên mẫu hợp đồng tối đa 100 ký tự");
+            }
+            t.setTemplateName(req.getTemplateName().trim());
         }
         if (req.getTermsContent() != null && !req.getTermsContent().isBlank()) {
+            if (!req.getTermsContent().equals(t.getTermsContent())) requireUnused(id);
             t.setTermsContent(req.getTermsContent());
         }
         if (req.getIsDefault() != null) {
@@ -85,10 +89,17 @@ public class ContractTemplateService {
     }
 
     public void delete(Integer id) {
-        if (!templateRepository.existsById(id)) {
-            throw BusinessException.notFound("Mẫu hợp đồng");
+        ContractTemplate template = templateRepository.findForUpdate(id)
+                .orElseThrow(() -> BusinessException.notFound("Mẫu hợp đồng"));
+        requireUnused(id);
+        templateRepository.delete(template);
+    }
+
+    private void requireUnused(Integer id) {
+        if (templateRepository.countContractsUsingTemplate(id) > 0) {
+            throw new BusinessException(org.springframework.http.HttpStatus.CONFLICT,
+                    "Mẫu đã được dùng trong hợp đồng. Tạo mẫu mới để thay đổi điều khoản.");
         }
-        templateRepository.deleteById(id);
     }
 
     private ContractTemplateDTO.Response toResponse(ContractTemplate t) {

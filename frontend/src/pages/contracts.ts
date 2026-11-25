@@ -1,3 +1,4 @@
+import { contractTemplateField, manageContractTemplates } from './contractTemplates';
 import { h, busy } from '../lib/dom';
 import { icon } from '../lib/icons';
 import { api, ApiError, errText, Page } from '../lib/api';
@@ -36,7 +37,7 @@ export async function contractsPage(view: HTMLElement, _p: Record<string, string
   status.addEventListener('change', () => { state.status = status.value; void load(); });
 
   view.replaceChildren(
-    pageHead('Hợp đồng', 'Lập, gia hạn, đổi phòng và chấm dứt hợp đồng thuê.', [h('button', { class: 'btn', onclick: () => createContract(null, load) }, icon('plus', 16), 'Lập hợp đồng')]),
+    pageHead('Hợp đồng', 'Lập, gia hạn, đổi phòng và chấm dứt hợp đồng thuê.', [h('button', { class: 'btn secondary', onclick: manageContractTemplates }, 'Mẫu hợp đồng'), h('button', { class: 'btn', onclick: () => createContract(null, load) }, icon('plus', 16), 'Lập hợp đồng')]),
     h('section', { class: 'panel panel-flush' }, h('div', { class: 'toolbar' }, h('div', { class: 'grow' }, q), status), holder),
   );
   await load();
@@ -62,6 +63,7 @@ async function createContract(roomId: number | null, done: () => void): Promise<
   const late = input({ type: 'number', min: '0', step: '1000', value: '10000', class: 'input num-in' });
   // giữ chỗ đã duyệt: chọn đúng phòng và khách thì tiền giữ chỗ thành tiền cọc
   const bookings = await api.get<Array<{ bookingId: number; roomId: number; roomCode: string; tenantId: number; tenantName: string; depositPaid: number | null }>>('/api/chi/bookings?status=APPROVED').catch(() => []);
+  const template = contractTemplateField();
   const booking = select([['', 'Không gắn giữ chỗ']], '');
   const syncBooking = () => {
     const r = Number(room.value); const t = Number(tenant.value);
@@ -74,7 +76,7 @@ async function createContract(roomId: number | null, done: () => void): Promise<
       field('Ngày bắt đầu', start), field('Ngày kết thúc', end),
       field('Giá thuê (₫/tháng)', rent), field('Tiền cọc (₫)', dep),
       field('Chu kỳ thanh toán', cycle), field('Hạn trả mỗi kỳ (ngày trong tháng)', due, 'Từ 1 đến 28'),
-      field('Phạt trễ hạn (₫/ngày)', late), field('Giữ chỗ đã duyệt', booking, 'Tiền giữ chỗ được tính vào tiền cọc')));
+      field('Phạt trễ hạn (₫/ngày)', late), template.root, field('Giữ chỗ đã duyệt', booking, 'Tiền giữ chỗ được tính vào tiền cọc')));
   const ok = h('button', { class: 'btn' }, 'Lập hợp đồng');
   d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Hủy'), ok);
   ok.addEventListener('click', () => busy(ok, async () => {
@@ -86,7 +88,7 @@ async function createContract(roomId: number | null, done: () => void): Promise<
         roomId: Number(room.value), tenantId: Number(tenant.value), startDate: start.value, endDate: end.value,
         monthlyRentPrice: rent.value ? Number(rent.value) : null, depositAmount: dep.value ? Number(dep.value) : null,
         paymentCycleMonths: Number(cycle.value), paymentDueDay: Number(due.value), lateFeePerDay: Number(late.value),
-        bookingId: booking.value ? Number(booking.value) : null,
+        templateId: template.value(), bookingId: booking.value ? Number(booking.value) : null,
       });
       d.close();
       toast(`Đã lập hợp đồng ${c.contractCode}`);

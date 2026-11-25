@@ -1,3 +1,4 @@
+import { meterConsumption } from './meterConsumption';
 import { h, busy, mount } from '../lib/dom';
 import { icon } from '../lib/icons';
 import { api, ApiError, errText, loadSession, PROPERTY_ID } from '../lib/api';
@@ -19,10 +20,11 @@ export async function metersPage(view: HTMLElement): Promise<void> {
   const sorted = [...periods].sort((a, b) => b.startDate.localeCompare(a.startDate));
   const sel = sorted.find((p) => p.startDate.startsWith(month)) ?? null;
 
+  const consumption = h('button', { class: 'btn secondary', onclick: meterConsumption }, 'Lịch sử tiêu thụ');
   const createBtn = h('button', { class: 'btn', disabled: !!sel, title: sel ? `${monthLabel(month)} đã có kỳ ghi chỉ số` : null, onclick: () => createPeriod(month, () => void metersPage(view)) }, icon('plus', 16), `Tạo kỳ ${monthLabel(month)}`);
   if (!sel) {
     mount(view,
-      pageHead('Chỉ số điện nước', `${monthLabel(month)} chưa có kỳ ghi chỉ số. Tạo kỳ rồi ghi chỉ số từng phòng để tính tiền.`, [createBtn]),
+      pageHead('Chỉ số điện nước', `${monthLabel(month)} chưa có kỳ ghi chỉ số. Tạo kỳ rồi ghi chỉ số từng phòng để tính tiền.`, [consumption, createBtn]),
       sorted.length ? panel('Các kỳ đã có', table<MeterPeriod>([
         { key: 'n', label: 'Kỳ', render: (p) => h('b', null, p.periodName) },
         { key: 'd', label: 'Từ ngày – đến ngày', render: (p) => `${date(p.startDate)} – ${date(p.endDate)}` },
@@ -55,7 +57,7 @@ export async function metersPage(view: HTMLElement): Promise<void> {
   const recordBtn = h('button', { class: 'btn', disabled: sel.closed || !missing.length, title: sel.closed ? 'Kỳ đã đóng' : missingError ? missingError : !missing.length ? 'Mọi phòng đã có chỉ số' : null, onclick: () => record(sel, missing, null, reload, olds) }, icon('plus', 16), 'Ghi chỉ số');
 
   mount(view,
-    pageHead(`Chỉ số điện nước · ${sel.periodName}`, `${date(sel.startDate)} – ${date(sel.endDate)}`, [sel.closed ? statusBadge('CLOSED') : h('span', { class: 'st ok' }, icon('check', 14), 'Đang mở'), closeBtn, recordBtn]),
+    pageHead(`Chỉ số điện nước · ${sel.periodName}`, `${date(sel.startDate)} – ${date(sel.endDate)}`, [sel.closed ? statusBadge('CLOSED') : h('span', { class: 'st ok' }, icon('check', 14), 'Đang mở'), consumption, closeBtn, recordBtn]),
     h('div', { class: 'stack' },
       missingError ? formError(missingError) : null,
       missing.length && !sel.closed ? panel(`Còn ${missing.length} phòng chưa ghi chỉ số`, h('div', { class: 'panel-body', style: 'display:flex;gap:8px;flex-wrap:wrap' },

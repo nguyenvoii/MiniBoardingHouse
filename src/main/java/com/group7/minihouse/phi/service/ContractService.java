@@ -122,6 +122,7 @@ public class ContractService {
             if (template == null) {
                 throw BusinessException.notFound("Mau hop dong " + req.templateId());
             }
+            em.refresh(template, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
         }
         BigDecimal rent = req.monthlyRentPrice() != null ? req.monthlyRentPrice() : room.getBaseRentPrice();
         BigDecimal deposit = req.depositAmount() != null ? req.depositAmount() : room.getDepositAmount();
