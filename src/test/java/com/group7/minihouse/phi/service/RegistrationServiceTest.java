@@ -155,6 +155,40 @@ class RegistrationServiceTest {
     // ---------- UC2 ----------
 
     @Test
+    void requestPhoneVerificationSendsPhoneOtp() {
+        User u = pending();
+        u.setPhoneNumber("0901234567");
+        when(userRepository.findByPhoneNumber("0901234567")).thenReturn(Optional.of(u));
+        when(otpService.issue(u, "PHONE")).thenReturn("123456");
+
+        service.requestPhoneVerification("0901234567");
+
+        verify(sender).send("0901234567", "Ma xac thuc so dien thoai MiniBoardingHouse", "Ma xac thuc cua ban la 123456. Ma co hieu luc 10 phut, khong chia se ma nay cho ai.");
+    }
+
+    @Test
+    void verifyPhoneAcceptsCodeAndLogsVerification() {
+        User u = pending();
+        u.setPhoneNumber("0901234567");
+        when(userRepository.findByPhoneNumber("0901234567")).thenReturn(Optional.of(u));
+        when(otpService.verify(u, "PHONE", "123456")).thenReturn(true);
+
+        service.verifyPhone("0901234567", "123456", "1.1.1.1");
+
+        verify(activityLogService).log(9, "VERIFY_PHONE", "Xac thuc so dien thoai", "1.1.1.1");
+    }
+
+    @Test
+    void verifyPhoneRejectsWrongCode() {
+        User u = pending();
+        u.setPhoneNumber("0901234567");
+        when(userRepository.findByPhoneNumber("0901234567")).thenReturn(Optional.of(u));
+        when(otpService.verify(u, "PHONE", "000000")).thenReturn(false);
+
+        assertThrows(BusinessException.class, () -> service.verifyPhone("0901234567", "000000", "ip"));
+    }
+
+    @Test
     void verifyEmailActivatesAccount() {
         User u = pending();
         when(userRepository.findByEmailOrPhoneNumber("chu@x.vn", "chu@x.vn")).thenReturn(Optional.of(u));

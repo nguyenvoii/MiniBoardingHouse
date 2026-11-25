@@ -114,6 +114,27 @@ public class RegistrationService {
         activityLogService.log(user.getUserId(), "VERIFY_EMAIL", "Xac thuc email, kich hoat tai khoan", ip);
     }
 
+    /** UC2: gui OTP xac thuc so dien thoai. Ban demo dung NotificationSender ghi log. */
+    @Transactional
+    public void requestPhoneVerification(String phone) {
+        User user = userRepository.findByPhoneNumber(phone == null ? "" : phone.trim())
+                .orElseThrow(() -> new BusinessException(HttpStatus.BAD_REQUEST, BAD_CODE));
+        String code = otpService.issue(user, "PHONE");
+        sender.send(user.getPhoneNumber(), "Ma xac thuc so dien thoai MiniBoardingHouse",
+                "Ma xac thuc cua ban la " + code + ". Ma co hieu luc 10 phut, khong chia se ma nay cho ai.");
+    }
+
+    /** UC2: xac thuc OTP so dien thoai. */
+    @Transactional
+    public void verifyPhone(String phone, String code, String ip) {
+        User user = userRepository.findByPhoneNumber(phone == null ? "" : phone.trim())
+                .orElseThrow(() -> new BusinessException(HttpStatus.BAD_REQUEST, BAD_CODE));
+        if (!otpService.verify(user, "PHONE", code)) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, BAD_CODE);
+        }
+        activityLogService.log(user.getUserId(), "VERIFY_PHONE", "Xac thuc so dien thoai", ip);
+    }
+
     /** Gui lai ma xac thuc. Im lang neu khong co tai khoan cho xac thuc hoac vua gui (khong lo tai khoan co ton tai). */
     @Transactional
     public void resendVerification(String email) {

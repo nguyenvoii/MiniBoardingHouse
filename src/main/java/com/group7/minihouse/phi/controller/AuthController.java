@@ -6,6 +6,7 @@ import com.group7.minihouse.phi.dto.LoginResponse;
 import com.group7.minihouse.phi.dto.RegisterRequest;
 import com.group7.minihouse.phi.dto.ResetPasswordRequest;
 import com.group7.minihouse.phi.dto.VerifyEmailRequest;
+import com.group7.minihouse.phi.dto.VerifyPhoneRequest;
 import com.group7.minihouse.phi.service.RegistrationService;
 import com.group7.minihouse.phi.service.ActivityLogService;
 import com.group7.minihouse.phi.service.AuthService;
@@ -60,6 +61,18 @@ public class AuthController {
     public ApiResponse<Void> register(@RequestBody RegisterRequest req, HttpServletRequest http) {
         registrationService.register(req, http.getRemoteAddr());
         return ApiResponse.ok("Da gui ma xac thuc ve email, hay nhap ma de kich hoat tai khoan", null);
+    }
+
+    @PostMapping("/send-phone-verification")
+    public ApiResponse<Void> sendPhoneVerification(@RequestBody ForgotPasswordRequest req) {
+        registrationService.requestPhoneVerification(req.identifier());
+        return ApiResponse.ok("Da gui ma xac thuc so dien thoai", null);
+    }
+
+    @PostMapping("/verify-phone")
+    public ApiResponse<Void> verifyPhone(@Valid @RequestBody VerifyPhoneRequest req, HttpServletRequest http) {
+        registrationService.verifyPhone(req.phone(), req.code(), http.getRemoteAddr());
+        return ApiResponse.ok("Da xac thuc so dien thoai", null);
     }
 
     /** UC2: nhap ma OTP gui qua email de kich hoat tai khoan. */
