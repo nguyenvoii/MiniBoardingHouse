@@ -6,6 +6,7 @@ import { loadLive, LiveTenant } from '../data/live';
 import { vehiclesBox } from '../ui/occupancy';
 import { confirmDialog, dl, field, formError, input, openDialog, pageHead, panel, plate, select, statusBadge, table, toast } from '../ui/kit';
 
+interface StayHistory { roomCode: string; startDate: string; endDate: string | null; checkoutReason: string | null }
 interface AccountInfo { exists: boolean; userId: number | null; phoneNumber: string | null; status: string | null }
 type Accounts = Map<number, AccountInfo | null>;
 
@@ -15,11 +16,11 @@ export async function tenantsPage(view: HTMLElement): Promise<void> {
   const accounts: Accounts = new Map();
 
   const holder = h('div');
-  const q = input({ type: 'search', placeholder: 'Tên, số điện thoại hoặc phòng', 'aria-label': 'Tìm khách hàng' });
+  const q = input({ type: 'search', placeholder: 'Tên, số điện thoại, CCCD hoặc phòng', 'aria-label': 'Tìm khách hàng' });
   const kind = select([['', 'Tất cả khách'], ['renting', 'Đang thuê phòng'], ['none', 'Chưa thuê (khách tiềm năng)']], '', { 'aria-label': 'Lọc theo tình trạng thuê' });
   const paint = () => {
     const k = q.value.trim().toLowerCase();
-    const rows = tenants.filter((t) => (!k || `${t.name} ${t.phone} ${t.roomCode ?? ''}`.toLowerCase().includes(k))
+    const rows = tenants.filter((t) => (!k || `${t.name} ${t.phone} ${t.idNumber} ${t.roomCode ?? ''}`.toLowerCase().includes(k))
       && (kind.value === '' || (kind.value === 'renting' ? !!t.roomCode : !t.roomCode)));
     holder.replaceChildren(table<LiveTenant>([
       { key: 'n', label: 'Họ tên', render: (t) => h('span', { class: 'cell-main' }, t.name), sort: (a, b) => a.name.localeCompare(b.name, 'vi') },
@@ -47,11 +48,14 @@ function accountBadge(a: AccountInfo | null | undefined): HTMLElement {
 
 function open(t: LiveTenant, accounts: Accounts, refresh: () => void): void {
   const d = openDialog(t.name, { drawer: true });
+  const history = h('div', null, 'Đang tải lịch sử thuê…');
+  void loadStayHistory(t.tenantId, history);
   const acct = h('div', { class: 'stack', style: 'gap:12px' });
   d.body.append(
     h('div', { style: 'display:flex;gap:10px;align-items:center;flex-wrap:wrap' }, t.roomCode ? plate(t.roomCode, 'lg') : null),
     dl([['Điện thoại', t.phone], ['Email', t.email ?? '–'], ['CCCD', t.idNumber], ['Nghề nghiệp', t.job], ['Ở từ', date(t.since)], ['Hợp đồng', t.contract ? t.contract.contractCode : 'Chưa có']]),
     h('div', null, h('h3', { style: 'margin-bottom:10px' }, 'Xe đăng ký (tính tiền gửi xe)'), vehiclesBox(t.tenantId)),
+    h('section', null, h('h3', null, 'Lịch sử thuê phòng'), history),
     h('div', null, h('h3', { style: 'margin-bottom:10px' }, 'Tài khoản đăng nhập'), acct),
   );
   const paint = (a: AccountInfo | null | undefined) => {
@@ -110,6 +114,22 @@ function open(t: LiveTenant, accounts: Accounts, refresh: () => void): void {
   d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Đóng'),
     h('button', { class: 'btn secondary', onclick: () => { d.close(); editTenant(t, refresh); } }, icon('edit', 16), 'Sửa hồ sơ'));
   if (!t.roomCode) d.foot.append(h('a', { class: 'btn', href: `#/checkin?tenant=${t.tenantId}`, onclick: d.close }, icon('key', 16), 'Cho khách thuê phòng'));
+}
+
+async function loadStayHistory(tenantId: number, target: HTMLElement): Promise<void> {
+  try {
+    const rows = await api.get<StayHistory[]>('/api/chi/tenants/' + tenantId + '/stay-history');
+    if (!rows.length) {
+      target.replaceChildren(h('p', { class: 'muted' }, 'Chưa có lịch sử thuê phòng.'));
+      return;
+    }
+    target.replaceChildren(table<StayHistory>([
+      { key: 'room', label: 'Phòng', render: (r) => r.roomCode },
+      { key: 'start', label: 'Từ ngày', render: (r) => date(r.startDate) },
+      { key: 'end', label: 'Đến ngày', render: (r) => date(r.endDate) },
+      { key: 'reason', label: 'Lý do trả phòng', render: (r) => r.checkoutReason ?? '–' },
+    ], rows));
+  } catch (e) { target.replaceChildren(formError(errText(e))); }
 }
 
 function editTenant(t: LiveTenant, done: () => void): void {

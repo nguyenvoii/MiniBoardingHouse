@@ -2,7 +2,7 @@ import { h, busy } from '../lib/dom';
 import { icon } from '../lib/icons';
 import { api, errText, loadSession, PROPERTY_ID } from '../lib/api';
 import { date, money, isoDay } from '../lib/format';
-import { loadLive } from '../data/live';
+import { loadLive, loadProperties, type PropertyInfo } from '../data/live';
 import { confirmDialog, emptyState, field, formError, input, openDialog, pageHead, select, table, toast } from '../ui/kit';
 
 interface Plan { planId: number; planName: string; electricUnitPrice: number; waterUnitPrice: number; effectiveStartDate: string; effectiveEndDate: string | null }
@@ -14,7 +14,7 @@ interface RoomType { roomTypeId: number; propertyId: number; typeName: string; d
 const CHARGE: Record<string, string> = {
   FIXED_ROOM: 'Cố định mỗi phòng', PER_PERSON: 'Theo đầu người', PER_VEHICLE: 'Theo số xe', PER_METER_UNIT: 'Theo đơn vị công tơ (chưa tự tính)',
 };
-const TABS = [['rates', 'Đơn giá điện nước'], ['services', 'Dịch vụ hàng tháng'], ['custom', 'Phụ thu và giảm trừ'], ['room-types', 'Loại phòng'], ['bank', 'Ngân hàng và mã QR']] as const;
+const TABS = [['rates', 'Đơn giá điện nước'], ['services', 'Dịch vụ hàng tháng'], ['custom', 'Phụ thu và giảm trừ'], ['property', 'Khu trọ và tầng'], ['room-types', 'Loại phòng'], ['bank', 'Ngân hàng và mã QR']] as const;
 
 export async function settingsPage(view: HTMLElement, _p: Record<string, string>, query: URLSearchParams): Promise<void> {
   let tab = query.get('tab') ?? 'rates';
@@ -24,7 +24,7 @@ export async function settingsPage(view: HTMLElement, _p: Record<string, string>
     tabs.replaceChildren(...TABS.map(([k, l]) => h('button', { role: 'tab', 'aria-selected': String(k === tab), onclick: () => { tab = k; void paint(); } }, l)));
     body.replaceChildren(h('div', { class: 'panel-body' }, h('div', { class: 'skel', style: 'height:80px' })));
     try {
-      body.replaceChildren(tab === 'rates' ? await ratesTab(paint) : tab === 'services' ? await servicesTab(paint) : tab === 'custom' ? await customTab() : tab === 'room-types' ? await roomTypesTab(paint) : await bankTab(paint));
+      body.replaceChildren(tab === 'property' ? await propertyTab(paint) : tab === 'rates' ? await ratesTab(paint) : tab === 'services' ? await servicesTab(paint) : tab === 'custom' ? await customTab() : tab === 'room-types' ? await roomTypesTab(paint) : await bankTab(paint));
     } catch (e) { body.replaceChildren(emptyState('Chưa tải được', errText(e))); }
   };
   view.replaceChildren(pageHead('Cài đặt', 'Đơn giá, dịch vụ và tài khoản nhận tiền. Tính tiền hàng tháng đọc trực tiếp các mục này.'), h('section', { class: 'panel panel-flush' }, tabs, body));
@@ -160,6 +160,79 @@ function customDialog(roomId: number, c: Custom | null, done: () => void): void 
     const body = { roomId, rateName: name.value.trim(), customPrice: Number(price.value), notes: notes.value.trim() || null };
     try { await (c ? api.put(`/api/room-custom-rates/${c.customRateId}`, body) : api.post('/api/room-custom-rates', body)); d.close(); toast('Đã lưu'); done(); }
     catch (x) { err.replaceChildren(formError(errText(x))); }
+  }));
+}
+
+
+type Floor = PropertyInfo['floors'][number];
+
+async function propertyTab(reload: () => void): Promise<HTMLElement> {
+  const property = (await loadProperties()).find((p) => p.propertyId === PROPERTY_ID);
+  if (!property) return emptyState('Chưa có thông tin khu trọ', 'Chọn khu trọ trên thanh điều hướng.');
+  return h('div', null,
+    h('div', { class: 'toolbar' }, h('div', { class: 'grow' },
+      h('b', null, property.propertyName), h('p', null, property.address),
+      h('p', null, property.supportPhone ?? 'Chưa có số hỗ trợ')),
+      h('button', { class: 'btn secondary', onclick: () => propertyDialog(property, reload) }, 'Sửa khu trọ')),
+    h('div', { class: 'toolbar' }, h('h2', { class: 'grow' }, 'Các tầng'),
+      h('button', { class: 'btn', onclick: () => floorDialog(undefined, reload) }, 'Thêm tầng')),
+    table<Floor>([
+      { key: 'number', label: 'Số tầng', render: (f) => String(f.floorNumber) },
+      { key: 'name', label: 'Tên tầng', render: (f) => f.floorName },
+      { key: 'actions', label: '', render: (f) => h('div', { class: 'row-actions' },
+        h('button', { class: 'btn secondary sm', onclick: () => floorDialog(f, reload) }, 'Sửa'),
+        h('button', { class: 'btn secondary sm', onclick: async () => {
+          if (!(await confirmDialog('Xóa tầng', 'Xóa ' + f.floorName + '?', 'Xóa tầng', true))) return;
+          try {
+            await api.del('/api/chi/floors/' + f.floorId);
+            toast('Đã xóa tầng'); reload();
+          } catch (e) { toast(errText(e), 'err'); }
+        } }, 'Xóa')) },
+    ], property.floors));
+}
+
+function propertyDialog(property: PropertyInfo, done: () => void): void {
+  const d = openDialog('Sửa khu trọ');
+  const error = h('div', { role: 'alert' });
+  const name = input({ value: property.propertyName, required: true });
+  const address = input({ value: property.address, required: true });
+  const phone = input({ type: 'tel', value: property.supportPhone ?? '' });
+  const save = h('button', { class: 'btn' }, 'Lưu thông tin');
+  d.body.append(error, field('Tên khu trọ', name), field('Địa chỉ', address), field('Số điện thoại hỗ trợ', phone));
+  d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Hủy'), save);
+  save.addEventListener('click', () => busy(save, async () => {
+    if (!name.value.trim() || !address.value.trim()) {
+      error.replaceChildren(formError('Nhập tên và địa chỉ khu trọ.'));
+      return;
+    }
+    try {
+      await api.put('/api/chi/properties/' + property.propertyId, {
+        propertyName: name.value.trim(), address: address.value.trim(), supportPhone: phone.value.trim(),
+      });
+      d.close(); toast('Đã lưu thông tin khu trọ'); done();
+    } catch (e) { error.replaceChildren(formError(errText(e))); }
+  }));
+}
+
+function floorDialog(floor: Floor | undefined, done: () => void): void {
+  const d = openDialog(floor ? 'Sửa tầng' : 'Thêm tầng');
+  const error = h('div', { role: 'alert' });
+  const number = input({ type: 'number', step: '1', required: true, value: String(floor?.floorNumber ?? '') });
+  const name = input({ required: true, value: floor?.floorName ?? '' });
+  const save = h('button', { class: 'btn' }, 'Lưu tầng');
+  d.body.append(error, field('Số tầng', number), field('Tên tầng', name));
+  d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Hủy'), save);
+  save.addEventListener('click', () => busy(save, async () => {
+    if (!number.reportValidity() || !name.value.trim()) {
+      error.replaceChildren(formError('Nhập số tầng nguyên và tên tầng.'));
+      return;
+    }
+    const body = { floorNumber: number.valueAsNumber, floorName: name.value.trim() };
+    try {
+      if (floor) await api.put('/api/chi/floors/' + floor.floorId, body);
+      else await api.post('/api/chi/floors', { ...body, propertyId: PROPERTY_ID });
+      d.close(); toast('Đã lưu tầng'); done();
+    } catch (e) { error.replaceChildren(formError(errText(e))); }
   }));
 }
 

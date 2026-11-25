@@ -6,21 +6,36 @@ import { residentsBox } from '../ui/occupancy';
 import { busy } from '../lib/dom';
 import { api, errText, PROPERTY_ID } from '../lib/api';
 import { loadProperties } from '../data/live';
-import { dl, field, formError, input, openDialog, pageHead, plate, select, statusBadge, toast } from '../ui/kit';
+import { confirmDialog, dl, field, formError, input, openDialog, pageHead, plate, select, statusBadge, toast } from '../ui/kit';
 
 export async function roomsPage(view: HTMLElement): Promise<void> {
   const { rooms } = await loadLive();
   let filter = '';
+  const codeQuery = input({ type: 'search', placeholder: 'Nhập mã phòng' });
+  const floorFilter = select([['', 'Tất cả tầng'], ...[...new Set(rooms.map((r) => String(r.floor)))].map((floor): [string, string] => [floor, `Tầng ${floor}`])]);
+  const areaMin = input({ type: 'number', min: '0' });
+  const areaMax = input({ type: 'number', min: '0' });
+  const rentMin = input({ type: 'number', min: '0' });
+  const rentMax = input({ type: 'number', min: '0' });
   const board = h('div', { class: 'stack' });
   const counts = (s: string) => rooms.filter((r) => r.status === s).length;
 
   const paint = () => {
     board.replaceChildren();
     for (const floor of [...new Set(rooms.map((r) => r.floor))]) {
-      const list = rooms.filter((r) => r.floor === floor && (!filter || r.status === filter));
+      if (floorFilter.value && String(floor) !== floorFilter.value) continue;
+      const query = codeQuery.value.trim().toLocaleLowerCase('vi');
+      const list = rooms.filter((r) => r.floor === floor
+        && (!filter || r.status === filter)
+        && r.code.toLocaleLowerCase('vi').includes(query)
+        && (!areaMin.value || r.area >= Number(areaMin.value))
+        && (!areaMax.value || r.area <= Number(areaMax.value))
+        && (!rentMin.value || r.price >= Number(rentMin.value))
+        && (!rentMax.value || r.price <= Number(rentMax.value)));
       if (!list.length) continue;
       board.appendChild(h('section', { class: 'floor' }, h('h2', null, `Tầng ${floor}`), h('div', { class: 'room-grid' }, ...list.map(tile))));
     }
+    if (!board.childElementCount) board.append(h('p', null, 'Không có phòng phù hợp với bộ lọc.'));
   };
   const tile = (r: LiveRoom) =>
     h('button', { class: `room-tile ${r.status === 'VACANT' ? 'vacant' : r.status === 'RENTED' ? '' : 'repair'}`, onclick: () => openRoom(r, () => void roomsPage(view)) },
@@ -36,13 +51,20 @@ export async function roomsPage(view: HTMLElement): Promise<void> {
       paint();
     } }, l));
   }
+  for (const control of [codeQuery, floorFilter, areaMin, areaMax, rentMin, rentMax]) {
+    control.addEventListener('input', paint);
+  }
   paint();
   view.replaceChildren(
     pageHead('Phòng', 'Sơ đồ phòng theo tầng. Phòng có hợp đồng còn hiệu lực là «Đang thuê».', [
       h('button', { class: 'btn secondary', onclick: () => api.download(`/api/chi/exports/rooms-tenants?propertyId=${PROPERTY_ID}${filter ? `&status=${filter}` : ''}`, 'phong-va-khach-thue.xlsx').catch((e) => toast(errText(e), 'err')) }, icon('download', 16), 'Xuất Excel'),
       h('button', { class: 'btn', onclick: () => void addRoom(() => void roomsPage(view)) }, icon('plus', 16), 'Thêm phòng'),
     ]),
-    h('div', { class: 'stack' }, h('div', null, seg), board),
+    h('div', { class: 'stack' },
+      h('div', { class: 'form-grid' }, field('Mã phòng', codeQuery), field('Tầng', floorFilter),
+        field('Diện tích từ (m²)', areaMin), field('Diện tích đến (m²)', areaMax),
+        field('Giá thuê từ (₫)', rentMin), field('Giá thuê đến (₫)', rentMax)),
+      h('div', null, seg), board),
   );
 }
 
@@ -53,12 +75,93 @@ function openRoom(r: LiveRoom, done: () => void): void {
     h('div', { style: 'display:flex;gap:10px;align-items:center;flex-wrap:wrap' }, plate(r.code, 'lg'), statusBadge(r.status)),
     dl([['Tầng', r.floor], ['Diện tích', `${r.area} m²`], ['Giá thuê niêm yết', `${money(r.price)} ₫/tháng`], ['Tiền cọc', `${money(r.deposit)} ₫`], ['Số người tối đa', r.maxPeople], ['Tiện nghi', r.amenities.join(', ')],
       ['Người thuê', c ? c.tenantName : 'Chưa có'], ['Hợp đồng', c ? `${c.contractCode} (${date(c.startDate)} – ${date(c.endDate)})` : '–']]),
+    roomPhotos(r),
     h('div', null, h('h3', { style: 'margin-bottom:10px' }, 'Người ở cùng (tính tiền dịch vụ theo đầu người)'), residentsBox(r.roomId, r.maxPeople)),
   );
   mount(d.foot, h('button', { class: 'btn secondary', onclick: d.close }, 'Đóng'),
     h('button', { class: 'btn secondary', onclick: () => { d.close(); editRoom(r, done); } }, icon('edit', 16), 'Sửa phòng'),
+    !c && r.status !== 'RENTED' ? h('button', { class: 'btn secondary', onclick: () => { d.close(); changeRoomStatus(r, done); } }, 'Đổi trạng thái') : null,
     c ? h('a', { class: 'btn', href: `#/contracts?open=${c.contractId}`, onclick: d.close }, icon('file', 16), 'Mở hợp đồng') : null,
     r.status === 'VACANT' ? h('a', { class: 'btn', href: `#/contracts?new=${r.roomId}`, onclick: d.close }, icon('file', 16), 'Lập hợp đồng') : null);
+}
+
+interface RoomPhoto { mediaId: number; mediaUrl: string; isCover: boolean }
+
+function roomPhotos(room: LiveRoom): HTMLElement {
+  const list = h('div', { class: 'stack' }, 'Đang tải ảnh…');
+  const error = h('div', { role: 'alert' });
+  const files = input({ type: 'file', accept: 'image/png,image/jpeg,image/webp', multiple: true });
+  const upload = h('button', { class: 'btn secondary' }, 'Tải ảnh phòng');
+  const load = async () => {
+    try {
+      const photos = await api.get<RoomPhoto[]>('/api/chi/media/room/' + room.roomId);
+      if (!photos.length) {
+        list.replaceChildren(h('p', { class: 'muted' }, 'Phòng chưa có ảnh.'));
+        return;
+      }
+      list.replaceChildren(...photos.map((photo, index) => {
+        const path = '/api/chi/media/' + photo.mediaId;
+        const cover = h('button', { class: 'btn secondary sm' }, 'Đặt làm ảnh bìa');
+        const remove = h('button', { class: 'btn secondary sm' }, 'Xóa ảnh');
+        cover.addEventListener('click', () => busy(cover, async () => {
+          try { await api.patch(path + '/cover'); await load(); }
+          catch (e) { toast(errText(e), 'err'); }
+        }));
+        remove.addEventListener('click', () => busy(remove, async () => {
+          if (!(await confirmDialog('Xóa ảnh phòng', 'Xóa ảnh này khỏi phòng ' + room.code + '?', 'Xóa ảnh', true))) return;
+          try { await api.del(path); await load(); }
+          catch (e) { toast(errText(e), 'err'); }
+        }));
+        return h('div', { class: 'list-row' },
+          h('img', { src: photo.mediaUrl, alt: 'Phòng ' + room.code + ', ảnh ' + (index + 1), width: 112, height: 76, style: 'object-fit:cover' }),
+          h('div', { class: 'row-actions' }, photo.isCover ? h('span', { class: 'st ok' }, 'Ảnh bìa') : cover, remove));
+      }));
+    } catch (e) { list.replaceChildren(formError(errText(e))); }
+  };
+  upload.addEventListener('click', () => busy(upload, async () => {
+    error.replaceChildren();
+    const pending = Array.from(files.files ?? []);
+    if (!pending.length) {
+      error.replaceChildren(formError('Chọn ít nhất một ảnh.'));
+      return;
+    }
+    files.disabled = true;
+    try {
+      while (pending.length) {
+        await api.upload('/api/chi/media/upload?roomId=' + room.roomId, pending[0]);
+        pending.shift();
+      }
+      toast('Đã tải ảnh phòng');
+    } catch (e) {
+      error.replaceChildren(formError('Chưa tải được ' + pending[0].name + '. ' + errText(e)));
+    } finally {
+      const remaining = new DataTransfer();
+      pending.forEach((file) => remaining.items.add(file));
+      files.files = remaining.files;
+      files.disabled = false;
+      await load();
+    }
+  }));
+  void load();
+  return h('section', { class: 'stack' }, h('h3', null, 'Ảnh phòng'), list, error,
+    field('Chọn ảnh phòng', files, 'PNG, JPG hoặc WebP. Tối đa 5 MB mỗi ảnh.'), h('div', null, upload));
+}
+
+function changeRoomStatus(room: LiveRoom, done: () => void): void {
+  const d = openDialog(`Đổi trạng thái phòng ${room.code}`, { width: 440 });
+  const status = select([['VACANT', 'Trống'], ['REPAIRING', 'Đang sửa chữa'], ['SUSPENDED', 'Tạm ngưng']], room.status);
+  const error = h('div', { role: 'alert' });
+  const save = h('button', { class: 'btn' }, 'Lưu trạng thái');
+  save.addEventListener('click', () => busy(save, async () => {
+    try {
+      await api.patch(`/api/chi/rooms/${room.roomId}/status?status=${status.value}`);
+      d.close();
+      toast('Đã lưu trạng thái phòng');
+      done();
+    } catch (e) { error.replaceChildren(formError(errText(e))); }
+  }));
+  d.body.append(error, field('Trạng thái', status));
+  mount(d.foot, h('button', { class: 'btn secondary', onclick: d.close }, 'Hủy'), save);
 }
 
 function editRoom(r: LiveRoom, done: () => void): void {

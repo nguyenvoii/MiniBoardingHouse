@@ -200,13 +200,24 @@ export async function meContractsPage(view: HTMLElement): Promise<void> {
 
 export async function meNotificationsPage(view: HTMLElement): Promise<void> {
   const r = await api.get<Page<Notification>>('/api/me/notifications?size=30');
-  const readAll = h('button', { class: 'btn ghost sm', onclick: async () => { await api.patch('/api/me/notifications/read-all'); await meNotificationsPage(view); } }, 'Đánh dấu đã đọc hết');
+  const action = (label: string, apply: () => Promise<unknown>) => {
+    const button = h('button', { class: 'btn ghost sm' }, label);
+    button.addEventListener('click', () => busy(button, async () => {
+      try { await apply(); await meNotificationsPage(view); }
+      catch (e) { toast(errText(e), 'err'); }
+    }));
+    return button;
+  };
+  const readAll = action('Đánh dấu đã đọc hết', () => api.patch('/api/me/notifications/read-all'));
   view.replaceChildren(
     h('div', { style: 'display:flex;justify-content:space-between;align-items:center' }, h('h2', null, 'Thông báo'), r.items.some((n) => !n.isRead) ? readAll : null),
     r.items.length
       ? h('section', { class: 'panel panel-flush' }, ...r.items.map((n) => h('div', { class: 'list-row', style: n.isRead ? '' : 'background:var(--primary-faint)' },
           h('div', { class: 'grow' }, h('b', null, n.title), h('span', { style: 'display:block' }, n.content), h('span', null, dateTime(n.createdAt))),
-          n.isRead ? null : h('span', { class: 'st info' }, 'Mới'))))
+          h('div', { class: 'stack' },
+            n.isRead
+              ? action('Xóa', () => api.del('/api/me/notifications/' + n.userNotificationId))
+              : action('Đánh dấu đã đọc', () => api.patch(`/api/me/notifications/${n.userNotificationId}/read`))))))
       : h('section', { class: 'panel' }, emptyState('Chưa có thông báo', 'Hóa đơn mới, nhắc hạn và xác nhận thanh toán sẽ hiện ở đây.')),
   );
 }

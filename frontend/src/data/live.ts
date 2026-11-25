@@ -36,6 +36,7 @@ export interface PropertyInfo {
   propertyId: number;
   propertyName: string;
   address: string;
+  supportPhone: string | null;
   totalFloors: number | null;
   roomCount: number;
   floors: Array<{ floorId: number; floorNumber: number; floorName: string }>;

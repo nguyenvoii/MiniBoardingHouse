@@ -3,7 +3,7 @@ import { api, clearMustChangePassword, errText, loadSession } from '../lib/api';
 import { dl, field, formError, input, pageHead, panel, toast } from '../ui/kit';
 import { ROLE_NAMES } from '../ui/shell';
 
-interface Profile { fullName: string; email: string | null; phoneNumber: string | null }
+interface Profile { fullName: string; email: string | null; phoneNumber: string | null; avatarUrl: string | null }
 
 export async function profilePage(view: HTMLElement): Promise<void> {
   const s = loadSession()!;
@@ -15,6 +15,18 @@ export async function profilePage(view: HTMLElement): Promise<void> {
   save.addEventListener('click', () => busy(save, async () => {
     try { await api.put('/api/auth/profile', { fullName: name.value.trim(), phoneNumber: phone.value.trim() || null }); err1.replaceChildren(); toast('Đã lưu hồ sơ'); }
     catch (e) { err1.replaceChildren(formError(errText(e))); }
+  }));
+
+  const avatar = input({ type: 'file', accept: 'image/png,image/jpeg,image/webp' });
+  const upload = h('button', { class: 'btn secondary' }, 'Lưu ảnh đại diện');
+  upload.addEventListener('click', () => busy(upload, async () => {
+    const file = avatar.files?.[0];
+    if (!file) { err1.replaceChildren(formError('Chọn ảnh trước khi lưu.')); return; }
+    try {
+      await api.upload('/api/auth/avatar', file, 'PUT');
+      toast('Đã lưu ảnh đại diện');
+      await profilePage(view);
+    } catch (e) { err1.replaceChildren(formError(errText(e))); }
   }));
 
   const cur = input({ type: 'password', autocomplete: 'current-password' });
@@ -30,6 +42,8 @@ export async function profilePage(view: HTMLElement): Promise<void> {
     pageHead('Tài khoản của tôi'),
     h('div', { class: 'grid-eq' },
       panel('Hồ sơ', h('div', { class: 'panel-body stack' }, err1, dl([['Email', p.email ?? '–'], ['Vai trò', s.roles.map((r) => ROLE_NAMES[r] ?? r).join(', ')]]),
+        p.avatarUrl ? h('img', { src: p.avatarUrl, alt: 'Ảnh đại diện hiện tại', width: 64, height: 64, style: 'object-fit:cover;border-radius:50%' }) : null,
+        field('Ảnh đại diện', avatar, 'Tối đa 2 MB'), h('div', { class: 'form-actions' }, upload),
         field('Họ tên', name), field('Số điện thoại', phone), h('div', { class: 'form-actions' }, save))),
       panel('Đổi mật khẩu', h('div', { class: 'panel-body stack' }, err2, field('Mật khẩu hiện tại', cur), field('Mật khẩu mới', nw, 'Từ 8 ký tự, có cả chữ và số'), h('div', { class: 'form-actions' }, chg))),
     ),

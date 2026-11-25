@@ -17,59 +17,32 @@ Công nghệ: Java 17, Spring Boot 3, Spring Data JPA, SQL Server. Giao diện: 
 
 ## 1. Tình trạng dự án
 
-Cập nhật ngày 17/11/2026, theo những gì có trên nhánh `main`. Hệ thống có 132 use case. Bộ test hiện có 279 test, đều đạt.
+Phạm vi nghiệm thu là **123 use case có tên (UC1–UC123)** trong sheet **Phân Công** của `group-7.xlsx`, kiểm trực tiếp theo cột STT và Tên Usecase / Chức năng. Danh sách 132 mục trong tài liệu phân công cũ là mốc lịch sử. Chưa nghiệm thu đủ 123 use case.
 
-| Thành viên | Phụ trách | Giao | Xong (có API chạy được) | Làm dở | Chưa làm | Việc gấp |
-|---|---|---|---|---|---|---|
-| Nguyễn Anh Phi | Khung xương, tài khoản, hợp đồng, tính tiền, thanh toán, báo cáo, giao diện | 45 | 45 | 0 | 0 | |
-| Nguyễn Trần Bảo Chi | Phòng, khách thuê, đặt phòng, nhận phòng | 31 | 18 | 5 | 8 | UC18 (sửa phòng), UC31 (sửa hồ sơ khách); chốt với Việt phần trùng thiết bị phòng |
-| Phạm Khánh Toàn | Điện nước, đơn giá, hóa đơn, thu tiền | 28 | 23 | 1 | 4 | Gắn `@PreAuthorize` cho mọi API; UC126 đến 129 |
-| Vũ Văn Quốc Việt | Công nợ, trả phòng, sửa chữa, thông báo, chi phí | 28 | 24 | 1 | 3 | UC130 đến 132; bổ sung test; chốt hai chỗ trùng |
+| Use case | Thao tác trong Stayly |
+|---|---|
+| UC7 | **Tài khoản của tôi** → tải và xem ảnh đại diện. |
+| UC14–15 | **Cài đặt → Khu trọ và tầng** → sửa thông tin hỗ trợ, thêm, sửa và xóa tầng. |
+| UC16 | **Cài đặt → Loại phòng** → quản lý danh mục và giá mặc định. Chưa nối loại phòng vào hồ sơ phòng. |
+| UC19–20 | **Phòng** → tìm theo mã, lọc theo tầng, diện tích, giá thuê và trạng thái. |
+| UC22–23 | **Phòng → Chi tiết phòng** → tải nhiều ảnh, đặt ảnh bìa và xóa ảnh. |
+| UC28 | **Phòng** → đổi trạng thái phòng chưa có hợp đồng. Trạng thái Đang thuê đi theo hợp đồng. |
+| UC35 | **Khách hàng** → tìm theo số CCCD hoặc điện thoại và mở lịch sử thuê. |
+| UC123 | **Thông báo** của người thuê → đánh dấu từng mục hoặc tất cả đã đọc và xóa từng mục đã đọc. |
 
-- **Xong**: use case đã có API chạy được. Các màn hình giao diện còn thiếu do Phi tự bổ sung sau, không tính là việc của Chi, Toàn, Việt.
-- Danh sách từng use case còn thiếu, các lỗi và chỗ mâu thuẫn giữa các phần, phương án cho phần của Việt: `docs/TIEN_DO_VA_CON_THIEU.md`.
-- Ai đẩy code mới thì tự sửa dòng của mình trong bảng này và trong file trên.
+### Kiểm thử
 
-### Còn thiếu của từng người
+- Maven/Surefire chạy 429 test, 0 lỗi, 0 thất bại, 0 bỏ qua.
+- `npm run build` thành công, gồm TypeScript và Vite.
+- Spring Boot khởi động với SQL Server QA và `ddl-auto=validate` sau khi áp dụng patch 06.
+- Chromium với SQL Server QA chạy thành công các luồng nhân viên: đăng nhập, lọc và đổi trạng thái phòng, tải hai ảnh phòng, đổi ảnh bìa và xóa ảnh, tải và xem ảnh đại diện, sửa khu trọ, thêm/sửa/xóa tầng, tìm khách theo CCCD và mở lịch sử thuê.
+- Chromium ở kích thước màn hình điện thoại với SQL Server QA chạy thành công luồng người thuê đăng nhập, đánh dấu từng thông báo đã đọc và xóa thông báo đã đọc.
 
-Mỗi người nhận đúng các use case dưới đây. "Chưa làm" là chưa có code, "Làm dở" là có nhưng thiếu phần ghi kèm. Làm xong thì xóa dòng đó đi và cập nhật bảng trên.
+### Phần còn chờ
 
-**Nguyễn Trần Bảo Chi**
-
-- Chưa làm (8 use case):
-  - UC14 sửa thông tin khu trọ, SĐT hỗ trợ
-  - UC15 thêm, sửa, xóa tầng
-  - UC16 loại phòng và giá theo loại (cần chốt bỏ hay thêm bảng)
-  - UC18 sửa phòng (mã, diện tích, giá, cọc)
-  - UC24 danh mục thiết bị, nội thất chuẩn
-  - UC29 phòng chờ vệ sinh, xác nhận cho thuê lại
-  - UC31 sửa hồ sơ khách, ngày cư trú
-  - UC125 xuất danh sách phòng, khách ra Excel
-- Làm dở, cần bổ sung (5 use case):
-  - UC19 chưa tra phòng theo mã
-  - UC20 chưa lọc theo diện tích, giá
-  - UC27 chưa quản lý thiết bị công tơ, đồng hồ
-  - UC35 chưa có lịch sử thuê phòng của khách
-  - UC37 người thuê chưa tự gửi được yêu cầu thuê
-
-**Phạm Khánh Toàn**
-
-- Chưa làm (4 use case):
-  - UC126 hủy hóa đơn phát hành nhầm
-  - UC127 báo cáo thu tiền theo ngày, theo người thu
-  - UC128 lịch sử thao tác trên hóa đơn, giao dịch
-  - UC129 xuất bảng kê hóa đơn, phiếu thu ra Excel, PDF
-- Làm dở, cần bổ sung (1 use case):
-  - UC92 thanh toán dư: cấn trừ kỳ sau, hoàn tiền mới có API
-
-**Vũ Văn Quốc Việt**
-
-- Chưa làm (3 use case):
-  - UC130 gửi thông báo chung cho cả khu hoặc theo tầng
-  - UC131 thống kê sự cố, lịch sử bảo trì
-  - UC132 báo cáo hoàn cọc, quyết toán trả phòng theo tháng
-- Làm dở, cần bổ sung (1 use case):
-  - UC112 gửi yêu cầu sửa chữa kèm ảnh (phần ảnh chưa kiểm chứng)
+- Hoàn tất đối chiếu và nghiệm thu từng use case. Các phần chưa khép kín gồm gán loại phòng, thiết bị phòng trên giao diện, danh mục thiết bị chuẩn có thể chỉnh sửa, yêu cầu giữ chỗ, các luồng đặt lại mật khẩu từ đầu đến cuối, và các chức năng vận hành chỉ có API.
+- SMS OTP, email xác thực, khôi phục mật khẩu và gửi hóa đơn đang dùng bộ gửi ghi log. Cần cấu hình nhà cung cấp để kiểm chứng gửi và nhận thực tế.
+- QR nhận tiền có giao diện tài khoản ngân hàng. Tích hợp đối soát qua cổng thanh toán cần bí mật callback và cấu hình nhà cung cấp.
 
 ---
 
@@ -81,7 +54,7 @@ Cần: JDK 17, Maven, SQL Server chạy trên máy, Node.js (chỉ khi build gia
 
 1. `db/group-7.sql`: tạo CSDL `MiniBoardingHouseDB` và các bảng.
 2. `db/seed.sql`: nạp 5 vai trò (LANDLORD, MANAGER, CASHIER, METER_READER, TENANT), 22 quyền và tài khoản `admin@minihouse.local` / `Admin@123` (chỉ dùng dev, demo).
-3. Chỉ khi DB đã tạo từ bản `group-7.sql` cũ: chạy `db/patch_01_users_unique.sql` và `db/patch_02_checkin_inspections.sql` (chạy lại nhiều lần vẫn an toàn).
+3. Chỉ khi DB đã tạo từ bản `group-7.sql` cũ: áp dụng các script `db/patch_01_*.sql` đến `db/patch_06_*.sql` theo thứ tự cho schema cũ đang dùng. Chạy patch 06 trong đúng cơ sở dữ liệu Stayly trước khi khởi động với `ddl-auto=validate`.
 4. Dữ liệu mẫu (tùy chọn, dev, demo):
 
 | File | Nạp gì |
@@ -160,7 +133,7 @@ Quy ước đầy đủ (Git, DB, cách viết API, phân quyền, job, xuất f
 
 ## 5. Nhóm và phân công
 
-Nguồn chính thức là file Excel `docs/Nhom_7_47_usecase_khutro_4MM_PhanCongMoi.xlsx` (132 use case, 723.0 giờ).
+Bảng phân công lịch sử dùng file `docs/Nhom_7_47_usecase_khutro_4MM_PhanCongMoi.xlsx` (132 mục, 723.0 giờ). Phạm vi nghiệm thu đợt này lấy theo `group-7.xlsx` ở mục 1.
 
 | Thành viên | Mã SV | Use case | Giờ | Cụm nghiệp vụ |
 |---|---|---|---|---|
