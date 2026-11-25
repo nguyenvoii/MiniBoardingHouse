@@ -1,0 +1,35 @@
+HOÀN THÀNH ĐỢT 2026-11-25
+
+Đã làm và kiểm chứng:
+
+1. UC2 - Xác thực số điện thoại bằng OTP
+- POST /api/auth/send-phone-verification
+- POST /api/auth/verify-phone
+- Dùng lại OtpService, có cooldown/thời hạn/mã dùng một lần.
+- NotificationSender hiện mặc định ghi log, chưa tích hợp SMS thật.
+
+2. UC16 - Quản lý loại phòng
+- CRUD /api/chi/room-types
+- Bảng room_types.
+- Có db/patch_06_room_types.sql cho database đã tồn tại.
+
+3. UC125 - Xuất danh sách phòng và khách thuê
+- GET /api/chi/exports/rooms-tenants
+- Lọc propertyId, floorId, status.
+- Xuất Excel bằng TableExporter dùng chung.
+
+Kiểm chứng:
+- Maven 3.9.10 cài tại C:\Users\Voi\tools\apache-maven.
+- mvn test: PASS toàn bộ test hiện có.
+- frontend npm run build: PASS.
+- Commit: 6c144cb Bổ sung OTP điện thoại, loại phòng và xuất danh sách.
+
+Chưa hoàn thành trong đợt này:
+- Chưa nối các màn hình UI riêng cho các API mới.
+- Chưa hoàn tất toàn bộ 123 use case trong Excel.
+- UC24 đã có backend catalog/apply hard-code từ trước, chưa chuyển catalog sang CRUD database.
+- SMS/email thật chưa tích hợp.
+
+Rủi ro cần biết:
+- npm install báo 1 moderate và 1 high vulnerability trong dependency tree; chưa chạy audit fix force.
+- Database cũ cần chạy db/patch_06_room_types.sql trước khi bật ddl-auto=validate.
