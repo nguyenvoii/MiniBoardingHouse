@@ -1,3 +1,4 @@
+import type { LiveRoom } from '../data/live';
 import { busy, h } from '../lib/dom';
 import { api, errText } from '../lib/api';
 import { date, isoDay, money } from '../lib/format';
@@ -46,10 +47,12 @@ export function requestBooking(): void {
   }));
 }
 
-export function manageBookings(roomIds: Set<number>): void {
+export function manageBookings(rooms: LiveRoom[]): void {
   const dialog = openDialog('Yêu cầu thuê phòng', { width: 900 });
+  const roomIds = new Set(rooms.map((room) => room.roomId));
   const body = h('div', null, 'Đang tải yêu cầu…');
-  dialog.body.append(body);
+  const vacant = rooms.filter((room) => room.status === 'VACANT');
+  dialog.body.append(h('div', { class: 'toolbar' }, h('button', { class: 'btn secondary', disabled: !vacant.length, onclick: () => createGuestBooking(vacant, reload) }, 'Nhập yêu cầu của khách')), body);
   dialog.foot.append(h('button', { class: 'btn secondary', onclick: dialog.close }, 'Đóng'));
   const reload = async () => {
     try {
@@ -66,6 +69,35 @@ export function manageBookings(roomIds: Set<number>): void {
     } catch (e) { body.replaceChildren(formError(errText(e))); }
   };
   void reload();
+}
+
+function createGuestBooking(rooms: LiveRoom[], reload: () => Promise<void>): void {
+  const dialog = openDialog('Nhập yêu cầu của khách');
+  const error = h('div', { role: 'alert' });
+  const room = select(rooms.map((item): [string, string] => [String(item.roomId), item.code]));
+  const name = input({ required: true, maxlength: '100', autocomplete: 'name' });
+  const phone = input({ type: 'tel', required: true, maxlength: '20', autocomplete: 'tel' });
+  const start = input({ type: 'date', min: isoDay(), required: true });
+  const occupants = input({ type: 'number', min: '1', step: '1', value: '1', required: true });
+  const save = h('button', { class: 'btn' }, 'Lưu yêu cầu');
+  dialog.body.append(error, field('Phòng trống', room), field('Họ tên khách', name), field('Số điện thoại khách', phone),
+    field('Ngày dự kiến thuê', start), field('Số người ở', occupants));
+  dialog.foot.append(h('button', { class: 'btn secondary', onclick: dialog.close }, 'Hủy'), save);
+  save.addEventListener('click', () => busy(save, async () => {
+    if (!name.value.trim() || !phone.value.trim() || !start.checkValidity() || !occupants.checkValidity()) {
+      error.replaceChildren(formError('Nhập họ tên, số điện thoại, ngày thuê và số người ở.'));
+      return;
+    }
+    try {
+      await api.post('/api/chi/bookings/public-request', {
+        roomId: Number(room.value), fullName: name.value.trim(), phoneNumber: phone.value.trim(),
+        expectedStartDate: start.value, occupantsCount: occupants.valueAsNumber,
+      });
+      dialog.close();
+      await reload();
+      toast('Đã lưu yêu cầu của khách');
+    } catch (e) { error.replaceChildren(formError(errText(e))); }
+  }));
 }
 
 function bookingActions(booking: Booking, reload: () => Promise<void>): HTMLElement | null {

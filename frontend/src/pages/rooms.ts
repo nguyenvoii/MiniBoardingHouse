@@ -1,3 +1,4 @@
+import { meterChanges } from './roomMeters';
 import { manageBookings } from './bookings';
 import { roomFurnishings } from './roomFurnishings';
 import { h, mount } from '../lib/dom';
@@ -59,7 +60,7 @@ export async function roomsPage(view: HTMLElement): Promise<void> {
   paint();
   view.replaceChildren(
     pageHead('Phòng', 'Sơ đồ phòng theo tầng. Phòng có hợp đồng còn hiệu lực là «Đang thuê».', [
-      h('button', { class: 'btn secondary', onclick: () => manageBookings(new Set(rooms.map((room) => room.roomId))) }, 'Yêu cầu thuê phòng'),
+      h('button', { class: 'btn secondary', onclick: () => manageBookings(rooms) }, 'Yêu cầu thuê phòng'),
       h('button', { class: 'btn secondary', onclick: () => api.download(`/api/chi/exports/rooms-tenants?propertyId=${PROPERTY_ID}${filter ? `&status=${filter}` : ''}`, 'phong-va-khach-thue.xlsx').catch((e) => toast(errText(e), 'err')) }, icon('download', 16), 'Xuất Excel'),
       h('button', { class: 'btn', onclick: () => void addRoom(types, () => void roomsPage(view)) }, icon('plus', 16), 'Thêm phòng'),
     ]),
@@ -80,6 +81,7 @@ function openRoom(r: LiveRoom, types: RoomType[], done: () => void): void {
       ['Người thuê', c ? c.tenantName : 'Chưa có'], ['Hợp đồng', c ? `${c.contractCode} (${date(c.startDate)} – ${date(c.endDate)})` : '–']]),
     roomPhotos(r),
     roomFurnishings(r.roomId),
+    h('button', { class: 'btn secondary', onclick: () => meterChanges(r.roomId) }, 'Lịch sử công tơ'),
     h('div', null, h('h3', { style: 'margin-bottom:10px' }, 'Người ở cùng (tính tiền dịch vụ theo đầu người)'), residentsBox(r.roomId, r.maxPeople)),
   );
   mount(d.foot, h('button', { class: 'btn secondary', onclick: d.close }, 'Đóng'),

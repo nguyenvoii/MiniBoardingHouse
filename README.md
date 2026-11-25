@@ -27,26 +27,28 @@ Phạm vi nghiệm thu là **123 use case có tên (UC1–UC123)** trong sheet *
 | UC16–17 | **Cài đặt → Loại phòng** → quản lý giá mặc định. **Phòng** → chọn loại khi thêm hoặc sửa phòng. Khi thêm phòng, giá thuê và cọc tự điền theo loại đã chọn. |
 | UC19–20 | **Phòng** → tìm theo mã, lọc theo tầng, diện tích, giá thuê và trạng thái. |
 | UC22–23 | **Phòng → Chi tiết phòng** → tải nhiều ảnh, đặt ảnh bìa và xóa ảnh. |
-| UC24–27 | **Cài đặt → Thiết bị chuẩn** → thêm, sửa, xóa trong danh mục dùng chung. **Phòng → Chi tiết phòng** → áp dụng bộ chuẩn, quản lý thiết bị và tình trạng. Màn sửa phòng cho cập nhật chỉ số điện nước ban đầu. |
+| UC24–27 | **Cài đặt → Thiết bị chuẩn** → thêm, sửa, xóa trong danh mục dùng chung. **Phòng → Chi tiết phòng** → áp dụng bộ chuẩn, quản lý thiết bị và tình trạng. Màn sửa phòng cho cập nhật chỉ số điện nước ban đầu. **Lịch sử công tơ** lưu ngày lắp/thay, số sê-ri, chỉ số lúc tháo và lúc lắp. |
 | UC28 | **Phòng** → đổi trạng thái phòng chưa có hợp đồng. Trạng thái Đang thuê đi theo hợp đồng. |
 | UC35 | **Khách hàng** → tìm theo số CCCD hoặc điện thoại và mở lịch sử thuê. |
-| UC37–39 | Người thuê đăng nhập vào **Hỗ trợ** để gửi yêu cầu thuê phòng trống. Chủ trọ và quản lý mở **Phòng → Yêu cầu thuê phòng** để duyệt, từ chối kèm lý do hoặc ghi nhận tổng cọc đã nhận. |
+| UC37–39 | Người thuê đăng nhập vào **Hỗ trợ** để gửi yêu cầu thuê phòng trống. Chủ trọ và quản lý mở **Phòng → Yêu cầu thuê phòng** để duyệt, từ chối kèm lý do hoặc ghi nhận tổng cọc đã nhận. Nhân viên cũng có thể nhập yêu cầu hộ khách chưa có tài khoản. |
 | UC123 | **Thông báo** của người thuê → đánh dấu từng mục hoặc tất cả đã đọc và xóa từng mục đã đọc. |
 
 ### Kiểm thử
 
 - Maven/Surefire chạy 429 test, 0 lỗi, 0 thất bại, 0 bỏ qua.
 - `npm run build` thành công, gồm TypeScript và Vite.
-- Spring Boot khởi động với SQL Server QA và `ddl-auto=validate` sau khi áp dụng đến patch 08.
+- Spring Boot khởi động với SQL Server QA và `ddl-auto=validate` sau khi áp dụng đến patch 09.
 - Chromium với SQL Server QA chạy thành công các luồng nhân viên: đăng nhập, lọc và đổi trạng thái phòng, tải hai ảnh phòng, đổi ảnh bìa và xóa ảnh, tải và xem ảnh đại diện, sửa khu trọ, thêm/sửa/xóa tầng, tìm khách theo CCCD và mở lịch sử thuê.
 - Chromium ở kích thước màn hình điện thoại với SQL Server QA chạy thành công luồng người thuê đăng nhập, đánh dấu từng thông báo đã đọc và xóa thông báo đã đọc.
 - Chromium với SQL Server QA xác nhận gán loại phòng và giữ giá hiện tại khi sửa, tự điền giá khi tạo, lưu chỉ số điện ban đầu, thêm/sửa/xóa thiết bị, và thêm/sửa/áp dụng/xóa mẫu chuẩn.
 - Chromium với SQL Server QA xác nhận người thuê gửi yêu cầu thuê, nhân viên duyệt, nhập tiền cọc và từ chối kèm lý do. Luồng đặt lại mật khẩu dùng mã từ bộ gửi log của QA và đăng nhập lại thành công.
 - Khi chuyển nhanh từ Tổng quan sang Phòng, phản hồi đến muộn của Tổng quan không còn ghi đè màn Phòng.
 
+- Chromium với SQL Server QA xác nhận nhân viên nhập yêu cầu cho khách chưa có tài khoản, ghi lần thay công tơ và xem lại số sê-ri cùng chỉ số lúc tháo/lắp.
+
 ### Phần còn chờ
 
-- Hoàn tất đối chiếu và nghiệm thu từng use case. Các phần chưa khép kín gồm đặt phòng cho khách chưa có tài khoản, giữ phòng độc quyền theo thời gian, quản lý số sê-ri hoặc lịch thay công tơ riêng, và các chức năng vận hành chỉ có API.
+- Hoàn tất đối chiếu và nghiệm thu từng use case. Các phần chưa khép kín gồm biểu mẫu đặt phòng công khai cho khách tự gửi và giữ phòng độc quyền theo thời gian. Lịch sử thay công tơ lưu nhật ký thiết bị; kỳ tính tiền vẫn dựa trên dữ liệu chốt chỉ số.
 - SMS OTP, email xác thực, khôi phục mật khẩu và gửi hóa đơn đang dùng bộ gửi ghi log. Cần cấu hình nhà cung cấp để kiểm chứng gửi và nhận thực tế.
 - QR nhận tiền có giao diện tài khoản ngân hàng. Tích hợp đối soát qua cổng thanh toán cần bí mật callback và cấu hình nhà cung cấp.
 
@@ -60,7 +62,7 @@ Cần: JDK 17, Maven, SQL Server chạy trên máy, Node.js (chỉ khi build gia
 
 1. `db/group-7.sql`: tạo CSDL `MiniBoardingHouseDB` và các bảng.
 2. `db/seed.sql`: nạp 5 vai trò (LANDLORD, MANAGER, CASHIER, METER_READER, TENANT), 22 quyền và tài khoản `admin@minihouse.local` / `Admin@123` (chỉ dùng dev, demo).
-3. Chỉ khi DB đã tạo từ bản `group-7.sql` cũ: áp dụng các script `db/patch_01_*.sql` đến `db/patch_08_*.sql` theo thứ tự cho schema cũ đang dùng. Chạy patch 06–08 trong cơ sở dữ liệu Stayly trước khi khởi động với `ddl-auto=validate`. Patch 07 bổ sung liên kết loại phòng tùy chọn cho dữ liệu cũ. Patch 08 tạo danh mục thiết bị chuẩn và nạp sáu mẫu hiện có khi tạo bảng.
+3. Chỉ khi DB đã tạo từ bản `group-7.sql` cũ: áp dụng các script `db/patch_01_*.sql` đến `db/patch_09_*.sql` theo thứ tự cho schema cũ đang dùng. Chạy patch 06–09 trong cơ sở dữ liệu Stayly trước khi khởi động với `ddl-auto=validate`. Patch 07 bổ sung liên kết loại phòng tùy chọn cho dữ liệu cũ. Patch 08 tạo danh mục thiết bị chuẩn và nạp sáu mẫu hiện có khi tạo bảng. Patch 09 tạo nhật ký lắp/thay công tơ và đồng hồ nước.
 4. Dữ liệu mẫu (tùy chọn, dev, demo):
 
 | File | Nạp gì |

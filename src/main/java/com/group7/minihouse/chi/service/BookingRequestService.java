@@ -110,6 +110,22 @@ public class BookingRequestService {
         Room room = roomRepository.findById(req.getRoomId())
                 .orElseThrow(() -> BusinessException.notFound("Phòng"));
 
+        if (!"VACANT".equals(room.getStatus())) {
+            throw new BusinessException(HttpStatus.CONFLICT, "Phòng hiện không trống");
+        }
+        if (req.getExpectedStartDate().isBefore(java.time.LocalDate.now())) {
+            throw new BusinessException("Ngày dự kiến thuê không được trước hôm nay");
+        }
+        if (req.getFullName().trim().length() > 100 || !req.getPhoneNumber().trim().matches("[+]?[0-9]{8,19}")) {
+            throw new BusinessException("Kiểm tra họ tên và số điện thoại của khách");
+        }
+        int occupants = req.getOccupantsCount() == null ? 1 : req.getOccupantsCount();
+        if (occupants < 1 || (room.getMaxOccupants() != null && occupants > room.getMaxOccupants())) {
+            throw new BusinessException("Số người ở vượt giới hạn của phòng hoặc nhỏ hơn 1");
+        }
+        if (req.getDepositPaid() != null && req.getDepositPaid().signum() < 0) {
+            throw new BusinessException("Tiền đặt cọc không được âm");
+        }
         Tenant tenant = tenantRepository.findByPhoneNumber(req.getPhoneNumber().trim()).orElse(null);
         if (tenant == null && req.getIdentityNumber() != null && !req.getIdentityNumber().isBlank()) {
             tenant = tenantRepository.findByIdentityNumber(req.getIdentityNumber().trim()).orElse(null);

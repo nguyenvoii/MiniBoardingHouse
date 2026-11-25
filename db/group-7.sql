@@ -776,6 +776,17 @@ CREATE TABLE [room_types] (
 ALTER TABLE [rooms] ADD [room_type_id] INT NULL
     CONSTRAINT [FK_rooms_room_type] FOREIGN KEY REFERENCES [room_types]([room_type_id]);
 
+CREATE TABLE dbo.room_meter_changes (
+    change_id INT IDENTITY(1,1) PRIMARY KEY,
+    room_id INT NOT NULL REFERENCES dbo.rooms(room_id),
+    meter_kind VARCHAR(10) NOT NULL CHECK (meter_kind IN ('ELECTRIC', 'WATER')),
+    installed_on DATE NOT NULL,
+    serial_number NVARCHAR(80) NOT NULL,
+    previous_reading INT NULL CHECK (previous_reading >= 0),
+    installed_reading INT NOT NULL CHECK (installed_reading >= 0),
+    CONSTRAINT UQ_room_meter_change UNIQUE (room_id, meter_kind, installed_on, serial_number)
+);
+
 CREATE TABLE dbo.standard_furnishings (
     standard_id INT IDENTITY(1,1) PRIMARY KEY,
     item_name NVARCHAR(100) NOT NULL,
