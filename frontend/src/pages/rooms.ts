@@ -38,7 +38,10 @@ export async function roomsPage(view: HTMLElement): Promise<void> {
   }
   paint();
   view.replaceChildren(
-    pageHead('Phòng', 'Sơ đồ phòng theo tầng. Phòng có hợp đồng còn hiệu lực là «Đang thuê».', [h('button', { class: 'btn', onclick: () => void addRoom(() => void roomsPage(view)) }, icon('plus', 16), 'Thêm phòng')]),
+    pageHead('Phòng', 'Sơ đồ phòng theo tầng. Phòng có hợp đồng còn hiệu lực là «Đang thuê».', [
+      h('button', { class: 'btn secondary', onclick: () => api.download(`/api/chi/exports/rooms-tenants?propertyId=${PROPERTY_ID}${filter ? `&status=${filter}` : ''}`, 'phong-va-khach-thue.xlsx').catch((e) => toast(errText(e), 'err')) }, icon('download', 16), 'Xuất Excel'),
+      h('button', { class: 'btn', onclick: () => void addRoom(() => void roomsPage(view)) }, icon('plus', 16), 'Thêm phòng'),
+    ]),
     h('div', { class: 'stack' }, h('div', null, seg), board),
   );
 }

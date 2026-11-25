@@ -9,11 +9,12 @@ interface Plan { planId: number; planName: string; electricUnitPrice: number; wa
 interface Svc { rateId: number; propertyId: number; serviceName: string; chargeType: string; unitPrice: number; active: boolean }
 interface Custom { customRateId: number; roomId: number; rateName: string; customPrice: number; notes: string | null; kind: string }
 interface Bank { bankAccountId: number; propertyId: number; bankName: string; accountNumber: string; accountHolder: string; qrImageUrl: string | null; isDefault: boolean; isActive: boolean }
+interface RoomType { roomTypeId: number; propertyId: number; typeName: string; description: string | null; defaultRentPrice: number; defaultDepositAmount: number }
 
 const CHARGE: Record<string, string> = {
   FIXED_ROOM: 'Cố định mỗi phòng', PER_PERSON: 'Theo đầu người', PER_VEHICLE: 'Theo số xe', PER_METER_UNIT: 'Theo đơn vị công tơ (chưa tự tính)',
 };
-const TABS = [['rates', 'Đơn giá điện nước'], ['services', 'Dịch vụ hàng tháng'], ['custom', 'Phụ thu và giảm trừ'], ['bank', 'Ngân hàng và mã QR']] as const;
+const TABS = [['rates', 'Đơn giá điện nước'], ['services', 'Dịch vụ hàng tháng'], ['custom', 'Phụ thu và giảm trừ'], ['room-types', 'Loại phòng'], ['bank', 'Ngân hàng và mã QR']] as const;
 
 export async function settingsPage(view: HTMLElement, _p: Record<string, string>, query: URLSearchParams): Promise<void> {
   let tab = query.get('tab') ?? 'rates';
@@ -23,7 +24,7 @@ export async function settingsPage(view: HTMLElement, _p: Record<string, string>
     tabs.replaceChildren(...TABS.map(([k, l]) => h('button', { role: 'tab', 'aria-selected': String(k === tab), onclick: () => { tab = k; void paint(); } }, l)));
     body.replaceChildren(h('div', { class: 'panel-body' }, h('div', { class: 'skel', style: 'height:80px' })));
     try {
-      body.replaceChildren(tab === 'rates' ? await ratesTab(paint) : tab === 'services' ? await servicesTab(paint) : tab === 'custom' ? await customTab() : await bankTab(paint));
+      body.replaceChildren(tab === 'rates' ? await ratesTab(paint) : tab === 'services' ? await servicesTab(paint) : tab === 'custom' ? await customTab() : tab === 'room-types' ? await roomTypesTab(paint) : await bankTab(paint));
     } catch (e) { body.replaceChildren(emptyState('Chưa tải được', errText(e))); }
   };
   view.replaceChildren(pageHead('Cài đặt', 'Đơn giá, dịch vụ và tài khoản nhận tiền. Tính tiền hàng tháng đọc trực tiếp các mục này.'), h('section', { class: 'panel panel-flush' }, tabs, body));
@@ -162,7 +163,43 @@ function customDialog(roomId: number, c: Custom | null, done: () => void): void 
   }));
 }
 
-// ------------------------------------------------------------------ ngân hàng và QR
+// ------------------------------------------------------------------ loại phòng
+async function roomTypesTab(reload: () => void): Promise<HTMLElement> {
+  const list = await api.get<RoomType[]>(`/api/chi/room-types?propertyId=${PROPERTY_ID}`);
+  return h('div', null,
+    h('div', { class: 'toolbar' }, h('p', { class: 'grow muted' }, 'Giá và tiền cọc mặc định dùng khi lập phòng/hợp đồng mới.'),
+      h('button', { class: 'btn', onclick: () => roomTypeDialog(null, reload) }, icon('plus', 16), 'Thêm loại phòng')),
+    table<RoomType>([
+      { key: 'n', label: 'Tên loại', render: (x) => h('b', null, x.typeName) },
+      { key: 'r', label: 'Giá thuê mặc định', num: true, render: (x) => `${money(x.defaultRentPrice)} ₫` },
+      { key: 'd', label: 'Cọc mặc định', num: true, render: (x) => `${money(x.defaultDepositAmount)} ₫` },
+      { key: 'x', label: 'Mô tả', render: (x) => x.description ?? '–' },
+      { key: 'a', label: '', render: (x) => h('div', { class: 'row-actions' },
+        h('button', { class: 'btn secondary sm', onclick: () => roomTypeDialog(x, reload) }, icon('edit', 14), 'Sửa'),
+        h('button', { class: 'btn secondary sm', onclick: async () => { try { await api.del(`/api/chi/room-types/${x.roomTypeId}`); toast('Đã xóa loại phòng'); reload(); } catch (e) { toast(errText(e), 'err'); } } }, 'Xóa')) },
+    ], list, { empty: emptyState('Chưa có loại phòng', 'Thêm loại phòng để quản lý giá mặc định theo từng kiểu phòng.') }),
+  );
+}
+
+function roomTypeDialog(x: RoomType | null, done: () => void): void {
+  const d = openDialog(x ? 'Sửa loại phòng' : 'Thêm loại phòng');
+  const err = h('div');
+  const name = input({ value: x?.typeName ?? '', placeholder: 'Ví dụ: Phòng đơn' });
+  const rent = input({ type: 'number', min: '0', step: '10000', value: String(x?.defaultRentPrice ?? ''), class: 'input num-in' });
+  const dep = input({ type: 'number', min: '0', step: '10000', value: String(x?.defaultDepositAmount ?? ''), class: 'input num-in' });
+  const desc = input({ value: x?.description ?? '', placeholder: 'Mô tả ngắn' });
+  d.body.append(err, h('div', { class: 'form-grid' }, field('Tên loại phòng', name), field('Giá thuê mặc định (₫)', rent), field('Tiền cọc mặc định (₫)', dep)), field('Mô tả', desc));
+  const ok = h('button', { class: 'btn' }, 'Lưu');
+  d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Hủy'), ok);
+  ok.addEventListener('click', () => busy(ok, async () => {
+    try {
+      const body = { propertyId: PROPERTY_ID, typeName: name.value.trim(), description: desc.value.trim() || null, defaultRentPrice: Number(rent.value), defaultDepositAmount: Number(dep.value) };
+      await (x ? api.put(`/api/chi/room-types/${x.roomTypeId}`, body) : api.post('/api/chi/room-types', body));
+      d.close(); toast('Đã lưu loại phòng'); done();
+    } catch (e) { err.replaceChildren(formError(errText(e))); }
+  }));
+}
+
 async function bankTab(reload: () => void): Promise<HTMLElement> {
   const list = await api.get<Bank[]>(`/api/properties/${PROPERTY_ID}/bank-accounts`);
   return h('div', null,
