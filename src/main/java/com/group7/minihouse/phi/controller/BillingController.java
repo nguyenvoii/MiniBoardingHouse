@@ -9,6 +9,7 @@ import com.group7.minihouse.phi.dto.BillingDtos.Issue;
 import com.group7.minihouse.phi.dto.BillingDtos.PeriodCreated;
 import com.group7.minihouse.phi.dto.BillingDtos.PeriodResponse;
 import com.group7.minihouse.phi.dto.BillingDtos.ServicePreview;
+import com.group7.minihouse.phi.dto.BillingDtos.SharedAllocation;
 import com.group7.minihouse.phi.dto.BillingDtos.UpdateItemRequest;
 import com.group7.minihouse.phi.service.BillingService;
 import com.group7.minihouse.shared.dto.ApiResponse;
@@ -62,8 +63,9 @@ public class BillingController {
 
     @PostMapping("/periods/{id}/calculate")
     public ApiResponse<CalculationResult> calculate(@PathVariable Integer id,
+                                                    @RequestParam(defaultValue = "PER_RESIDENT") SharedAllocation sharedAllocation,
                                                     @AuthenticationPrincipal AuthUser user, HttpServletRequest http) {
-        return ApiResponse.ok(service.calculate(id, actor(user), http.getRemoteAddr()));
+        return ApiResponse.ok(service.calculate(id, actor(user), http.getRemoteAddr(), sharedAllocation));
     }
 
     @GetMapping("/periods/{id}/anomalies")

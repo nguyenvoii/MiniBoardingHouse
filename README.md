@@ -33,31 +33,25 @@ Phạm vi nghiệm thu là **123 use case có tên (UC1–UC123)** trong sheet *
 | UC37–39 | Người thuê đăng nhập vào **Hỗ trợ** để gửi yêu cầu thuê phòng trống. Chủ trọ và quản lý mở **Phòng → Yêu cầu thuê phòng** để duyệt, từ chối kèm lý do hoặc ghi nhận tổng cọc đã nhận. Khách chưa có tài khoản có thể tự gửi ở màn đăng nhập hoặc nhờ nhân viên nhập hộ. Khi duyệt, nhân viên xác nhận thông tin liên hệ và chọn hạn giữ phòng. Phòng đang giữ chỉ lập hợp đồng kèm đúng yêu cầu đã duyệt. Phòng nhận yêu cầu mới khi hết hạn hoặc khi nhân viên hủy giữ chỗ. |
 | UC123 | **Thông báo** của người thuê → đánh dấu từng mục hoặc tất cả đã đọc và xóa từng mục đã đọc. |
 
-[Bảng đối chiếu từng use case](docs/NGHIEM_THU_123_USE_CASE.xlsx) ghi mã nguồn, bằng chứng và các bước còn phải thử cho từng mục. Có 22 mục đã chạy thao tác chính, 65 mục đã nối giao diện và API, 4 mục có API, 28 mục làm một phần và 4 mục chờ tích hợp ngoài. Chưa đủ bằng chứng nghiệm thu toàn bộ 123 mục.
+**Trạng thái (27/11/2026): 123/123 use case đã có giao diện, API và bằng chứng E2E trong bảng nghiệm thu, nhưng 5 mục chỉ đạt ở mức dịch vụ giả hoặc chờ khóa bên ngoài** (xem "Phần còn chờ"). [Bảng đối chiếu từng use case](docs/NGHIEM_THU_123_USE_CASE.xlsx) có cột bằng chứng; kết quả E2E mới nhất nằm ở `docs/KET_QUA_E2E_NGHIEM_THU.xlsx` (cột F, G) và được hòa vào bảng chính bằng `python docs/merge_nghiem_thu_e2e.py` sau khi đóng Excel. Chi tiết cách chạy lại ở [docs/E2E_NGHIEM_THU.md](docs/E2E_NGHIEM_THU.md).
 
 ### Kiểm thử
 
-- Maven/Surefire chạy 429 test, 0 lỗi, 0 thất bại, 0 bỏ qua.
-- Đợt đối chiếu trên SQL Server QA: 26 API đọc trả HTTP 200 và 18 màn hình nhân viên hiển thị. Workbook ghi đường dẫn và kết quả từng lần kiểm tra.
-- `npm run build` thành công, gồm TypeScript và Vite.
-- Spring Boot khởi động với SQL Server QA và `ddl-auto=validate` sau khi áp dụng đến patch 10.
-- Chromium với SQL Server QA chạy thành công các luồng nhân viên: đăng nhập, lọc và đổi trạng thái phòng, tải hai ảnh phòng, đổi ảnh bìa và xóa ảnh, tải và xem ảnh đại diện, sửa khu trọ, thêm/sửa/xóa tầng, tìm khách theo CCCD và mở lịch sử thuê.
-- Chromium ở kích thước màn hình điện thoại với SQL Server QA chạy thành công luồng người thuê đăng nhập, đánh dấu từng thông báo đã đọc và xóa thông báo đã đọc.
-- Chromium với SQL Server QA xác nhận gán loại phòng và giữ giá hiện tại khi sửa, tự điền giá khi tạo, lưu chỉ số điện ban đầu, thêm/sửa/xóa thiết bị, và thêm/sửa/áp dụng/xóa mẫu chuẩn.
-- Chromium với SQL Server QA xác nhận người thuê gửi yêu cầu thuê, nhân viên duyệt, nhập tiền cọc và từ chối kèm lý do. Luồng đặt lại mật khẩu dùng mã từ bộ gửi log của QA và đăng nhập lại thành công.
-- Khi chuyển nhanh từ Tổng quan sang Phòng, phản hồi đến muộn của Tổng quan không còn ghi đè màn Phòng.
-
-- Chromium với SQL Server QA xác nhận nhân viên nhập yêu cầu cho khách chưa có tài khoản, ghi lần thay công tơ và xem lại số sê-ri cùng chỉ số lúc tháo/lắp.
-
-- Chromium với SQL Server QA xác nhận khách chưa đăng nhập tự gửi yêu cầu. Sau khi duyệt, phòng đang giữ không nhận yêu cầu mới và từ chối lập hợp đồng nếu thiếu yêu cầu giữ chỗ đúng. Phòng xuất hiện lại sau khi hủy hoặc hết hạn.
-
-- Chromium với SQL Server QA xác nhận thêm/sửa/xóa mẫu hợp đồng, chọn mẫu trên màn lập hợp đồng, xem biểu đồ tiêu thụ toàn khu và lọc lịch sử điện nước theo phòng, theo ngày.
+- **E2E thật** (Playwright → frontend → API → SQL Server QA, không mock): 19 kịch bản `audit/e2e/*-flow.mjs` (đăng nhập/nhân viên/phân quyền, khách thuê, phòng, hợp đồng, nhận/trả phòng, chỉ số điện nước, tính tiền, hóa đơn, thanh toán, công nợ, sự cố, báo cáo, cài đặt, sao lưu). Mỗi kịch bản có cả tình huống lỗi và kiểm tra quyền. Chạy: `audit/e2e/run-all.sh <kịch bản>.mjs ...`.
+- **JUnit**: 455 test đạt (biên dịch bằng `javac` và `junit-platform-console-standalone` vì máy không có Maven).
+- `npm run build` (TypeScript + Vite) thành công; Spring Boot khởi động với SQL Server QA và `ddl-auto=validate` sau khi áp dụng `db/patch_11` đến `patch_16`.
+- Đã sửa trong đợt này: kỳ ghi chỉ số trùng khoảng thời gian, phòng "chờ dọn" hiển thị sai, đổi tháng nhanh hiện nhầm tháng, thông báo hóa đơn không dấu, màn công nợ chỉ thấy 100 dòng, thanh nút hóa đơn tràn màn hình.
+- Giao diện mới: hồ sơ cư trú và CCCD, ảnh công tơ/sự cố/hiện trạng, chia điện nước chung, chia sẻ và điều chỉnh hóa đơn, số dư trả trước, thiết bị và phụ phí, danh mục sự cố, mẫu thông báo, lịch tự động (sửa được giờ chạy), sao lưu và phục hồi, đăng ký chủ trọ, quyền theo vai trò, cổng khách (phòng, lịch sử thanh toán, biên nhận, xin thiết bị, thanh toán payOS).
 
 ### Phần còn chờ
 
-- Hoàn tất đối chiếu và nghiệm thu từng use case. Các phần chưa khép kín và kiểm tra các chức năng vận hành còn dùng API riêng. Lịch sử thay công tơ lưu nhật ký thiết bị. Kỳ tính tiền vẫn dựa trên dữ liệu chốt chỉ số.
-- SMS OTP, email xác thực, khôi phục mật khẩu và gửi hóa đơn đang dùng bộ gửi ghi log. Cần cấu hình nhà cung cấp để kiểm chứng gửi và nhận thực tế.
-- QR nhận tiền có giao diện tài khoản ngân hàng. Tích hợp đối soát qua cổng thanh toán cần bí mật callback và cấu hình nhà cung cấp.
+Danh sách đầy đủ để làm tiếp nằm ở file ghi chú `MiniBoardingHouse_chua_hoan_thien.txt` (cùng nội dung ở `docs/VIEC_CON_LAI.md`). Tóm tắt:
+
+- **UC86 payOS:** đã nối giao diện và API, thử toàn luồng với payOS giả cục bộ (`audit/e2e/fake-payos.mjs`). Thu tiền thật cần khóa `app.payment.payos.*`.
+- **UC80, UC1 email:** gửi qua SMTP, thử với máy chủ nhận thư cục bộ (`audit/e2e/smtp-sink.mjs`). Cần điền `spring.mail.*` và `app.mail.enabled=true` để gửi thật.
+- **UC2 SMS:** mã OTP lấy từ log của bộ gửi ghi log; gửi SMS thật cần khóa Twilio.
+- **UC122 phục hồi:** chạy thật trên SQL Server QA sau khi cấp quyền `dbcreator` cho đăng nhập ứng dụng; môi trường thật cần tài khoản đủ quyền restore.
+- Một số giới hạn thiết kế đã biết (chi phí vận hành chưa gắn khu trọ, ảnh chữ ký công khai theo tên UUID, v.v.) ghi ở `docs/VIEC_CON_LAI.md`.
 
 ---
 
@@ -69,7 +63,7 @@ Cần: JDK 17, Maven, SQL Server chạy trên máy, Node.js (chỉ khi build gia
 
 1. `db/group-7.sql`: tạo CSDL `MiniBoardingHouseDB` và các bảng.
 2. `db/seed.sql`: nạp 5 vai trò (LANDLORD, MANAGER, CASHIER, METER_READER, TENANT), 22 quyền và tài khoản `admin@minihouse.local` / `Admin@123` (chỉ dùng dev, demo).
-3. Chỉ khi DB đã tạo từ bản `group-7.sql` cũ: áp dụng các script `db/patch_01_*.sql` đến `db/patch_10_*.sql` theo thứ tự cho schema cũ đang dùng. Chạy patch 06–10 trong cơ sở dữ liệu Stayly trước khi khởi động với `ddl-auto=validate`. Patch 07 bổ sung liên kết loại phòng tùy chọn cho dữ liệu cũ. Patch 08 tạo danh mục thiết bị chuẩn và nạp sáu mẫu hiện có khi tạo bảng. Patch 09 tạo nhật ký lắp/thay công tơ và đồng hồ nước. Patch 10 hỗ trợ yêu cầu công khai và hạn giữ phòng. Yêu cầu đã duyệt từ bản cũ giữ nguyên dữ liệu và không tự nhận hạn giữ phòng.
+3. Chỉ khi DB đã tạo từ bản `group-7.sql` cũ: áp dụng các script `db/patch_01_*.sql` đến `db/patch_15_*.sql` theo thứ tự cho schema cũ đang dùng. Chạy patch 06–15 trong cơ sở dữ liệu Stayly trước khi khởi động với `ddl-auto=validate`. Patch 07 bổ sung liên kết loại phòng tùy chọn cho dữ liệu cũ. Patch 08 tạo danh mục thiết bị chuẩn và nạp sáu mẫu hiện có khi tạo bảng. Patch 09 tạo nhật ký lắp/thay công tơ và đồng hồ nước. Patch 10 hỗ trợ yêu cầu công khai và hạn giữ phòng. Yêu cầu đã duyệt từ bản cũ giữ nguyên dữ liệu và không tự nhận hạn giữ phòng. Patch 11 thêm trạng thái CLEANING, patch 12 thêm ngày cư trú, patch 13 thêm điều khoản dịch vụ chung. Patch 14 links the closing reading to the contract. Patch 15 supports a separate reading for the incoming tenant in the same meter period.
 4. Dữ liệu mẫu (tùy chọn, dev, demo):
 
 | File | Nạp gì |
@@ -109,7 +103,7 @@ Hợp đồng, hóa đơn, thanh toán thì tạo bằng giao diện.
 | `app.jobs.enabled` | `false` | Bật các job tự động |
 | `app.jobs.<tên-job>.cron` | theo job | Đổi giờ chạy của từng job |
 | `app.payment.callback-secret` | trống (tắt) | Bí mật cổng thanh toán gọi `/api/payments/callback` |
-| `app.backup.dir` | thư mục sao lưu của SQL Server | Nơi ghi file `.bak` |
+| `app.backup.dir` | thư mục sao lưu của SQL Server | Nơi ghi file `.bak`; SQL Server ghi v? ??c t?p, t?i kho?n k?t n?i c?n quy?n ??c l?ch s? sao l?u trong `msdb` v? quy?n th?c hi?n c?c l?nh kh?i ph?c tr?n SQL Server |
 | `app.export.pdf-font` | tự tìm Arial/DejaVu | Đường dẫn font `.ttf` cho PDF |
 
 ---

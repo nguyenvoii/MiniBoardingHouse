@@ -1,0 +1,35 @@
+// E2E thật UC122: sao lưu -> thêm dữ liệu đánh dấu -> phục hồi trên giao diện -> dữ liệu đánh dấu biến mất, dữ liệu cũ còn.
+import { start, assert, tag, log } from './lib.mjs';
+const s = await start();
+const { page, api, goto } = s;
+const DB = 'MiniBoardingHouseQA_20261122';
+await goto('/settings'); await page.waitForTimeout(600);
+await page.getByRole('tab', { name: 'Sao lưu', exact: true }).click(); await page.waitForTimeout(600);
+const before = (await api('GET', '/api/admin/backups')).length;
+await page.getByRole('button', { name: 'Sao lưu ngay' }).click();
+await page.waitForResponse((r) => r.url().endsWith('/api/admin/backups') && r.request().method() === 'POST');
+const backups = await api('GET', '/api/admin/backups');
+assert.equal(backups.length, before + 1);
+const bk = backups[0];
+const keep = (await api('GET', '/api/chi/rooms?propertyId=1')).length;
+const marker = await api('POST', '/api/chi/rooms', { propertyId: 1, floorId: 1, roomCode: `E2E-RST-${tag}`, areaSqm: 20, maxOccupants: 2, baseRentPrice: 1000000, depositAmount: 1000000, initialElectricMeter: 0, initialWaterMeter: 0 });
+assert.equal((await api('GET', '/api/chi/rooms?propertyId=1')).length, keep + 1);
+await goto('/billing'); await goto('/settings'); await page.waitForTimeout(600);
+await page.getByRole('tab', { name: 'Sao lưu', exact: true }).click(); await page.waitForTimeout(800);
+await page.getByRole('row').filter({ hasText: bk.name }).getByRole('button', { name: 'Phục hồi' }).click();
+const dlg = page.getByRole('dialog').last();
+await dlg.getByLabel('Tên cơ sở dữ liệu để xác nhận').fill(DB);
+const done = page.waitForResponse((r) => r.url().includes('/restore'), { timeout: 120000 });
+await dlg.getByRole('button', { name: 'Phục hồi dữ liệu' }).click();
+const resp = await done;
+assert.equal(resp.status(), 200, await resp.text());
+await page.waitForTimeout(3000);
+// dữ liệu sau phục hồi = dữ liệu lúc sao lưu
+const s2 = await start();
+const rooms = await s2.api('GET', '/api/chi/rooms?propertyId=1');
+assert.equal(rooms.length, keep, 'phòng đánh dấu (thêm sau sao lưu) đã biến mất sau phục hồi');
+assert.ok(!rooms.some((r) => r.roomCode === `E2E-RST-${tag}`));
+assert.equal((await s2.api('GET', '/api/admin/backups')).length >= before + 1, true, 'bản sao lưu vẫn còn');
+log('UC122 sao lưu + phục hồi thật OK', bk.name);
+console.log(JSON.stringify({ ok: true }));
+await s.browser.close(); await s2.browser.close();

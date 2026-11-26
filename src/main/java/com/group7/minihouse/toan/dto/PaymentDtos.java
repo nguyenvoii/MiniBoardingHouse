@@ -12,6 +12,9 @@ public final class PaymentDtos {
     /** voucherType: MONTHLY_RENT, DEPOSIT, EXTRA_SERVICE (UC 89). transactionId co the de trong. */
     public record ReceiptRequest(Integer transactionId, String voucherType, BigDecimal amount, String note) {}
 
+    public record TenantReceipt(Integer voucherId, String voucherCode, Integer invoiceId, String invoiceCode,
+                                String voucherType, BigDecimal amount, LocalDateTime createdAt) {}
+
     public record ReceiptResponse(Integer voucherId, String voucherCode, Integer transactionId,
                                   String voucherType, BigDecimal amount, String note,
                                   LocalDateTime createdAt) {}

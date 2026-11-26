@@ -9,4 +9,5 @@ public interface BillingPeriodRepository extends JpaRepository<MonthlyBillingPer
     boolean existsByPropertyPropertyIdAndMonthYear(Integer propertyId, String monthYear);
 
     List<MonthlyBillingPeriod> findByPropertyPropertyIdOrderByMonthYearDesc(Integer propertyId);
+    List<MonthlyBillingPeriod> findByStatusAndMonthYearOrderByBillingPeriodId(String status, String monthYear);
 }

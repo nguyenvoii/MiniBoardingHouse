@@ -3,6 +3,7 @@ package com.group7.minihouse.viet.controller;
 import com.group7.minihouse.shared.dto.ApiResponse;
 import com.group7.minihouse.shared.dto.PageResponse;
 import com.group7.minihouse.shared.security.AuthUser;
+import com.group7.minihouse.shared.storage.FileStorage;
 import com.group7.minihouse.viet.dto.CheckoutDtos.CheckoutResponse;
 import com.group7.minihouse.viet.dto.CheckoutDtos.ConfirmScheduleRequest;
 import com.group7.minihouse.viet.dto.CheckoutDtos.CreateCheckoutRequest;
@@ -12,6 +13,11 @@ import com.group7.minihouse.viet.dto.CheckoutDtos.InspectionResponse;
 import com.group7.minihouse.viet.dto.CheckoutDtos.RefundVoucherResponse;
 import com.group7.minihouse.viet.dto.CheckoutDtos.SettlementResponse;
 import com.group7.minihouse.viet.service.CheckoutService;
+import java.io.IOException;
+import org.springframework.core.io.PathResource;
+import org.springframework.http.CacheControl;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -23,7 +29,9 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 /** UC101-107: tra phong, quyet toan, hoan coc (phia nhan vien). Chi LANDLORD, MANAGER. */
 @RestController
@@ -31,10 +39,15 @@ import org.springframework.web.bind.annotation.RestController;
 @PreAuthorize("hasAnyRole('LANDLORD','MANAGER')")
 public class CheckoutController {
 
-    private final CheckoutService service;
+    private static final String PHOTO_FOLDER = "checkout-photos";
+    private static final String PHOTO_ROUTE = "/checkout-inspection-photos";
 
-    public CheckoutController(CheckoutService service) {
+    private final CheckoutService service;
+    private final FileStorage storage;
+
+    public CheckoutController(CheckoutService service, FileStorage storage) {
         this.service = service;
+        this.storage = storage;
     }
 
     /** Nhan vien tao ho yeu cau tra phong (contractId bat buoc). */
@@ -69,10 +82,40 @@ public class CheckoutController {
     }
 
     /** UC102, UC103: ghi nhan hien trang phong, thiet bi hu hong va tien boi thuong. */
-    @PutMapping("/checkout-requests/{id}/inspection")
+    @PutMapping(value = "/checkout-requests/{id}/inspection", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ApiResponse<InspectionResponse> inspect(@PathVariable Integer id, @RequestBody InspectionRequest req,
                                                    @AuthenticationPrincipal AuthUser actor) {
         return ApiResponse.ok(service.recordInspection(id, req, actor == null ? null : actor.userId()));
+    }
+
+    @PutMapping(value = "/checkout-requests/{id}/inspection", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<InspectionResponse> inspectWithPhoto(@PathVariable Integer id,
+            @RequestPart("request") InspectionRequest req, @RequestPart("file") MultipartFile file,
+            @AuthenticationPrincipal AuthUser actor) throws IOException {
+        String name = storage.saveImage(PHOTO_FOLDER, file.getBytes(), 5L * 1024 * 1024);
+        try {
+            InspectionRequest withPhoto = new InspectionRequest(req.finalElectricMeter(), req.finalWaterMeter(),
+                    req.damages(), "/api" + PHOTO_ROUTE + "/" + name);
+            return inspect(id, withPhoto, actor);
+        } catch (RuntimeException failure) {
+            try {
+                storage.delete(PHOTO_FOLDER, name);
+            } catch (RuntimeException cleanupFailure) {
+                failure.addSuppressed(cleanupFailure);
+            }
+            throw failure;
+        }
+    }
+
+    @GetMapping(PHOTO_ROUTE + "/{name}")
+    public ResponseEntity<PathResource> photo(@PathVariable String name) {
+        return storage.find(PHOTO_FOLDER, name)
+                .map(path -> ResponseEntity.ok()
+                        .contentType(MediaType.parseMediaType(FileStorage.contentTypeOf(name)))
+                        .cacheControl(CacheControl.noStore())
+                        .header("X-Content-Type-Options", "nosniff")
+                        .body(new PathResource(path)))
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @GetMapping("/checkout-requests/{id}/inspection")
@@ -110,7 +153,7 @@ public class CheckoutController {
         return ApiResponse.ok(service.payRefund(refundId));
     }
 
-    /** UC107: thanh ly hop dong, tra phong ve VACANT (can phieu hoan coc da REFUNDED). */
+    /** UC107: thanh ly hop dong, tra phong ve CLEANING (can phieu hoan coc da REFUNDED). */
     @PostMapping("/checkout-requests/{id}/finalize")
     public ApiResponse<CheckoutResponse> finalizeCheckout(@PathVariable Integer id,
                                                           @AuthenticationPrincipal AuthUser actor) {

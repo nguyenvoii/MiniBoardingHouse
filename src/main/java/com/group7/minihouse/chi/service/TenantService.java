@@ -11,6 +11,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -96,6 +97,7 @@ public class TenantService {
         t.setDob(req.getDob());
         t.setIdentityNumber(req.getIdentityNumber().trim());
         t.setPermanentAddress(req.getPermanentAddress());
+        applyResidenceDates(t, req);
         t.setOccupation(req.getOccupation());
         t.setEmergencyContactName(req.getEmergencyContactName());
         t.setEmergencyContactPhone(req.getEmergencyContactPhone());
@@ -109,6 +111,8 @@ public class TenantService {
     public TenantDTO updateTenant(Integer id, TenantDTO.CreateRequest req) {
         Tenant t = tenantRepository.findById(id)
                 .orElseThrow(() -> BusinessException.notFound("Khách thuê"));
+
+        applyResidenceDates(t, req);
 
         if (req.getFullName() != null && !req.getFullName().isBlank()) {
             t.setFullName(req.getFullName().trim());
@@ -131,6 +135,7 @@ public class TenantService {
                 }
             });
             t.setIdentityNumber(req.getIdentityNumber().trim());
+            t.setIsVerified(false);
         }
 
         // M9: trường không gửi (null) thì giữ nguyên, không xóa trắng; muốn xóa thì gửi chuỗi rỗng
@@ -154,6 +159,18 @@ public class TenantService {
         }
 
         return toDTO(tenantRepository.save(t));
+    }
+
+    private static void applyResidenceDates(Tenant tenant, TenantDTO.CreateRequest request) {
+        LocalDate start = request.getResidenceStartDate() == null
+                ? tenant.getResidenceStartDate() : request.getResidenceStartDate();
+        LocalDate end = request.getResidenceEndDate() == null
+                ? tenant.getResidenceEndDate() : request.getResidenceEndDate();
+        if (end != null && (start == null || end.isBefore(start))) {
+            throw new BusinessException("Ngay ket thuc cu tru phai tu ngay bat dau tro di");
+        }
+        tenant.setResidenceStartDate(start);
+        tenant.setResidenceEndDate(end);
     }
 
     /**
@@ -226,6 +243,14 @@ public class TenantService {
         card.setBackImageUrl(backUrl);
         card.setUploadedAt(LocalDateTime.now());
         tenantIdCardRepository.save(card);
+        tenant.setIsVerified(false);
+    }
+
+    @Transactional(readOnly = true)
+    public boolean hasIdCardPhoto(Integer tenantId, String url) {
+        return tenantIdCardRepository.findByTenantTenantId(tenantId)
+                .filter(card -> url.equals(card.getFrontImageUrl()) || url.equals(card.getBackImageUrl()))
+                .isPresent();
     }
 
     // --- Quản lý Xe ---
@@ -387,6 +412,8 @@ public class TenantService {
         dto.setDob(t.getDob());
         dto.setIdentityNumber(t.getIdentityNumber());
         dto.setPermanentAddress(t.getPermanentAddress());
+        dto.setResidenceStartDate(t.getResidenceStartDate());
+        dto.setResidenceEndDate(t.getResidenceEndDate());
         dto.setOccupation(t.getOccupation());
         dto.setEmergencyContactName(t.getEmergencyContactName());
         dto.setEmergencyContactPhone(t.getEmergencyContactPhone());

@@ -1,3 +1,4 @@
+import { showPhotos } from '../ui/photo';
 import { h, busy } from '../lib/dom';
 import { icon } from '../lib/icons';
 import { api, ApiError, errText, Page } from '../lib/api';
@@ -137,7 +138,7 @@ async function openCheckout(id: number, reload: () => void): Promise<void> {
         ['Đã vào chỉ số điện nước', ins.meterRecorded ? h('span', { class: 'st ok' }, icon('check', 14), 'Đã ghi vào kỳ chỉ số') : h('span', { class: 'st warn' }, icon('warn', 14), 'Chưa ghi (không có kỳ ghi chỉ số đang mở)')],
         ['Thiết bị hư hỏng', ins.damagedEquipmentsDescription ? h('span', { style: 'white-space:pre-line' }, ins.damagedEquipmentsDescription) : 'Không có'],
         ['Tiền bồi thường', `${money(ins.damageCompensationAmount)} ₫`], ['Ghi nhận lúc', dateTime(ins.inspectedAt)],
-        ['Ảnh hiện trạng', ins.inspectionPhotoUrl ? h('a', { href: ins.inspectionPhotoUrl, target: '_blank', rel: 'noopener' }, 'Mở ảnh') : '–'],
+        ['Ảnh hiện trạng', ins.inspectionPhotoUrl ? h('button', { class: 'btn secondary sm', onclick: () => showPhotos('Ảnh hiện trạng phòng', [{ label: 'Lúc trả phòng', url: ins.inspectionPhotoUrl as string }]) }, 'Xem ảnh') : '–'],
       ])));
     } else if (c.status === 'INSPECTING') {
       body.push(h('p', { class: 'muted' }, 'Chưa ghi nhận hiện trạng phòng. Bấm «Ghi nhận hiện trạng» sau khi kiểm tra phòng cùng khách.'));
@@ -206,8 +207,8 @@ async function openCheckout(id: number, reload: () => void): Promise<void> {
     }
     if (v && v.status === 'REFUNDED' && c.status === 'INSPECTING') {
       foot.push(act('Thanh lý hợp đồng', () => void (async () => {
-        if (await confirmDialog('Thanh lý hợp đồng', `Chấm dứt hợp đồng ${c.contractCode} và chuyển phòng ${c.roomCode} về «Trống»?`, 'Thanh lý', true)) {
-          await after(() => api.post(`/api/checkout-requests/${id}/finalize`), 'Đã thanh lý hợp đồng, phòng về trạng thái Trống');
+        if (await confirmDialog('Thanh lý hợp đồng', `Chấm dứt hợp đồng ${c.contractCode} và chuyển phòng ${c.roomCode} sang «Chờ dọn dẹp» (xác nhận dọn xong thì cho thuê lại)?`, 'Thanh lý', true)) {
+          await after(() => api.post(`/api/checkout-requests/${id}/finalize`), 'Đã thanh lý hợp đồng, phòng chờ dọn dẹp');
         }
       })()));
     }
@@ -235,7 +236,7 @@ function inspectDialog(c: Checkout, ins: Inspection | null, done: () => void): v
   const err = h('div');
   const elec = input({ type: 'number', min: '0', value: ins ? String(ins.finalElectricMeter) : '', class: 'input num-in', placeholder: 'Số điện cuối' });
   const water = input({ type: 'number', min: '0', value: ins ? String(ins.finalWaterMeter) : '', class: 'input num-in', placeholder: 'Số nước cuối' });
-  const photo = input({ placeholder: 'Đường dẫn ảnh (không bắt buộc)', value: ins?.inspectionPhotoUrl ?? '' });
+  const photo = input({ type: 'file', accept: 'image/*', 'aria-label': 'Ảnh hiện trạng phòng' });
   const rows: Array<{ name: HTMLInputElement; cost: HTMLInputElement; el: HTMLElement }> = [];
   const list = h('div', { class: 'stack', style: 'gap:8px' });
   const total = h('b', null, '0 ₫');
@@ -262,7 +263,7 @@ function inspectDialog(c: Checkout, ins: Inspection | null, done: () => void): v
       h('div', { style: 'display:flex;justify-content:space-between;align-items:center;margin-top:8px' },
         h('button', { type: 'button', class: 'btn secondary', onclick: () => addRow() }, icon('plus', 16), 'Thêm thiết bị hư hỏng'),
         h('span', null, 'Tổng bồi thường: ', total))),
-    field('Ảnh hiện trạng', photo));
+    field('Ảnh hiện trạng (không bắt buộc)', photo, ins?.inspectionPhotoUrl ? 'Đã có ảnh. Chọn tệp mới để thay.' : undefined));
   const ok = h('button', { class: 'btn' }, 'Lưu hiện trạng');
   d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Hủy'), ok);
   ok.addEventListener('click', () => busy(ok, async () => {
@@ -273,7 +274,13 @@ function inspectDialog(c: Checkout, ins: Inspection | null, done: () => void): v
     if (rows.some((r) => !r.name.value.trim() && Number(r.cost.value) > 0)) { err.replaceChildren(formError('Có dòng bồi thường đã nhập số tiền nhưng chưa ghi tên thiết bị. Ghi tên hoặc xóa dòng đó.')); return; }
     const damages = rows.filter((r) => r.name.value.trim()).map((r) => ({ name: r.name.value.trim(), cost: Number(r.cost.value) || 0 }));
     try {
-      await api.put(`/api/checkout-requests/${c.checkoutId}/inspection`, { finalElectricMeter: Number(elec.value), finalWaterMeter: Number(water.value), damages, inspectionPhotoUrl: photo.value.trim() || null });
+      const payload = { finalElectricMeter: Number(elec.value), finalWaterMeter: Number(water.value), damages, inspectionPhotoUrl: ins?.inspectionPhotoUrl ?? null };
+      if (photo.files?.[0]) {
+        const form = new FormData();
+        form.append('request', new Blob([JSON.stringify(payload)], { type: 'application/json' }));
+        form.append('file', photo.files[0]);
+        await api.uploadForm(`/api/checkout-requests/${c.checkoutId}/inspection`, form, 'PUT');
+      } else await api.put(`/api/checkout-requests/${c.checkoutId}/inspection`, payload);
       d.close();
       done();
     } catch (e) {

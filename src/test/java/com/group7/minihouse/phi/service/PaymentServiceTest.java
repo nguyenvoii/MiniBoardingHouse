@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -261,6 +262,11 @@ class PaymentServiceTest {
         var r = service.callback(new CallbackRequest("QR-ABC12345", new BigDecimal("3000000")));
         assertTrue(r.confirmed());
         assertEquals("SUCCESS", t.getStatus());
+        var replay = service.callback(new CallbackRequest("QR-ABC12345", new BigDecimal("3000000")));
+        assertTrue(replay.confirmed());
+        verify(invoiceService).notifyPaymentConfirmed(any(), anyString());
+        assertThrows(BusinessException.class,
+                () -> service.callback(new CallbackRequest("QR-ABC12345", BigDecimal.ONE)));
         assertThrows(BusinessException.class, () -> service.callback(new CallbackRequest("NOPE", BigDecimal.ONE)));
     }
 

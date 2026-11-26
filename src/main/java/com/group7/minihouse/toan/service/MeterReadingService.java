@@ -72,6 +72,11 @@ public class MeterReadingService {
         if (periodRepo.existsByPropertyPropertyIdAndPeriodName(req.propertyId(), req.periodName())) {
             throw new BusinessException(HttpStatus.CONFLICT, "Ky ghi so nay da ton tai");
         }
+        // Hai ky chong len nhau thi chi so, ky truoc va viec chon ky theo thang bi mo ho
+        if (periodRepo.existsByPropertyPropertyIdAndStartDateLessThanEqualAndEndDateGreaterThanEqual(
+                req.propertyId(), req.endDate(), req.startDate())) {
+            throw new BusinessException(HttpStatus.CONFLICT, "Khoang thoi gian trung voi mot ky ghi so da co cua khu");
+        }
         UtilityReadingPeriod p = new UtilityReadingPeriod();
         p.setProperty(ref(Property.class, req.propertyId()));
         p.setPeriodName(req.periodName().trim());
@@ -122,6 +127,7 @@ public class MeterReadingService {
                 .equals(period.getProperty().getPropertyId())) {
             throw bad("Phong khong thuoc khu cua ky ghi so");
         }
+        em.lock(room, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
         if (readingRepo.findByPeriodPeriodIdAndRoomRoomId(req.periodId(), req.roomId()).isPresent()) {
             throw new BusinessException(HttpStatus.CONFLICT, "Phong nay da co chi so trong ky");
         }
@@ -171,7 +177,9 @@ public class MeterReadingService {
     public List<MissingRoom> missingRooms(Integer periodId) {
         UtilityReadingPeriod p = findPeriod(periodId);
         java.util.Set<Integer> done = new java.util.HashSet<>();
-        readingRepo.findByPeriodPeriodIdOrderByRoomRoomCode(periodId).forEach(r -> done.add(r.getRoom().getRoomId()));
+        readingRepo.findByPeriodPeriodIdOrderByRoomRoomCode(periodId).stream()
+                .filter(r -> r.getClosingContract() == null)
+                .forEach(r -> done.add(r.getRoom().getRoomId()));
         List<com.group7.minihouse.shared.entity.RentalContract> contracts = em.createQuery(
                 "select c from RentalContract c where c.room.property.propertyId = :p and c.startDate <= :end "
                         + "and c.endDate >= :start and c.status in :st "
@@ -232,6 +240,11 @@ public class MeterReadingService {
     @Transactional
     public ReadingResponse adjustReading(Integer readingId, AdjustRequest req) {
         MeterReading r = findReading(readingId);
+        em.lock(r.getRoom(), jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        if (r.getClosingContract() != null && readingRepo.existsByPeriodPeriodIdAndRoomRoomIdAndReadingIdGreaterThan(
+                r.getPeriod().getPeriodId(), r.getRoom().getRoomId(), readingId)) {
+            throw new BusinessException(HttpStatus.CONFLICT, "Chi so chot da duoc dung lam moc cho chi so tiep theo");
+        }
         if (Boolean.TRUE.equals(r.getPeriod().getIsClosed())) {
             throw new BusinessException(HttpStatus.CONFLICT, "Ky ghi so da dong, khong the dieu chinh");
         }
@@ -311,7 +324,7 @@ public class MeterReadingService {
 
     /** So sanh muc tieu thu voi ky truoc va tao canh bao neu tang vuot nguong. */
     void detectAnomalies(MeterReading r) {
-        var prev = readingRepo.findFirstByRoomRoomIdAndPeriodEndDateLessThanOrderByPeriodEndDateDesc(
+        var prev = readingRepo.findFirstByRoomRoomIdAndPeriodEndDateLessThanOrderByPeriodEndDateDescReadingIdDesc(
                 r.getRoom().getRoomId(), r.getPeriod().getStartDate());
         if (prev.isEmpty()) {
             return;
@@ -426,7 +439,7 @@ public class MeterReadingService {
             throw notFound("Phong " + roomId);
         }
         UtilityReadingPeriod period = openPeriodAt(room, date);
-        int[] base = baseBefore(room, period == null ? date : period.getStartDate());
+        int[] base = period == null ? baseBefore(room, date) : resolveOldValues(room, period, null, null);
         if (electric < base[0]) {
             throw bad("Chi so dien cuoi (" + electric + ") nho hon chi so ky truoc (" + base[0] + "), kiem tra lai so vua nhap");
         }
@@ -450,22 +463,22 @@ public class MeterReadingService {
         if (period == null) {
             return false;
         }
-        int[] base = baseBefore(room, period.getStartDate());
+        int[] base = resolveOldValues(room, period, null, null);
         if (electric < base[0] || water < base[1]) {
             return false;
         }
         var existing = readingRepo.findByPeriodPeriodIdAndRoomRoomId(period.getPeriodId(), roomId);
         if (existing.isPresent()) {
             MeterReading r = existing.get();
-            if (r.getNewElectric() == electric && r.getNewWater() == water) {
-                return true;
-            }
             String reason = "Cap nhat theo chi so cuoi cua bien ban tra phong";
             if (r.getNewElectric() != electric) {
                 adjustReading(r.getReadingId(), new AdjustRequest("NEW_ELECTRIC", electric, reason, userId));
             }
             if (r.getNewWater() != water) {
                 adjustReading(r.getReadingId(), new AdjustRequest("NEW_WATER", water, reason, userId));
+            }
+            if (!Boolean.TRUE.equals(r.getIsVerified())) {
+                confirmReading(r.getReadingId());
             }
             return true;
         }
@@ -489,7 +502,7 @@ public class MeterReadingService {
 
     /** [dien, nuoc] cua ky ket thuc truoc ngay before, hoac chi so ban dau cua phong. */
     private int[] baseBefore(Room room, LocalDate before) {
-        var prev = readingRepo.findFirstByRoomRoomIdAndPeriodEndDateLessThanOrderByPeriodEndDateDesc(
+        var prev = readingRepo.findFirstByRoomRoomIdAndPeriodEndDateLessThanOrderByPeriodEndDateDescReadingIdDesc(
                 room.getRoomId(), before);
         return new int[] {prev.map(MeterReading::getNewElectric).orElse(room.getInitialElectricMeter()),
                 prev.map(MeterReading::getNewWater).orElse(room.getInitialWaterMeter())};
@@ -499,12 +512,19 @@ public class MeterReadingService {
 
     /** [oldElectric, oldWater]: tu request, neu khong co thi lay ky truoc, neu khong co thi chi so ban dau cua phong. */
     private int[] resolveOldValues(Room room, UtilityReadingPeriod period, Integer reqElectric, Integer reqWater) {
-        int oldE;
-        int oldW;
-        var prev = readingRepo.findFirstByRoomRoomIdAndPeriodEndDateLessThanOrderByPeriodEndDateDesc(
-                room.getRoomId(), period.getStartDate());
-        oldE = prev.map(MeterReading::getNewElectric).orElse(room.getInitialElectricMeter());
-        oldW = prev.map(MeterReading::getNewWater).orElse(room.getInitialWaterMeter());
+        var closing = readingRepo.findFirstByPeriodPeriodIdAndRoomRoomIdAndClosingContractIsNotNullOrderByReadingIdDesc(
+                period.getPeriodId(), room.getRoomId());
+        if (closing.isPresent()) {
+            MeterReading last = closing.get();
+            if ((reqElectric != null && !reqElectric.equals(last.getNewElectric()))
+                    || (reqWater != null && !reqWater.equals(last.getNewWater()))) {
+                throw bad("Chi so cu phai bang chi so chot chuyen phong trong ky");
+            }
+            return new int[] {last.getNewElectric(), last.getNewWater()};
+        }
+        int[] base = baseBefore(room, period.getStartDate());
+        int oldE = base[0];
+        int oldW = base[1];
         if (reqElectric != null) {
             oldE = reqElectric;
         }
@@ -562,7 +582,8 @@ public class MeterReadingService {
                 r.getRoom().getRoomCode(), r.getOldElectric(), r.getNewElectric(),
                 usedOf(r.getNewElectric(), r.getOldElectric()), r.getOldWater(), r.getNewWater(),
                 usedOf(r.getNewWater(), r.getOldWater()), r.getReadingDate(),
-                r.getRecordedByUser().getUserId(), Boolean.TRUE.equals(r.getIsVerified()));
+                r.getRecordedByUser().getUserId(), Boolean.TRUE.equals(r.getIsVerified()),
+                r.getClosingContract() == null ? null : r.getClosingContract().getContractId());
     }
 
     private PhotoResponse toResponse(MeterPhoto p) {

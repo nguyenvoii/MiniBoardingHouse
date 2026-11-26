@@ -116,7 +116,7 @@ async function openContract(id: number, reload: () => void): Promise<void> {
     dl([
       ['Thời hạn', `${date(c.startDate)} – ${date(c.endDate)}`], ['Giá thuê', `${money(c.monthlyRentPrice)} ₫/tháng`], ['Tiền cọc', `${money(c.depositAmount)} ₫`],
       ['Thanh toán', `${c.paymentCycleMonths} tháng một lần, hạn ngày ${c.paymentDueDay}`], ['Phạt trễ hạn', `${money(c.lateFeePerDay ?? 0)} ₫/ngày`],
-      ['Điều khoản điện', c.electricTerms ?? '–'], ['Điều khoản nước', c.waterTerms ?? '–'], ['Điều kiện hoàn cọc', c.depositRefundConditions ?? '–'],
+      ['Điều khoản điện', c.electricTerms ?? '–'], ['Điều khoản nước', c.waterTerms ?? '–'], ['Dịch vụ chung', c.serviceTerms ?? '–'], ['Điều kiện hoàn cọc', c.depositRefundConditions ?? '–'],
       ['Chữ ký', c.digitalSignatureUrl ? h('img', { src: c.digitalSignatureUrl, alt: 'Chữ ký', style: 'height:56px;border:1px solid var(--line);border-radius:6px;background:#fff' }) : 'Chưa ký'],
     ]),
     status,
@@ -136,7 +136,7 @@ async function openContract(id: number, reload: () => void): Promise<void> {
       act('Ký', 'sign', () => signPad(id, refresh))),
     h('div', { style: 'display:flex;gap:6px;flex-wrap:wrap' },
       act('Sửa điều khoản', 'edit', () => editTerms(c, refresh)), act('Gia hạn', 'calendar', () => extend(c, refresh), 'secondary', occupying),
-      act('Đổi phòng', 'key', () => transfer(c, refresh))),
+      act('Đổi người đứng tên', 'user', () => changeTenant(c, refresh)), act('Đổi phòng', 'key', () => transfer(c, refresh))),
   );
   if (occupying) {
     d.body.append(h('div', { class: 'stack', style: 'gap:10px' },
@@ -167,9 +167,10 @@ function editTerms(c: Contract, done: () => void): void {
   const late = input({ type: 'number', value: String(c.lateFeePerDay ?? 0), class: 'input num-in' });
   const el = input({ value: c.electricTerms ?? '' });
   const wa = input({ value: c.waterTerms ?? '' });
-  const refund = h('textarea', { class: 'textarea' }, c.depositRefundConditions ?? '') as HTMLTextAreaElement;
+  const refund = h('textarea', { class: 'textarea', 'aria-label': 'Điều kiện hoàn cọc' }, c.depositRefundConditions ?? '') as HTMLTextAreaElement;
+  const svc = h('textarea', { class: 'textarea', 'aria-label': 'Dịch vụ chung', placeholder: 'Ví dụ: rác, vệ sinh khu chung, giữ xe, internet, quy định sử dụng' }, c.serviceTerms ?? '') as HTMLTextAreaElement;
   d.body.append(err, h('div', { class: 'form-grid' }, field('Giá thuê (₫)', rent), field('Tiền cọc (₫)', dep), field('Hạn trả (ngày)', due), field('Phạt trễ hạn (₫/ngày)', late),
-    field('Điều khoản điện', el), field('Điều khoản nước', wa), h('div', { class: 'full' }, field('Điều kiện hoàn cọc', refund))));
+    field('Điều khoản điện', el), field('Điều khoản nước', wa), h('div', { class: 'full' }, field('Dịch vụ chung', svc)), h('div', { class: 'full' }, field('Điều kiện hoàn cọc', refund))));
   const ok = h('button', { class: 'btn' }, 'Lưu');
   d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Hủy'), ok);
   ok.addEventListener('click', () => busy(ok, async () => {
@@ -180,7 +181,7 @@ function editTerms(c: Contract, done: () => void): void {
     try {
       await api.put(`/api/contracts/${c.contractId}/pricing`, { monthlyRentPrice: Number(rent.value), depositAmount: Number(dep.value), paymentDueDay: Number(due.value) });
       await api.put(`/api/contracts/${c.contractId}/payment-terms`, { lateFeePerDay: Number(late.value), depositRefundConditions: refund.value });
-      await api.put(`/api/contracts/${c.contractId}/utility-terms`, { electricTerms: el.value, waterTerms: wa.value });
+      await api.put(`/api/contracts/${c.contractId}/utility-terms`, { electricTerms: el.value, waterTerms: wa.value, serviceTerms: svc.value });
       d.close(); toast('Đã lưu điều khoản'); done();
     } catch (e) { err.replaceChildren(formError(errText(e))); }
   }));
@@ -311,6 +312,22 @@ function collectDeposit(c: Contract, remaining: number, done: () => void): void 
   d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Hủy'), ok);
   ok.addEventListener('click', () => busy(ok, async () => {
     try { await api.post(`/api/contracts/${c.contractId}/deposit`, { amount: Number(amount.value) }); d.close(); toast('Đã lập phiếu thu cọc'); done(); }
+    catch (e) { err.replaceChildren(formError(errText(e))); }
+  }));
+}
+
+/** UC49: đổi người đứng tên hợp đồng (người mới phải ký lại). */
+async function changeTenant(c: Contract, done: () => void): Promise<void> {
+  const { tenants } = await loadLive();
+  const d = openDialog('Đổi người đứng tên hợp đồng');
+  const err = h('div');
+  const who = select(tenants.filter((t) => t.tenantId !== c.tenantId && !t.contract).map((t) => [String(t.tenantId), `${t.name} · ${t.phone}`] as [string, string]), '', { 'aria-label': 'Người đứng tên mới' });
+  d.body.append(err, h('p', null, `Hợp đồng ${c.contractCode} hiện đứng tên ${c.tenantName}. Người mới phải ký lại và chưa có hợp đồng nào khác.`), field('Người đứng tên mới', who));
+  const ok = h('button', { class: 'btn' }, 'Đổi người đứng tên');
+  d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Hủy'), ok);
+  ok.addEventListener('click', () => busy(ok, async () => {
+    if (!who.value) { err.replaceChildren(formError('Chọn người đứng tên mới.')); return; }
+    try { await api.patch(`/api/contracts/${c.contractId}`, { tenantId: Number(who.value) }); d.close(); toast('Đã đổi người đứng tên, người mới cần ký lại'); done(); }
     catch (e) { err.replaceChildren(formError(errText(e))); }
   }));
 }

@@ -116,8 +116,9 @@ public class RegistrationService {
 
     /** UC2: gui OTP xac thuc so dien thoai. Ban demo dung NotificationSender ghi log. */
     @Transactional
-    public void requestPhoneVerification(String phone) {
-        User user = userRepository.findByPhoneNumber(phone == null ? "" : phone.trim())
+    public void requestPhoneVerification(Integer actorId, String phone) {
+        User user = userRepository.findById(actorId)
+                .filter(account -> phone != null && phone.trim().equals(account.getPhoneNumber()))
                 .orElseThrow(() -> new BusinessException(HttpStatus.BAD_REQUEST, BAD_CODE));
         String code = otpService.issue(user, "PHONE");
         sender.send(user.getPhoneNumber(), "Ma xac thuc so dien thoai MiniBoardingHouse",
@@ -126,8 +127,9 @@ public class RegistrationService {
 
     /** UC2: xac thuc OTP so dien thoai. */
     @Transactional
-    public void verifyPhone(String phone, String code, String ip) {
-        User user = userRepository.findByPhoneNumber(phone == null ? "" : phone.trim())
+    public void verifyPhone(Integer actorId, String phone, String code, String ip) {
+        User user = userRepository.findById(actorId)
+                .filter(account -> phone != null && phone.trim().equals(account.getPhoneNumber()))
                 .orElseThrow(() -> new BusinessException(HttpStatus.BAD_REQUEST, BAD_CODE));
         if (!otpService.verify(user, "PHONE", code)) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, BAD_CODE);
@@ -160,8 +162,8 @@ public class RegistrationService {
             }
             throw e;
         }
-        sender.send(user.getEmail(), "Ma xac thuc email MiniBoardingHouse",
-                "Ma xac thuc cua ban la " + code + ". Ma co hieu luc 10 phut, khong chia se ma nay cho ai.");
+        sender.send(user.getEmail(), "Mã xác thực email MiniBoardingHouse",
+                "Mã xác thực của bạn là " + code + ". Mã có hiệu lực 10 phút, không chia sẻ mã này cho ai.");
     }
 
     private Role landlordRole() {

@@ -82,7 +82,7 @@ class MeterFinalReadingTest {
         when(periodQuery.setParameter(anyString(), any())).thenReturn(periodQuery);
         when(periodQuery.setMaxResults(anyInt())).thenReturn(periodQuery);
         when(periodQuery.getResultList()).thenReturn(List.of(period));
-        when(readingRepo.findFirstByRoomRoomIdAndPeriodEndDateLessThanOrderByPeriodEndDateDesc(7,
+        when(readingRepo.findFirstByRoomRoomIdAndPeriodEndDateLessThanOrderByPeriodEndDateDescReadingIdDesc(7,
                 LocalDate.of(2026, 11, 1))).thenReturn(Optional.of(previous));
     }
 
@@ -160,5 +160,10 @@ class MeterFinalReadingTest {
         assertTrue(service.recordFinalReading(7, TODAY, 150, 45, 5));
         assertEquals(150, existing.getNewElectric());
         assertEquals(45, existing.getNewWater());
+        assertTrue(existing.getIsVerified());
+
+        existing.setIsVerified(false);
+        assertTrue(service.recordFinalReading(7, TODAY, 150, 45, 5));
+        assertTrue(existing.getIsVerified());
     }
 }

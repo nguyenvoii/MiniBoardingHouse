@@ -3,6 +3,7 @@ package com.group7.minihouse.viet.repository;
 import com.group7.minihouse.shared.entity.MaintenanceRequest;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -10,6 +11,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface MaintenanceRequestRepository extends JpaRepository<MaintenanceRequest, Integer> {
+
+    Optional<MaintenanceRequest> findFirstByIssuePhotoUrl(String issuePhotoUrl);
 
     @Query("select r from MaintenanceRequest r where (:status is null or r.status = :status)"
             + " and (:priority is null or r.priority = :priority)"

@@ -27,6 +27,8 @@ public interface TenantDebtRepository extends JpaRepository<TenantDebt, Integer>
 
     List<TenantDebt> findByDebtStatusNot(String debtStatus);
 
+    List<TenantDebt> findByDebtStatusNotOrderByDebtId(String debtStatus);
+
     /** Moi dong: [debtStatus, so luong, tong tien con no]. */
     @Query("select d.debtStatus, count(d), coalesce(sum(d.totalOutstandingDebt), 0) from TenantDebt d group by d.debtStatus")
     List<Object[]> summarizeByStatus();

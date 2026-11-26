@@ -6,6 +6,7 @@ import com.group7.minihouse.viet.dto.ContractDtos.ExpiringContract;
 import com.group7.minihouse.viet.dto.ContractDtos.StatusRefreshResult;
 import com.group7.minihouse.viet.repository.ContractNotificationRepository;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import jakarta.persistence.PersistenceContext;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -57,16 +58,17 @@ public class ContractExpiryService {
     public StatusRefreshResult refreshStatuses() {
         LocalDate today = LocalDate.now();
         List<RentalContract> toExpire = em.createQuery("select c from RentalContract c"
-                + " where c.status in ('ACTIVE','EXPIRING_SOON') and c.endDate is not null and c.endDate < :today",
-                RentalContract.class).setParameter("today", today).getResultList();
+                + " where c.status in ('ACTIVE','EXPIRING_SOON') and c.endDate is not null and c.endDate < :today order by c.contractId",
+                RentalContract.class).setParameter("today", today).setLockMode(LockModeType.PESSIMISTIC_WRITE).getResultList();
         for (RentalContract c : toExpire) {
             c.setStatus("EXPIRED");
             notifyContract(c, TYPE_EXPIRED, "CONTRACT_EXPIRED", "Hợp đồng đã hết hạn",
                     "Hợp đồng {{contract}} phòng {{room}} đã hết hạn ngày {{endDate}}. Vui lòng liên hệ chủ trọ để gia hạn hoặc làm thủ tục trả phòng.");
         }
         List<RentalContract> toWarn = em.createQuery("select c from RentalContract c where c.status = 'ACTIVE'"
-                + " and c.endDate is not null and c.endDate >= :today and c.endDate <= :limit", RentalContract.class)
-                .setParameter("today", today).setParameter("limit", today.plusDays(DEFAULT_DAYS)).getResultList();
+                + " and c.endDate is not null and c.endDate >= :today and c.endDate <= :limit order by c.contractId", RentalContract.class)
+                .setParameter("today", today).setParameter("limit", today.plusDays(DEFAULT_DAYS))
+                .setLockMode(LockModeType.PESSIMISTIC_WRITE).getResultList();
         for (RentalContract c : toWarn) {
             c.setStatus("EXPIRING_SOON");
             notifyContract(c, TYPE_EXPIRING, "CONTRACT_EXPIRING", "Hợp đồng sắp hết hạn",

@@ -38,7 +38,7 @@ public class OperatingExpenseService {
     private static final LocalDate MIN_DATE = LocalDate.of(1900, 1, 1);
     private static final LocalDate MAX_DATE = LocalDate.of(9999, 12, 31);
     private static final List<String> DEFAULT_CATEGORIES =
-            List.of("Bảo trì", "Vệ sinh", "Thuế", "Điện nước chung", "Khác");
+            List.of("Bảo trì", "Vệ sinh", "Thuế", "Điện nước chung", "Dịch vụ chung", "Khác");
 
     @PersistenceContext
     private EntityManager em;

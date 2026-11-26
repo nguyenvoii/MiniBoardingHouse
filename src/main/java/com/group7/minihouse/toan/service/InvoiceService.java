@@ -6,8 +6,10 @@ import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +29,8 @@ import com.group7.minihouse.toan.repository.ToanUserActivityLogRepository;
 import com.group7.minihouse.toan.repository.ToanUserRepository;
 import com.group7.minihouse.toan.repository.InvoiceNotificationRepository;
 import com.group7.minihouse.toan.repository.InvoiceRepository;
+import com.group7.minihouse.viet.repository.NotificationTemplateRepository;
+import com.group7.minihouse.viet.service.NotificationSender;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 
@@ -47,6 +51,11 @@ public class InvoiceService {
     private final InvoiceBalanceCalculator calculator;
     private final PrepaymentService prepaymentService;
     private final ObjectProvider<InvoiceMailGateway> mailGateway;
+    private final NotificationSender webNotifications;
+    private final NotificationTemplateRepository notificationTemplates;
+
+    @Value("${app.public-base-url:}")
+    private String publicBaseUrl = "";
     private final ToanPaymentTransactionRepository paymentTransactionRepo;
     private final PartialPaymentLogRepository partialPaymentLogRepo;
     private final ToanUserActivityLogRepository activityLogRepo;
@@ -60,12 +69,15 @@ public class InvoiceService {
                           ObjectProvider<InvoiceMailGateway> mailGateway,
                           ToanPaymentTransactionRepository paymentTransactionRepo,
                           PartialPaymentLogRepository partialPaymentLogRepo,
-                          ToanUserActivityLogRepository activityLogRepo, ToanUserRepository userRepo) {
+                          ToanUserActivityLogRepository activityLogRepo, ToanUserRepository userRepo,
+                          NotificationSender webNotifications, NotificationTemplateRepository notificationTemplates) {
         this.invoiceRepo = invoiceRepo;
         this.notificationRepo = notificationRepo;
         this.calculator = calculator;
         this.prepaymentService = prepaymentService;
         this.mailGateway = mailGateway;
+        this.webNotifications = webNotifications;
+        this.notificationTemplates = notificationTemplates;
         this.paymentTransactionRepo = paymentTransactionRepo;
         this.partialPaymentLogRepo = partialPaymentLogRepo;
         this.activityLogRepo = activityLogRepo;
@@ -270,7 +282,7 @@ public class InvoiceService {
         if (email == null || email.isBlank()) {
             throw bad("Khach thue chua co email");
         }
-        return toResponse(addNotification(inv, "EMAIL", dispatchEmail(inv, "Hoa don " + inv.getInvoiceCode(), null)));
+        return toResponse(addNotification(inv, "EMAIL", dispatchEmail(inv, "INVOICE_ISSUED", "Hóa đơn " + inv.getInvoiceCode(), null)));
     }
 
     /** Gui hoa don len thong bao website (UC 81); lien ket chia se nam trong hoa don. */
@@ -283,12 +295,33 @@ public class InvoiceService {
         return toResponse(addNotification(inv, "SYSTEM_APP", "SENT"));
     }
 
-    /** Xem hoa don qua lien ket chia se (khong can dang nhap). */
+    @Transactional
+    public ShareLink shareLink(Integer invoiceId) {
+        Invoice invoice = invoiceRepo.findByIdForUpdate(invoiceId).orElseThrow(() -> notFound("Hoa don"));
+        if ("CANCELLED".equals(invoice.getPaymentStatus())) {
+            throw new BusinessException(HttpStatus.CONFLICT, "Khong chia se hoa don da huy");
+        }
+        if (invoice.getShareLink() == null) {
+            invoice.setShareLink(SHARE_PREFIX + UUID.randomUUID());
+        }
+        return new ShareLink(invoice.getShareLink());
+    }
+
+    @Transactional
+    public void revokeShareLink(Integer invoiceId) {
+        Invoice invoice = invoiceRepo.findByIdForUpdate(invoiceId).orElseThrow(() -> notFound("Hoa don"));
+        invoice.setShareLink(null);
+    }
+
     @Transactional(readOnly = true)
-    public InvoiceDetail detailByShareToken(String token) {
-        Invoice inv = invoiceRepo.findByShareLink(SHARE_PREFIX + token)
+    public SharedInvoice detailByShareToken(String token) {
+        Invoice invoice = invoiceRepo.findByShareLink(SHARE_PREFIX + token)
+                .filter(value -> !"CANCELLED".equals(value.getPaymentStatus()))
                 .orElseThrow(() -> notFound("Hoa don chia se"));
-        return detail(inv.getInvoiceId());
+        InvoiceResponse response = toResponse(invoice);
+        return new SharedInvoice(response.invoiceCode(), response.monthYear(), response.issueDate(),
+                response.dueDate(), response.totalAmount(), response.paidAmount(), response.remainingAmount(),
+                response.paymentStatus());
     }
 
     @Transactional(readOnly = true)
@@ -358,7 +391,7 @@ public class InvoiceService {
         addNotification(inv, "SYSTEM_APP", ST_ADJUSTED);
         String email = inv.getTenant().getEmail();
         if (email != null && !email.isBlank()) {
-            addNotification(inv, "EMAIL", dispatchEmail(inv, "Hóa đơn " + inv.getInvoiceCode()
+            addNotification(inv, "EMAIL", dispatchEmail(inv, ST_ADJUSTED, "Hóa đơn " + inv.getInvoiceCode()
                     + " đã được điều chỉnh", "Lý do: " + req.reason().trim()));
         }
         writeActivity(actorUserId, "UPDATE_INVOICE", "Điều chỉnh hóa đơn " + inv.getInvoiceCode()
@@ -372,7 +405,7 @@ public class InvoiceService {
         addNotification(inv, "SYSTEM_APP", "PAYMENT_CONFIRMED");
         String email = inv.getTenant().getEmail();
         if (email != null && !email.isBlank()) {
-            addNotification(inv, "EMAIL", dispatchEmail(inv, "Xac nhan thanh toan hoa don " + inv.getInvoiceCode(), note));
+            addNotification(inv, "EMAIL", dispatchEmail(inv, "PAYMENT_CONFIRMED", "Xác nhận thanh toán hóa đơn " + inv.getInvoiceCode(), note));
         }
     }
 
@@ -441,17 +474,31 @@ public class InvoiceService {
     // ------------------------------------------------------------------ helpers
 
     /** Gui email (neu co gateway). Tra ve trang thai ghi vao bang thong bao. */
-    private String dispatchEmail(Invoice inv, String subject, String extraNote) {
+    private String dispatchEmail(Invoice inv, String templateCode, String subject, String extraNote) {
         InvoiceMailGateway gw = mailGateway.getIfAvailable();
         if (gw == null) {
             return "PENDING";
         }
         try {
-            String link = inv.getShareLink() == null ? "" : "<p>Xem hoa don: " + esc(inv.getShareLink()) + "</p>";
-            String body = "<p>Hoa don <b>" + esc(inv.getInvoiceCode()) + "</b> - tong "
-                    + inv.getTotalAmount().toPlainString() + ", han thanh toan " + inv.getDueDate() + ".</p>"
-                    + (extraNote == null ? "" : "<p>" + esc(extraNote) + "</p>") + link;
-            gw.send(inv.getTenant().getEmail(), subject, body);
+            String link = "";
+            if (inv.getShareLink() != null && !publicBaseUrl.isBlank()) {
+                // trang xem hóa đơn của giao diện (#/share/<token>), không phải đường dẫn JSON của API
+                String url = publicBaseUrl.strip().replaceFirst("/+$", "") + "/#/share/"
+                        + inv.getShareLink().substring(SHARE_PREFIX.length());
+                link = "<p><a href=\"" + esc(url) + "\">Xem hóa đơn</a></p>";
+            }
+            var template = notificationTemplates.findActive(templateCode, "EMAIL").orElse(null);
+            var params = Map.of("invoice", inv.getInvoiceCode(),
+                    "dueDate", String.valueOf(inv.getDueDate()), "amount", inv.getTotalAmount().toPlainString(),
+                    "note", extraNote == null ? "" : extraNote);
+            String text = template == null
+                    ? "Hóa đơn {{invoice}} - tổng {{amount}}, hạn thanh toán {{dueDate}}."
+                    : template.getContent();
+            String configuredSubject = template != null && template.getSubject() != null && !template.getSubject().isBlank()
+                    ? template.getSubject() : subject;
+            String body = "<p>" + esc(NotificationSender.render(text, params)).replace("\n", "<br>") + "</p>"
+                    + (template == null && extraNote != null ? "<p>" + esc(extraNote) + "</p>" : "") + link;
+            gw.send(inv.getTenant().getEmail(), NotificationSender.render(configuredSubject, params), body);
             return "SENT";
         } catch (RuntimeException ex) {
             return "FAILED";
@@ -459,12 +506,30 @@ public class InvoiceService {
     }
 
     InvoiceNotification addNotification(Invoice inv, String channel, String status) {
+        if ("SYSTEM_APP".equals(channel)) {
+            notifyOnWebsite(inv, status);
+        }
         InvoiceNotification n = new InvoiceNotification();
         n.setInvoice(inv);
         n.setChannel(channel);
         n.setSentAt(LocalDateTime.now());
         n.setStatus(status);
         return notificationRepo.save(n);
+    }
+
+    private void notifyOnWebsite(Invoice invoice, String status) {
+        String code = "SENT".equals(status) ? "INVOICE_ISSUED" : status;
+        String title = switch (status) {
+            case ST_REMINDER -> "Hóa đơn sắp đến hạn";
+            case ST_OVERDUE -> "Hóa đơn quá hạn";
+            case ST_ADJUSTED -> "Hóa đơn đã được điều chỉnh";
+            case "PAYMENT_CONFIRMED" -> "Đã ghi nhận thanh toán";
+            default -> "Hóa đơn mới";
+        };
+        webNotifications.notifyTenant(invoice.getTenant().getTenantId(), code, title,
+                "Hóa đơn {{invoice}}, hạn thanh toán {{dueDate}}.",
+                Map.of("invoice", invoice.getInvoiceCode(), "dueDate", String.valueOf(invoice.getDueDate())),
+                "INVOICE", invoice.getInvoiceId());
     }
 
     private static LocalDate defaultDueDate(LocalDate issue, Integer dueDay) {

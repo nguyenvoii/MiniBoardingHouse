@@ -7,6 +7,9 @@ import com.group7.minihouse.shared.entity.DebtPenaltyLog;
 import com.group7.minihouse.shared.entity.DebtProcessingLog;
 import com.group7.minihouse.shared.entity.DebtReminder;
 import com.group7.minihouse.shared.entity.Invoice;
+import com.group7.minihouse.shared.entity.PartialPaymentLog;
+import com.group7.minihouse.shared.entity.PaymentTransaction;
+import com.group7.minihouse.shared.entity.PrepaymentDeduction;
 import com.group7.minihouse.shared.entity.RentalContract;
 import com.group7.minihouse.shared.entity.TenantDebt;
 import com.group7.minihouse.shared.exception.BusinessException;
@@ -14,6 +17,7 @@ import com.group7.minihouse.viet.dto.DebtDtos.DebtDetailResponse;
 import com.group7.minihouse.viet.dto.DebtDtos.DebtResponse;
 import com.group7.minihouse.viet.dto.DebtDtos.DebtSummaryResponse;
 import com.group7.minihouse.viet.dto.DebtDtos.InvoiceHistoryItem;
+import com.group7.minihouse.viet.dto.DebtDtos.PaymentHistoryItem;
 import com.group7.minihouse.viet.dto.DebtDtos.PenaltyResponse;
 import com.group7.minihouse.viet.dto.DebtDtos.ProcessingLogRequest;
 import com.group7.minihouse.viet.dto.DebtDtos.ProcessingLogResponse;
@@ -26,6 +30,7 @@ import com.group7.minihouse.viet.repository.DebtProcessingLogRepository;
 import com.group7.minihouse.viet.repository.DebtReminderRepository;
 import com.group7.minihouse.viet.repository.TenantDebtRepository;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import jakarta.persistence.PersistenceContext;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -35,6 +40,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -126,6 +132,36 @@ public class DebtService {
         return invoices.stream().map(i -> new InvoiceHistoryItem(i.getInvoiceId(), i.getInvoiceCode(),
                 i.getIssueDate(), i.getDueDate(), i.getTotalAmount(), i.getPaidAmount(), i.getRemainingAmount(),
                 i.getPaymentStatus())).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<PaymentHistoryItem> myPayments(Integer tenantId, Integer invoiceId) {
+        var owned = em.createQuery("select i.invoiceId from Invoice i"
+                        + " where i.invoiceId = :invoice and i.tenant.tenantId = :tenant", Integer.class)
+                .setParameter("invoice", invoiceId).setParameter("tenant", tenantId).getResultList();
+        if (owned.isEmpty()) {
+            throw BusinessException.notFound("Hoa don");
+        }
+
+        var payments = new ArrayList<PaymentHistoryItem>();
+        em.createQuery("select t from PaymentTransaction t where t.invoice.invoiceId = :invoice and t.invoice.tenant.tenantId = :tenant"
+                        + " and t.status in ('SUCCESS','REVERSED')", PaymentTransaction.class)
+                .setParameter("invoice", invoiceId).setParameter("tenant", tenantId).getResultList().forEach(t ->
+                        payments.add(new PaymentHistoryItem(t.getTransactionId(), "TRANSACTION",
+                                t.getPaymentMethod(), t.getStatus(), t.getAmountPaid(), t.getPaymentDate())));
+        em.createQuery("select p from PartialPaymentLog p where p.invoice.invoiceId = :invoice"
+                        + " and p.invoice.tenant.tenantId = :tenant", PartialPaymentLog.class)
+                .setParameter("invoice", invoiceId).setParameter("tenant", tenantId).getResultList().forEach(p ->
+                        payments.add(new PaymentHistoryItem(p.getPartialLogId(), "INSTALLMENT",
+                                null, "SUCCESS", p.getAmount(), p.getPaidDate())));
+        em.createQuery("select d from PrepaymentDeduction d where d.targetInvoice.invoiceId = :invoice"
+                        + " and d.targetInvoice.tenant.tenantId = :tenant",
+                        PrepaymentDeduction.class)
+                .setParameter("invoice", invoiceId).setParameter("tenant", tenantId).getResultList().forEach(d ->
+                        payments.add(new PaymentHistoryItem(d.getDeductionId(), "PREPAYMENT",
+                                null, "SUCCESS", d.getDeductedAmount(), d.getDeductedAt())));
+        return payments.stream().sorted(Comparator.comparing(PaymentHistoryItem::paidAt).reversed()
+                .thenComparing(PaymentHistoryItem::source).thenComparing(PaymentHistoryItem::id)).toList();
     }
 
     @Transactional(readOnly = true)
@@ -310,8 +346,13 @@ public class DebtService {
     @Transactional
     public ReminderRunResult sendReminders() {
         int sent = 0;
-        LocalDate today = LocalDate.now();
-        for (TenantDebt d : debtRepository.findByDebtStatusNot("CLEARED")) {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDate today = now.toLocalDate();
+        for (TenantDebt d : debtRepository.findByDebtStatusNotOrderByDebtId("CLEARED")) {
+            em.refresh(d, LockModeType.PESSIMISTIC_WRITE);
+            if ("CLEARED".equals(d.getDebtStatus())) {
+                continue;
+            }
             int overdue = d.getOverdueDays() == null ? 0 : d.getOverdueDays();
             if (overdue <= 0) {
                 continue;
@@ -333,14 +374,16 @@ public class DebtService {
             r.setReminderLevel(level);
             String message = buildMessage(d, level, overdue);
             r.setMessageContent(message);
-            r.setSentAt(LocalDateTime.now());
-            reminderRepository.save(r);
+            r.setSentAt(now);
             // Dua nhac no vao trung tam thong bao cua khach (UC123); neu co mau dang bat (UC121) thi dung mau
             String money = NumberFormat.getInstance(new Locale("vi", "VN")).format(d.getTotalOutstandingDebt()) + " đ";
-            notificationSender.notifyTenant(d.getTenant().getTenantId(), templateCodeFor(level),
+            boolean delivered = notificationSender.notifyTenant(d.getTenant().getTenantId(), templateCodeFor(level),
                     titleFor(level), message, Map.of("room", String.valueOf(d.getRoom().getRoomCode()),
                             "amount", money, "overdueDays", String.valueOf(overdue)), "DEBT", d.getDebtId());
-            sent++;
+            if (delivered) {
+                reminderRepository.save(r);
+                sent++;
+            }
         }
         return new ReminderRunResult(sent);
     }

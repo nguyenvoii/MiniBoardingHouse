@@ -1,5 +1,6 @@
 package com.group7.minihouse.phi.service;
 
+import com.group7.minihouse.phi.dto.BillingDtos.SharedAllocation;
 import com.group7.minihouse.phi.dto.BillingDtos.AddItemRequest;
 import com.group7.minihouse.phi.dto.BillingDtos.Anomaly;
 import com.group7.minihouse.phi.dto.BillingDtos.CalculationResult;
@@ -26,6 +27,7 @@ import com.group7.minihouse.shared.entity.RoomCustomRate;
 import com.group7.minihouse.shared.entity.ServiceRatePlan;
 import com.group7.minihouse.shared.exception.BusinessException;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
@@ -64,10 +66,10 @@ public class BillingService {
     static final String ITEM_PENALTY = "Phạt trễ hạn";
     /** Khoan nhap tay: tien to nay giu lai khi tinh lai ky, tinh vao phu thu (so duong) hoac giam tru (so am). */
     static final String MANUAL = "✎ ";
-    static final String ITEM_SHARED = "Điện nước chung (phân bổ)";
+    static final String ITEM_SHARED = "Điện nước và dịch vụ chung (phân bổ)";
     /** Phụ phí thiết bị lắp cho phòng (room_addon_fees), tính vào nhóm dịch vụ. */
     static final String ITEM_ADDON = "Thiết bị: ";
-    static final String SHARED_CATEGORY = "Điện nước chung";
+    private static final List<String> SHARED_CATEGORIES = List.of("Điện nước chung", "Dịch vụ chung");
     static final BigDecimal ANOMALY_RATIO = new BigDecimal("1.5");
     private static final List<String> LIVE_AT_MONTH =
             List.of("ACTIVE", "EXPIRING_SOON", "EXPIRED", "TERMINATED");
@@ -163,7 +165,7 @@ public class BillingService {
                 break;
             }
             MeterReading m = reading(c.getRoom().getRoomId(), readingPeriod.getPeriodId());
-            if (m == null) {
+            if (!readingAppliesTo(m, c)) {
                 issues.add(new Issue(c.getRoom().getRoomCode(), "Thieu chi so dien nuoc"));
             } else if (!Boolean.TRUE.equals(m.getIsVerified())) {
                 issues.add(new Issue(c.getRoom().getRoomCode(), "Chi so chua xac nhan"));
@@ -174,11 +176,36 @@ public class BillingService {
 
     // ------------------------------------------------------------------ UC68-73: tinh tien
 
+    @Transactional
+    public boolean calculateUnpreparedPeriod(Integer periodId) {
+        MonthlyBillingPeriod period = period(periodId);
+        em.refresh(period, LockModeType.PESSIMISTIC_WRITE);
+        if (!"DRAFT".equals(period.getStatus()) || !feeRepo.findByPeriod(periodId).isEmpty()
+                || !validate(periodId).isEmpty()) {
+            return false;
+        }
+        calculate(period, null, null, SharedAllocation.PER_RESIDENT);
+        return true;
+    }
+
     /** Tinh (hoac tinh lai, UC74) toan bo ky DRAFT: xoa bang tinh cu roi dung lai tu hop dong, chi so, don gia. */
     @Transactional
     public CalculationResult calculate(Integer periodId, Integer actorId, String ip) {
+        return calculate(periodId, actorId, ip, SharedAllocation.PER_RESIDENT);
+    }
+
+    @Transactional
+    public CalculationResult calculate(Integer periodId, Integer actorId, String ip,
+                                       SharedAllocation sharedAllocation) {
         MonthlyBillingPeriod p = period(periodId);
+        em.refresh(p, LockModeType.PESSIMISTIC_WRITE);
+        return calculate(p, actorId, ip, sharedAllocation);
+    }
+
+    private CalculationResult calculate(MonthlyBillingPeriod p, Integer actorId, String ip,
+                                        SharedAllocation sharedAllocation) {
         requireDraft(p);
+        Integer periodId = p.getBillingPeriodId();
         long invoiced = em.createQuery("select count(i) from Invoice i "
                 + "where i.calculatedFee.billingPeriod.billingPeriodId = :p", Long.class)
                 .setParameter("p", periodId).getSingleResult();
@@ -221,6 +248,7 @@ public class BillingService {
         // lan 1: moi phong 1 hop dong, dien nuoc theo chi so; ghi nho tong so nguoi o de chia dien nuoc chung
         // Phong doi khach giua thang (nhieu hop dong chong len thang): moi hop dong 1 bang tinh, tien phong va dich vu
         // theo so ngay o cua tung hop dong; dien nuoc (1 chi so/phong/ky) tinh cho hop dong sau cung (khach hien tai).
+        Map<Integer, List<MeterReading>> closingReadings = transferClosingReadings(eligibleIds, ym);
         List<Draft> drafts = new ArrayList<>();
         Map<Integer, List<RentalContract>> byRoom = new java.util.LinkedHashMap<>();
         for (RentalContract c : candidateContracts(p, ym)) {
@@ -245,8 +273,15 @@ public class BillingService {
                 d.days = days;
                 d.add(ITEM_RENT, BigDecimal.ONE, prorateRent(c.getMonthlyRentPrice(), days, ym.lengthOfMonth()));
                 if (d.primary) {
-                    addMeter(d, c, plan, readingPeriod == null ? null : reading(roomId, readingPeriod.getPeriodId()),
-                            warnings);
+                    MeterReading current = readingPeriod == null ? null : reading(roomId, readingPeriod.getPeriodId());
+                    if (!readingAppliesTo(current, c)) {
+                        addMeter(d, c.getRoom().getRoomCode(), plan, null, warnings);
+                    } else if (current.getClosingContract() == null) {
+                        addMeter(d, c.getRoom().getRoomCode(), plan, current, warnings);
+                    }
+                }
+                for (MeterReading closing : closingReadings.getOrDefault(c.getContractId(), List.of())) {
+                    addMeter(d, closing.getRoom().getRoomCode(), plan, closing, warnings);
                 }
                 d.residents = 1 + (int) othersInRoom(roomId, c.getTenant().getTenantId());
                 drafts.add(d);
@@ -260,7 +295,10 @@ public class BillingService {
 
         // lan 2: dich vu hang thang, phu thu/giam tru, phat tre han, dien nuoc chung
         BigDecimal sharedTotal = sharedCost(propertyId, ym);
-        int totalResidents = drafts.stream().filter(d -> d.primary).mapToInt(d -> d.residents).sum();
+        int totalWeight = drafts.stream().filter(d -> d.primary)
+                .mapToInt(d -> sharedAllocation == SharedAllocation.PER_ROOM ? 1 : d.residents).sum();
+        int allocatedWeight = 0;
+        BigDecimal allocatedCost = BigDecimal.ZERO;
         for (Draft d : drafts) {
             RentalContract c = d.contract;
             for (PropertyServiceRate s : services) {
@@ -302,10 +340,12 @@ public class BillingService {
             if (d.primary) {
                 addAddonFees(d, ym);
             }
-            if (d.primary && sharedTotal.signum() > 0 && totalResidents > 0) {
-                BigDecimal share = sharedTotal.multiply(BigDecimal.valueOf(d.residents))
-                        .divide(BigDecimal.valueOf(totalResidents), 0, RoundingMode.HALF_UP);
-                d.add(ITEM_SHARED, BigDecimal.ONE, share);
+            if (d.primary && sharedTotal.signum() > 0 && totalWeight > 0) {
+                allocatedWeight += sharedAllocation == SharedAllocation.PER_ROOM ? 1 : d.residents;
+                BigDecimal cumulativeCost = sharedTotal.multiply(BigDecimal.valueOf(allocatedWeight))
+                        .divide(BigDecimal.valueOf(totalWeight), 2, RoundingMode.HALF_UP);
+                d.add(ITEM_SHARED, BigDecimal.ONE, cumulativeCost.subtract(allocatedCost));
+                allocatedCost = cumulativeCost;
             }
         }
 
@@ -467,7 +507,8 @@ public class BillingService {
             if (f.getRoom() == null) {
                 continue;
             }
-            if (readingPeriod == null || reading(f.getRoom().getRoomId(), readingPeriod.getPeriodId()) == null) {
+            if (readingPeriod == null || !readingAppliesTo(
+                    reading(f.getRoom().getRoomId(), readingPeriod.getPeriodId()), f.getContract())) {
                 missing.add(f.getRoom().getRoomCode());
             }
         }
@@ -615,8 +656,21 @@ public class BillingService {
 
     // ------------------------------------------------------------------ noi bo
 
-    private void addMeter(Draft d, RentalContract c, ServiceRatePlan plan, MeterReading m, List<Issue> warnings) {
-        String room = c.getRoom().getRoomCode();
+    private Map<Integer, List<MeterReading>> transferClosingReadings(Set<Integer> contractIds, YearMonth month) {
+        if (contractIds.isEmpty()) {
+            return Map.of();
+        }
+        return em.createQuery("select m from MeterReading m join fetch m.room "
+                        + "where m.closingContract.contractId in :contracts "
+                        + "and m.period.startDate between :first and :last order by m.readingId", MeterReading.class)
+                .setParameter("contracts", contractIds)
+                .setParameter("first", month.atDay(1))
+                .setParameter("last", month.atEndOfMonth())
+                .getResultList().stream().collect(java.util.stream.Collectors.groupingBy(
+                        m -> m.getClosingContract().getContractId()));
+    }
+
+    private void addMeter(Draft d, String room, ServiceRatePlan plan, MeterReading m, List<Issue> warnings) {
         if (m == null) {
             warnings.add(new Issue(room, "Thieu chi so dien nuoc, tien dien nuoc = 0"));
             return;
@@ -672,9 +726,9 @@ public class BillingService {
 
     private BigDecimal sharedCost(Integer propertyId, YearMonth ym) {
         BigDecimal v = em.createQuery("select coalesce(sum(e.amount), 0) from OperatingExpense e "
-                + "where e.property.propertyId = :p and e.expenseCategory = :c "
+                + "where e.property.propertyId = :p and e.expenseCategory in :categories "
                 + "and e.expenseDate between :from and :to", BigDecimal.class)
-                .setParameter("p", propertyId).setParameter("c", SHARED_CATEGORY)
+                .setParameter("p", propertyId).setParameter("categories", SHARED_CATEGORIES)
                 .setParameter("from", ym.atDay(1)).setParameter("to", ym.atEndOfMonth()).getSingleResult();
         return v == null ? BigDecimal.ZERO : v;
     }
@@ -793,9 +847,14 @@ public class BillingService {
         return l.isEmpty() ? null : l.get(0);
     }
 
+    private boolean readingAppliesTo(MeterReading reading, RentalContract contract) {
+        return reading != null && (reading.getClosingContract() == null
+                || reading.getClosingContract().getContractId().equals(contract.getContractId()));
+    }
+
     private MeterReading reading(Integer roomId, Integer periodId) {
         List<MeterReading> l = em.createQuery("select m from MeterReading m where m.room.roomId = :r "
-                + "and m.period.periodId = :p", MeterReading.class)
+                + "and m.period.periodId = :p and m.closingContract is null", MeterReading.class)
                 .setParameter("r", roomId).setParameter("p", periodId).getResultList();
         return l.isEmpty() ? null : l.get(0);
     }

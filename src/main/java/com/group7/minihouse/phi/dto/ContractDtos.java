@@ -33,7 +33,7 @@ public final class ContractDtos {
     public record PaymentTermsRequest(BigDecimal lateFeePerDay, String depositRefundConditions) {}
 
     /** UC44. */
-    public record UtilityTermsRequest(String electricTerms, String waterTerms) {}
+    public record UtilityTermsRequest(String electricTerms, String waterTerms, String serviceTerms) {}
 
     /** UC48. */
     public record ExtendRequest(LocalDate newEndDate) {}
@@ -59,7 +59,7 @@ public final class ContractDtos {
                                    Integer tenantId, String tenantName, Integer templateId,
                                    LocalDate startDate, LocalDate endDate, BigDecimal monthlyRentPrice,
                                    BigDecimal depositAmount, Integer paymentCycleMonths, Integer paymentDueDay,
-                                   BigDecimal lateFeePerDay, String electricTerms, String waterTerms,
+                                   BigDecimal lateFeePerDay, String electricTerms, String waterTerms, String serviceTerms,
                                    String depositRefundConditions, String digitalSignatureUrl,
                                    String pdfContractUrl, String status, LocalDateTime createdAt) {}
 

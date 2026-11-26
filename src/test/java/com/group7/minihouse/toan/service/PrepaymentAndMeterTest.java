@@ -6,9 +6,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 
 import com.group7.minihouse.shared.entity.Invoice;
 import com.group7.minihouse.shared.entity.PaymentTransaction;
+import com.group7.minihouse.shared.entity.PrepaymentDeduction;
 import com.group7.minihouse.shared.entity.Property;
 import com.group7.minihouse.shared.entity.Room;
 import com.group7.minihouse.shared.entity.Tenant;
@@ -98,6 +100,30 @@ class PrepaymentAndMeterTest {
         pre.setExcessBalance(new BigDecimal("5000000"));
         assertEquals(HttpStatus.BAD_REQUEST, assertThrows(BusinessException.class,
                 () -> prepayment.deduct(new DeductRequest(3, 10, new BigDecimal("1000001")))).getStatus());
+    }
+
+    @Test
+    void automaticDeductionLocksBalanceBeforeUsingIt() {
+        prepayment.autoDeduct(invoice);
+
+        verify(prepaymentRepo).findByTenantIdForUpdate(3);
+        assertEquals(BigDecimal.ZERO, pre.getExcessBalance());
+        assertEquals(new BigDecimal("500000"), invoice.getPaidAmount());
+    }
+
+    @Test
+    void repeatedUndoRejectsWhenDeductionDisappearedAfterInvoiceLock() {
+        var deduction = new PrepaymentDeduction();
+        deduction.setTargetInvoice(invoice);
+        when(deductionRepo.findById(7)).thenReturn(Optional.of(deduction));
+        when(deductionRepo.findByIdForUpdate(7)).thenReturn(Optional.empty());
+
+        assertEquals(HttpStatus.NOT_FOUND, assertThrows(BusinessException.class,
+                () -> prepayment.undoDeduction(7)).getStatus());
+        var order = org.mockito.Mockito.inOrder(invoiceRepo, deductionRepo);
+        order.verify(invoiceRepo).findByIdForUpdate(10);
+        order.verify(deductionRepo).findByIdForUpdate(7);
+        assertEquals(new BigDecimal("500000"), pre.getExcessBalance());
     }
 
     /** B2: dao giao dich khoa hoa don, doc lai trang thai: giao dich da dao roi thi khong tru lan hai. */

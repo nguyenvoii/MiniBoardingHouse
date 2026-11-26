@@ -59,6 +59,9 @@ public class RentalContract {
     @Column(name = "water_terms", length = 255)
     private String waterTerms;
 
+    @Column(name = "service_terms", length = 255)
+    private String serviceTerms;
+
     @Column(name = "deposit_refund_conditions", columnDefinition = "NVARCHAR(MAX)")
     private String depositRefundConditions;
 
@@ -117,6 +120,9 @@ public class RentalContract {
 
     public String getWaterTerms() { return waterTerms; }
     public void setWaterTerms(String waterTerms) { this.waterTerms = waterTerms; }
+
+    public String getServiceTerms() { return serviceTerms; }
+    public void setServiceTerms(String serviceTerms) { this.serviceTerms = serviceTerms; }
 
     public String getDepositRefundConditions() { return depositRefundConditions; }
     public void setDepositRefundConditions(String depositRefundConditions) { this.depositRefundConditions = depositRefundConditions; }

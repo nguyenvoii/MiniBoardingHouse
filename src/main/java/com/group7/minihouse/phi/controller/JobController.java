@@ -5,9 +5,13 @@ import com.group7.minihouse.shared.scheduler.JobScheduler;
 import com.group7.minihouse.shared.scheduler.JobStatus;
 import java.util.List;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import com.group7.minihouse.shared.security.AuthUser;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -26,6 +30,17 @@ public class JobController {
     @PreAuthorize("hasRole('LANDLORD')")
     public ApiResponse<List<JobStatus>> list() {
         return ApiResponse.ok(scheduler.list());
+    }
+
+    /** UC120: doi lich chay. Body {"cron": "0 0 8 * * *" hoac "-", "enabled": true|false}. */
+    @PutMapping("/{name}/schedule")
+    @PreAuthorize("hasRole('LANDLORD')")
+    public ApiResponse<JobStatus> schedule(@PathVariable String name, @RequestBody ScheduleRequest req,
+                                           @AuthenticationPrincipal AuthUser user) {
+        return ApiResponse.ok(scheduler.updateSchedule(name, req.cron(), req.enabled(), user == null ? null : user.userId()));
+    }
+
+    public record ScheduleRequest(String cron, Boolean enabled) {
     }
 
     @PostMapping("/{name}/run")

@@ -7,6 +7,14 @@ import com.group7.minihouse.chi.dto.TenantDTO;
 import com.group7.minihouse.chi.dto.TenantVehicleDTO;
 import com.group7.minihouse.chi.service.TenantService;
 import com.group7.minihouse.shared.dto.ApiResponse;
+import com.group7.minihouse.shared.storage.FileStorage;
+import com.group7.minihouse.shared.exception.BusinessException;
+import java.io.IOException;
+import org.springframework.core.io.PathResource;
+import org.springframework.http.CacheControl;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -17,10 +25,15 @@ import java.util.Map;
 @PreAuthorize("hasAnyRole('LANDLORD','MANAGER')")
 public class TenantController {
 
-    private final TenantService tenantService;
+    private static final String CARD_FOLDER = "tenant-id-cards";
+    private static final String CARD_PHOTO_ROUTE = "/id-card/photos";
 
-    public TenantController(TenantService tenantService) {
+    private final TenantService tenantService;
+    private final FileStorage storage;
+
+    public TenantController(TenantService tenantService, FileStorage storage) {
         this.tenantService = tenantService;
+        this.storage = storage;
     }
 
     @PreAuthorize("hasAnyRole('LANDLORD','MANAGER','CASHIER')")
@@ -58,10 +71,59 @@ public class TenantController {
         return ApiResponse.ok(null);
     }
 
-    @PostMapping("/{id}/id-card")
+    @PostMapping(value = "/{id}/id-card", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ApiResponse<Void> saveIdCard(@PathVariable Integer id, @RequestBody Map<String, String> body) {
-        tenantService.saveIdCard(id, body.get("frontUrl"), body.get("backUrl"));
+        String front = body.getOrDefault("frontUrl", "");
+        String back = body.getOrDefault("backUrl", "");
+        if ((front != null && front.startsWith("/api/chi/tenants/"))
+                || (back != null && back.startsWith("/api/chi/tenants/"))) {
+            throw new BusinessException("Hay tai tep anh can cuoc qua multipart");
+        }
+        tenantService.saveIdCard(id, front, back);
         return ApiResponse.ok(null);
+    }
+
+    @PostMapping(value = "/{id}/id-card", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<Void> uploadIdCard(@PathVariable Integer id, @RequestParam("front") MultipartFile front,
+                                           @RequestParam("back") MultipartFile back) throws IOException {
+        byte[] frontBytes = front.getBytes();
+        byte[] backBytes = back.getBytes();
+        long maxSize = 2L * 1024 * 1024;
+        String frontName = storage.saveImage(CARD_FOLDER, frontBytes, maxSize);
+        String backName = null;
+        try {
+            backName = storage.saveImage(CARD_FOLDER, backBytes, maxSize);
+            String baseUrl = "/api/chi/tenants/" + id + CARD_PHOTO_ROUTE + "/";
+            tenantService.saveIdCard(id, baseUrl + frontName, baseUrl + backName);
+        } catch (RuntimeException failure) {
+            discardUpload(frontName, failure);
+            discardUpload(backName, failure);
+            throw failure;
+        }
+        return ApiResponse.ok(null);
+    }
+
+    @GetMapping("/{id}" + CARD_PHOTO_ROUTE + "/{name}")
+    public ResponseEntity<PathResource> idCardPhoto(@PathVariable Integer id, @PathVariable String name) {
+        String url = "/api/chi/tenants/" + id + CARD_PHOTO_ROUTE + "/" + name;
+        if (!tenantService.hasIdCardPhoto(id, url)) {
+            return ResponseEntity.notFound().build();
+        }
+        return storage.find(CARD_FOLDER, name)
+                .map(path -> ResponseEntity.ok()
+                        .contentType(MediaType.parseMediaType(FileStorage.contentTypeOf(name)))
+                        .cacheControl(CacheControl.noStore())
+                        .header("X-Content-Type-Options", "nosniff")
+                        .body(new PathResource(path)))
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    private void discardUpload(String name, RuntimeException failure) {
+        try {
+            storage.delete(CARD_FOLDER, name);
+        } catch (RuntimeException cleanupFailure) {
+            failure.addSuppressed(cleanupFailure);
+        }
     }
 
     @PreAuthorize("hasAnyRole('LANDLORD','MANAGER','CASHIER')")

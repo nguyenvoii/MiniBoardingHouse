@@ -62,6 +62,9 @@ public final class DebtDtos {
     public record ProcessingLogRequest(LocalDate promisedPaymentDate, String delayReason, String staffNote) {
     }
 
+    public record PaymentHistoryItem(Integer id, String source, String method, String status,
+                                     BigDecimal amount, LocalDateTime paidAt) {}
+
     public record InvoiceHistoryItem(Integer invoiceId, String invoiceCode, LocalDate issueDate, LocalDate dueDate,
                                      BigDecimal totalAmount, BigDecimal paidAmount, BigDecimal remainingAmount,
                                      String paymentStatus) {

@@ -43,10 +43,10 @@ export async function roomsPage(view: HTMLElement): Promise<void> {
   const tile = (r: LiveRoom) =>
     h('button', { class: `room-tile ${r.status === 'VACANT' ? 'vacant' : r.status === 'RENTED' ? '' : 'repair'}`, onclick: () => openRoom(r, types, () => void roomsPage(view)) },
       h('div', { class: 'top' }, plate(r.code, r.status === 'VACANT' ? 'ghost' : r.status === 'RENTED' ? '' : 'off'), r.holdUntil ? h('span', { class: 'st wait' }, 'Đang giữ chỗ') : statusBadge(r.status)),
-      h('div', { class: 'who' }, r.tenantName ?? (r.status === 'VACANT' ? 'Đang trống' : r.status === 'REPAIRING' ? 'Đang sửa chữa' : 'Tạm ngưng cho thuê')),
+      h('div', { class: 'who' }, r.tenantName ?? (r.status === 'VACANT' ? 'Đang trống' : r.status === 'REPAIRING' ? 'Đang sửa chữa' : r.status === 'CLEANING' ? 'Chờ dọn dẹp, chưa cho thuê' : 'Tạm ngưng cho thuê')),
       h('div', { class: 'meta' }, h('span', null, `${r.area} m²`), h('span', { class: 'money' }, `${money(r.price)} ₫`)));
   const seg = h('div', { class: 'seg', role: 'group', 'aria-label': 'Lọc theo trạng thái' });
-  for (const [v, l] of [['', `Tất cả ${rooms.length}`], ['RENTED', `Đang thuê ${counts('RENTED')}`], ['VACANT', `Trống ${counts('VACANT')}`], ['REPAIRING', `Đang sửa ${counts('REPAIRING')}`], ['SUSPENDED', `Tạm ngưng ${counts('SUSPENDED')}`]]) {
+  for (const [v, l] of [['', `Tất cả ${rooms.length}`], ['RENTED', `Đang thuê ${counts('RENTED')}`], ['VACANT', `Trống ${counts('VACANT')}`], ['REPAIRING', `Đang sửa ${counts('REPAIRING')}`], ['SUSPENDED', `Tạm ngưng ${counts('SUSPENDED')}`], ['CLEANING', `Chờ dọn ${counts('CLEANING')}`]]) {
     seg.appendChild(h('button', { type: 'button', 'aria-pressed': String(v === filter), onclick: (e: Event) => {
       filter = v;
       seg.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', 'false'));
@@ -86,7 +86,11 @@ function openRoom(r: LiveRoom, types: RoomType[], done: () => void): void {
   );
   mount(d.foot, h('button', { class: 'btn secondary', onclick: d.close }, 'Đóng'),
     h('button', { class: 'btn secondary', onclick: () => { d.close(); editRoom(r, types, done); } }, icon('edit', 16), 'Sửa phòng'),
-    !c && r.status !== 'RENTED' ? h('button', { class: 'btn secondary', onclick: () => { d.close(); changeRoomStatus(r, done); } }, 'Đổi trạng thái') : null,
+    !c && r.status !== 'RENTED' && r.status !== 'CLEANING' ? h('button', { class: 'btn secondary', onclick: () => { d.close(); changeRoomStatus(r, done); } }, 'Đổi trạng thái') : null,
+    r.status === 'CLEANING' ? h('button', { class: 'btn', onclick: async () => {
+      if (!(await confirmDialog('Phòng đã dọn xong', `Xác nhận phòng ${r.code} đã dọn dẹp, kiểm tra xong và sẵn sàng cho thuê lại?`, 'Đã dọn xong'))) return;
+      try { await api.patch(`/api/chi/rooms/${r.roomId}/confirm-cleaned`); d.close(); toast(`Phòng ${r.code} đã sẵn sàng cho thuê`); done(); } catch (e) { toast(errText(e), 'err'); }
+    } }, icon('check', 16), 'Đã dọn xong, cho thuê lại') : null,
     c ? h('a', { class: 'btn', href: `#/contracts?open=${c.contractId}`, onclick: d.close }, icon('file', 16), 'Mở hợp đồng') : null,
     r.status === 'VACANT' ? h('a', { class: 'btn', href: `#/contracts?new=${r.roomId}`, onclick: d.close }, icon('file', 16), 'Lập hợp đồng') : null);
 }

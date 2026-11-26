@@ -1,18 +1,24 @@
 package com.group7.minihouse.toan.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.group7.minihouse.shared.entity.Invoice;
 import com.group7.minihouse.shared.entity.PaymentTransaction;
 import com.group7.minihouse.shared.entity.ReceiptVoucher;
 import com.group7.minihouse.shared.exception.BusinessException;
 import com.group7.minihouse.toan.dto.PaymentDtos.ReceiptRequest;
 import com.group7.minihouse.toan.repository.ReceiptVoucherRepository;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -43,6 +49,7 @@ class ReceiptServiceTest {
         ReflectionTestUtils.setField(service, "em", em);
         tx = new PaymentTransaction();
         tx.setTransactionId(7);
+        tx.setInvoice(new Invoice());
         tx.setAmountPaid(new BigDecimal("3000000"));
         tx.setStatus("SUCCESS");
         when(em.find(PaymentTransaction.class, 7)).thenReturn(tx);
@@ -56,6 +63,24 @@ class ReceiptServiceTest {
 
     private static ReceiptRequest req(Integer tx, String type, String amount) {
         return new ReceiptRequest(tx, type, new BigDecimal(amount), null);
+    }
+
+    @Test
+    void tenantReceiptPrintScopesByTenantAndOmitsInternalNote() {
+        ReceiptVoucher voucher = new ReceiptVoucher();
+        voucher.setVoucherCode("PT-1");
+        voucher.setVoucherType("MONTHLY_RENT");
+        voucher.setAmount(new BigDecimal("1000"));
+        voucher.setCreatedAt(LocalDateTime.of(2026, 11, 25, 9, 0));
+        voucher.setNote("internal note");
+        when(receiptRepo.findSuccessfulForTenant(20, 3)).thenReturn(Optional.of(voucher));
+
+        String html = service.printableHtmlForTenant(20, 3);
+
+        assertTrue(html.contains("PT-1"));
+        assertFalse(html.contains("internal note"));
+        assertEquals(HttpStatus.NOT_FOUND, assertThrows(BusinessException.class,
+                () -> service.printableHtmlForTenant(21, 3)).getStatus());
     }
 
     @Test
@@ -83,6 +108,16 @@ class ReceiptServiceTest {
         when(receiptRepo.sumByTransaction(7)).thenReturn(new BigDecimal("2500000"));
         assertEquals(HttpStatus.BAD_REQUEST, assertThrows(BusinessException.class,
                 () -> service.create(req(7, "MONTHLY_RENT", "600000"), 5, "ip")).getStatus());
+    }
+
+    @Test
+    void locksInvoiceBeforeCheckingPreviouslyIssuedReceipts() {
+        service.create(req(7, "MONTHLY_RENT", "2000000"), 5, "ip");
+
+        var order = org.mockito.Mockito.inOrder(em, receiptRepo);
+        order.verify(em).lock(tx.getInvoice(), LockModeType.PESSIMISTIC_WRITE);
+        order.verify(em).refresh(tx);
+        order.verify(receiptRepo).sumByTransaction(7);
     }
 
     @Test

@@ -10,6 +10,8 @@ public final class BillingDtos {
     private BillingDtos() {}
 
     /** UC66: monthYear dang YYYY-MM. */
+    public enum SharedAllocation { PER_RESIDENT, PER_ROOM }
+
     public record CreatePeriodRequest(Integer propertyId, String monthYear) {}
 
     /** UC74: sua so luong/don gia 1 dong chi tiet. Gui truong nao doi truong do. */

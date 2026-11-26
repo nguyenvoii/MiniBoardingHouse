@@ -7,7 +7,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 /**
- * Điểm DUY NHẤT đổi trạng thái khi kết thúc hợp đồng: hợp đồng TERMINATED + phòng VACANT, rồi phát
+ * Điểm DUY NHẤT đổi trạng thái khi kết thúc hợp đồng: hợp đồng TERMINATED + phòng CLEANING, rồi phát
  * ContractEndedEvent để ContractEndListener ghi lịch sử TERMINATED, gỡ người ở, chốt chỉ số. Cả Trả phòng
  * (CheckoutService.finalizeCheckout, đường chuẩn) và Chấm dứt sớm (ContractService.terminate, trường hợp đặc biệt)
  * đều gọi hàm này, nên hai đường không thể lệch nhau về trạng thái hợp đồng, phòng, lịch sử ở và chỉ số.
@@ -26,7 +26,7 @@ public class ContractEndService {
                     Integer finalWater) {
         String previous = c.getStatus();
         c.setStatus("TERMINATED");
-        c.getRoom().setStatus("VACANT");
+        c.getRoom().setStatus("CLEANING");
         events.publishEvent(new ContractEndedEvent(c.getContractId(), c.getRoom().getRoomId(),
                 c.getRoom().getProperty() == null ? null : c.getRoom().getProperty().getPropertyId(), endDate,
                 finalElectric, finalWater, reason, actorId, previous));

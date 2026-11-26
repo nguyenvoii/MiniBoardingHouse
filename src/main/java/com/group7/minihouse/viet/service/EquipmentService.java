@@ -61,6 +61,9 @@ public class EquipmentService {
             throw new BusinessException("Thieu du lieu");
         }
         String name = VietSupport.requireText(req.equipmentName(), "ten thiet bi");
+        if (name.length() > 100) {
+            throw new BusinessException("Ten thiet bi toi da 100 ky tu");
+        }
         String type = VietSupport.enumOrNull(req.requestType(), TYPES, "requestType");
         if (type == null) {
             throw new BusinessException("Thieu requestType (INSTALL hoac EXTRA_USAGE)");
@@ -106,7 +109,7 @@ public class EquipmentService {
 
     @Transactional
     public EquipmentResponse review(Integer id, ReviewRequest req, Integer actorId) {
-        RoomEquipmentRequest r = find(id);
+        RoomEquipmentRequest r = findForUpdate(id);
         if (!"PENDING".equals(r.getStatus())) {
             throw new BusinessException("Chi duyet duoc yeu cau dang PENDING");
         }
@@ -122,7 +125,7 @@ public class EquipmentService {
     /** Da lap/cap thiet bi xong: tao phu phi hang thang cho phong. */
     @Transactional
     public AddonFeeResponse install(Integer id, InstallRequest req) {
-        RoomEquipmentRequest r = find(id);
+        RoomEquipmentRequest r = findForUpdate(id);
         if (!"APPROVED".equals(r.getStatus())) {
             throw new BusinessException("Chi lap dat duoc yeu cau da duyet (APPROVED)");
         }
@@ -134,11 +137,14 @@ public class EquipmentService {
         if (cycle < 1) {
             throw new BusinessException("Chu ky tinh phi toi thieu 1 thang");
         }
+        String feeName = req == null ? null : VietSupport.blankToNull(req.feeName());
+        if (feeName != null && feeName.length() > 100) {
+            throw new BusinessException("Ten phu phi toi da 100 ky tu");
+        }
         RoomAddonFee fee = new RoomAddonFee();
         fee.setRoom(r.getRoom());
         fee.setEquipmentRequest(r);
-        fee.setFeeName(req != null && VietSupport.blankToNull(req.feeName()) != null
-                ? req.feeName().trim() : r.getEquipmentName());
+        fee.setFeeName(feeName == null ? r.getEquipmentName() : feeName);
         fee.setAmount(amount);
         fee.setBillingCycleMonths(cycle);
         fee.setStartDate(LocalDate.now());
@@ -152,7 +158,7 @@ public class EquipmentService {
     /** Thao thiet bi: tat phu phi dang chay cua yeu cau nay. */
     @Transactional
     public EquipmentResponse remove(Integer id) {
-        RoomEquipmentRequest r = find(id);
+        RoomEquipmentRequest r = findForUpdate(id);
         if (!"INSTALLED".equals(r.getStatus())) {
             throw new BusinessException("Chi thao duoc thiet bi dang INSTALLED");
         }
@@ -172,7 +178,7 @@ public class EquipmentService {
         return feeRepository.search(roomId, active).stream().map(AddonFeeResponse::from).toList();
     }
 
-    private RoomEquipmentRequest find(Integer id) {
-        return requestRepository.findById(id).orElseThrow(() -> BusinessException.notFound("Yeu cau thiet bi"));
+    private RoomEquipmentRequest findForUpdate(Integer id) {
+        return requestRepository.findForUpdate(id).orElseThrow(() -> BusinessException.notFound("Yeu cau thiet bi"));
     }
 }

@@ -45,7 +45,28 @@ export async function profilePage(view: HTMLElement): Promise<void> {
         p.avatarUrl ? h('img', { src: p.avatarUrl, alt: 'Ảnh đại diện hiện tại', width: 64, height: 64, style: 'object-fit:cover;border-radius:50%' }) : null,
         field('Ảnh đại diện', avatar, 'Tối đa 2 MB'), h('div', { class: 'form-actions' }, upload),
         field('Họ tên', name), field('Số điện thoại', phone), h('div', { class: 'form-actions' }, save))),
+      panel('Xác thực số điện thoại', phoneVerifyBox(p.phoneNumber)),
       panel('Đổi mật khẩu', h('div', { class: 'panel-body stack' }, err2, field('Mật khẩu hiện tại', cur), field('Mật khẩu mới', nw, 'Từ 8 ký tự, có cả chữ và số'), h('div', { class: 'form-actions' }, chg))),
     ),
   );
+}
+
+/** UC2: xác thực số điện thoại bằng mã OTP gửi qua SMS (cần cấu hình nhà cung cấp SMS). */
+function phoneVerifyBox(current: string | null): HTMLElement {
+  const err = h('div');
+  const phone = input({ type: 'tel', value: current ?? '', 'aria-label': 'Số điện thoại cần xác thực' });
+  const code = input({ inputmode: 'numeric', maxlength: '10', placeholder: 'Mã gồm 6 số', 'aria-label': 'Mã SMS' });
+  const send = h('button', { class: 'btn secondary' }, 'Gửi mã SMS');
+  const ok = h('button', { class: 'btn' }, 'Xác thực');
+  send.addEventListener('click', () => busy(send, async () => {
+    err.replaceChildren();
+    if (!phone.value.trim()) { err.replaceChildren(formError('Nhập số điện thoại.')); return; }
+    try { await api.post('/api/auth/send-phone-verification', { identifier: phone.value.trim() }); toast('Đã gửi mã SMS'); } catch (e) { err.replaceChildren(formError(errText(e))); }
+  }));
+  ok.addEventListener('click', () => busy(ok, async () => {
+    err.replaceChildren();
+    if (!phone.value.trim() || !code.value.trim()) { err.replaceChildren(formError('Nhập số điện thoại và mã SMS.')); return; }
+    try { await api.post('/api/auth/verify-phone', { phone: phone.value.trim(), code: code.value.trim() }); toast('Đã xác thực số điện thoại'); code.value = ''; } catch (e) { err.replaceChildren(formError(errText(e))); }
+  }));
+  return h('div', { class: 'panel-body stack' }, err, field('Số điện thoại', phone, 'Mã gửi qua SMS; cần chủ hệ thống cấu hình nhà cung cấp SMS'), h('div', { class: 'form-actions' }, send), field('Mã SMS', code), h('div', { class: 'form-actions' }, ok));
 }

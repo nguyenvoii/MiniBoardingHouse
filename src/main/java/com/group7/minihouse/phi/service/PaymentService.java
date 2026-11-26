@@ -90,7 +90,7 @@ public class PaymentService {
             for (PaymentTransaction pending : repo.findPendingOfInvoice(inv.getInvoiceId())) {
                 if (pending.getAmountPaid().compareTo(amount) == 0) {
                     pending.setReceivedByUser(user(actorId));
-                    ConfirmResult r = confirmWith(pending, amount, "Nhan vien doi chieu chuyen khoan");
+                    ConfirmResult r = confirmWith(pending, amount, "Nhan vien doi chieu chuyen khoan", false);
                     if (!r.confirmed()) {
                         throw new BusinessException(HttpStatus.CONFLICT, r.message());
                     }
@@ -134,8 +134,7 @@ public class PaymentService {
                         bank.qrImageUrl(), inv.getInvoiceCode());
             }
         }
-        String code = (method.equals("QR_CODE") ? "QR-" : "GW-") + UUID.randomUUID().toString().substring(0, 8)
-                .toUpperCase();
+        String code = (method.equals("QR_CODE") ? "QR-" : "GW-") + UUID.randomUUID();
         PaymentTransaction t = newTransaction(inv, method, code, amount, user(receiverId));
         t.setStatus("FAILED"); // cho xac nhan
         audit(actorId, "CREATE_QR_PAYMENT", "Tao giao dich " + code + " cho hoa don " + inv.getInvoiceCode(), ip);
@@ -171,7 +170,26 @@ public class PaymentService {
         }
         PaymentTransaction t = repo.findByTransactionCode(req.transactionCode().trim())
                 .orElseThrow(() -> BusinessException.notFound("Giao dich " + req.transactionCode()));
-        return confirmWith(t, req.amount(), "Cong thanh toan xac nhan");
+        return confirmWith(t, req.amount(), "Cong thanh toan xac nhan", true);
+    }
+
+    @Transactional(readOnly = true)
+    public PaymentResponse gatewayPaymentForTenant(Integer transactionId, Integer tenantId) {
+        return toResponse(ownedGatewayPayment(transactionId, tenantId));
+    }
+
+    @Transactional
+    public ConfirmResult reconcileGatewayPayment(Integer transactionId, Integer tenantId, BigDecimal settledAmount) {
+        return confirmWith(ownedGatewayPayment(transactionId, tenantId), settledAmount, "payOS xac nhan", true);
+    }
+
+    private PaymentTransaction ownedGatewayPayment(Integer transactionId, Integer tenantId) {
+        PaymentTransaction payment = load(transactionId);
+        if (!"GATEWAY".equals(payment.getPaymentMethod())
+                || !tenantId.equals(payment.getInvoice().getTenant().getTenantId())) {
+            throw BusinessException.notFound("Giao dich cong thanh toan");
+        }
+        return payment;
     }
 
     // ------------------------------------------------------------------ UC88: xac nhan chuyen khoan
@@ -196,7 +214,7 @@ public class PaymentService {
             throw bad("Can amountReceived (so tien thuc nhan tren sao ke)");
         }
         PaymentTransaction t = load(transactionId);
-        ConfirmResult r = confirmWith(t, req.amountReceived(), "Nhan vien xac nhan chuyen khoan");
+        ConfirmResult r = confirmWith(t, req.amountReceived(), "Nhan vien xac nhan chuyen khoan", false);
         audit(actorId, "CONFIRM_PAYMENT", "Xac nhan giao dich " + t.getTransactionCode() + ": " + r.message(), ip);
         return r;
     }
@@ -238,13 +256,16 @@ public class PaymentService {
 
     // ------------------------------------------------------------------ noi bo
 
-    private ConfirmResult confirmWith(PaymentTransaction t, BigDecimal received, String note) {
+    private ConfirmResult confirmWith(PaymentTransaction t, BigDecimal received, String note, boolean replayAllowed) {
         if (!PENDING_METHODS.contains(t.getPaymentMethod())) {
             throw new BusinessException(HttpStatus.CONFLICT, "Giao dich tien mat khong can xac nhan");
         }
         // khoa hoa don roi doc lai giao dich: hai lan xac nhan dong thoi (callback + nhan vien) khong cong doi
         invoiceRepo.findByIdForUpdate(t.getInvoice().getInvoiceId());
         em.refresh(t);
+        if (replayAllowed && "SUCCESS".equals(t.getStatus()) && received.compareTo(t.getAmountPaid()) == 0) {
+            return new ConfirmResult(true, "Giao dich da duoc xac nhan", toResponse(t));
+        }
         if (!"FAILED".equals(t.getStatus())) {
             throw new BusinessException(HttpStatus.CONFLICT, "Giao dich dang o trang thai " + t.getStatus()
                     + ", chi xac nhan duoc giao dich dang cho");

@@ -26,7 +26,16 @@ public final class MeterDtos {
     public record ReadingResponse(Integer readingId, Integer periodId, Integer roomId, String roomCode,
                                   int oldElectric, int newElectric, int usedElectric,
                                   int oldWater, int newWater, int usedWater,
-                                  LocalDateTime readingDate, Integer recordedByUserId, boolean verified) {}
+                                  LocalDateTime readingDate, Integer recordedByUserId, boolean verified,
+                                  Integer closingContractId) {
+        public ReadingResponse(Integer readingId, Integer periodId, Integer roomId, String roomCode,
+                               int oldElectric, int newElectric, int usedElectric,
+                               int oldWater, int newWater, int usedWater,
+                               LocalDateTime readingDate, Integer recordedByUserId, boolean verified) {
+            this(readingId, periodId, roomId, roomCode, oldElectric, newElectric, usedElectric,
+                    oldWater, newWater, usedWater, readingDate, recordedByUserId, verified, null);
+        }
+    }
 
     public record PhotoRequest(String meterType, String photoUrl) {}
 

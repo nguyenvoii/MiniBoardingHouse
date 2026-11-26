@@ -18,4 +18,5 @@ public interface RoomAddonFeeRepository extends JpaRepository<RoomAddonFee, Inte
 
     @EntityGraph(attributePaths = {"room", "equipmentRequest"})
     List<RoomAddonFee> findByIsActiveOrderByStartDateDesc(Boolean isActive);
+    List<RoomAddonFee> findByRoom_RoomIdAndIsActiveOrderByStartDateDesc(Integer roomId, Boolean isActive);
 }

@@ -3,21 +3,19 @@ package com.group7.minihouse.phi.service;
 import com.group7.minihouse.phi.dto.BackupInfo;
 import com.group7.minihouse.shared.exception.BusinessException;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.Clock;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.List;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
 import javax.sql.DataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,7 +28,7 @@ import org.springframework.stereotype.Service;
  * UC122 sao luu / phuc hoi co so du lieu SQL Server bang BACKUP/RESTORE DATABASE.
  * File .bak do chinh SQL Server ghi, nen thu muc phai la noi tai khoan dich vu SQL Server ghi duoc.
  * Mac dinh dung thu muc sao luu cua SQL Server (SERVERPROPERTY InstanceDefaultBackupPath); doi bang
- * app.backup.dir. Ung dung va SQL Server phai chay CUNG MAY de ung dung liet ke/kiem tra file.
+ * app.backup.dir. Duong dan va lich su sao luu duoc doc tren SQL Server.
  * Phuc hoi ghi de TOAN BO du lieu hien tai bang ban sao luu va ngat moi ket noi dang mo.
  */
 @Service
@@ -78,35 +76,53 @@ public class BackupService {
         String name = "mbh-" + LocalDateTime.now(clock).format(STAMP) + ".bak";
         try (Connection c = dataSource.getConnection(); Statement s = c.createStatement()) {
             String db = databaseName(s);
-            Path file = backupDir(s).resolve(name);
+            String directory = backupDir(s);
+            String file = backupPath(directory, name);
             s.execute("BACKUP DATABASE " + bracket(db) + " TO DISK = N'" + literal(file) + "' WITH INIT, CHECKSUM");
             activityLogService.log(actorId, "BACKUP_DB", "Sao luu co so du lieu: " + name, ip);
             log.info("Da sao luu CSDL vao {}", file);
-            return info(file, name);
+            return backups(c, db, directory).getOrDefault(name, new BackupInfo(name, null, null));
         } catch (SQLException | IOException e) {
             throw new BusinessException(HttpStatus.INTERNAL_SERVER_ERROR,
                     "Khong sao luu duoc, kiem tra quyen ghi cua SQL Server vao thu muc sao luu: " + e.getMessage());
         }
     }
 
-    /** Cac ban sao luu trong thu muc, moi nhat truoc. Rong neu khong doc duoc thu muc. */
+    /** Cac ban sao luu cua CSDL hien tai, moi nhat truoc. */
     public List<BackupInfo> list() {
-        try (Connection c = dataSource.getConnection(); Statement s = c.createStatement();
-             Stream<Path> files = Files.list(backupDir(s))) {
-            return files.filter(p -> FILE_NAME.matcher(p.getFileName().toString()).matches())
-                    .map(p -> {
-                        try {
-                            return info(p, p.getFileName().toString());
-                        } catch (IOException e) {
-                            return new BackupInfo(p.getFileName().toString(), null, null);
-                        }
-                    })
-                    .sorted(Comparator.comparing(BackupInfo::name).reversed())
-                    .toList();
+        try (Connection c = dataSource.getConnection(); Statement s = c.createStatement()) {
+            return List.copyOf(backups(c, databaseName(s), backupDir(s)).values());
         } catch (SQLException | IOException e) {
-            log.warn("Khong liet ke duoc thu muc sao luu: {}", e.getMessage());
+            log.warn("Khong liet ke duoc lich su sao luu: {}", e.getMessage());
             return List.of();
         }
+    }
+
+    private Map<String, BackupInfo> backups(Connection c, String db, String dir) throws SQLException {
+        Map<String, BackupInfo> result = new LinkedHashMap<>();
+        try (PreparedStatement query = c.prepareStatement("""
+                SELECT media.physical_device_name, history.backup_size, history.backup_finish_date,
+                       history.database_name
+                FROM msdb.dbo.backupset history
+                JOIN msdb.dbo.backupmediafamily media ON media.media_set_id = history.media_set_id
+                WHERE history.type = 'D' AND media.device_type = 2
+                ORDER BY history.backup_set_id DESC
+                """);
+             ResultSet rows = query.executeQuery()) {
+            while (rows.next()) {
+                String path = rows.getString(1);
+                String name = path.substring(Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\')) + 1);
+                if (!FILE_NAME.matcher(name).matches() || !backupPath(dir, name).equals(path)) {
+                    continue;
+                }
+                // A newer backup of another database may have overwritten this file.
+                result.putIfAbsent(name, db.equals(rows.getString(4))
+                        ? new BackupInfo(name, rows.getBigDecimal(2).longValue(), rows.getTimestamp(3).toLocalDateTime())
+                        : new BackupInfo(name, null, null));
+            }
+        }
+        result.values().removeIf(info -> info.sizeBytes() == null);
+        return result;
     }
 
     /**
@@ -118,33 +134,42 @@ public class BackupService {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "Ten file sao luu khong hop le");
         }
         String db;
-        Path file;
+        String file;
         try (Connection c = dataSource.getConnection(); Statement s = c.createStatement()) {
             db = databaseName(s);
-            file = backupDir(s).resolve(fileName);
+            if (!db.equals(confirm)) {
+                throw new BusinessException(HttpStatus.BAD_REQUEST,
+                        "Phai gui confirm = ten co so du lieu de xac nhan phuc hoi (ghi de toan bo du lieu hien tai)");
+            }
+            String directory = backupDir(s);
+            if (!backups(c, db, directory).containsKey(fileName)) {
+                throw BusinessException.notFound("Ban sao luu");
+            }
+            file = backupPath(directory, fileName);
         } catch (SQLException | IOException e) {
             throw new BusinessException(HttpStatus.INTERNAL_SERVER_ERROR, "Khong doc duoc thong tin may chu CSDL");
         }
-        if (!db.equals(confirm)) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST,
-                    "Phai gui confirm = ten co so du lieu de xac nhan phuc hoi (ghi de toan bo du lieu hien tai)");
-        }
-        if (!Files.isRegularFile(file)) {
-            throw BusinessException.notFound("Ban sao luu");
-        }
         try (Connection c = master.open(); Statement s = c.createStatement()) {
-            s.execute("RESTORE VERIFYONLY FROM DISK = N'" + literal(file) + "'");
-            try {
-                s.execute("ALTER DATABASE " + bracket(db) + " SET SINGLE_USER WITH ROLLBACK IMMEDIATE");
-                s.execute("RESTORE DATABASE " + bracket(db) + " FROM DISK = N'" + literal(file) + "' WITH REPLACE");
-            } finally {
-                try {
-                    s.execute("ALTER DATABASE " + bracket(db) + " SET MULTI_USER");
-                } catch (SQLException e) {
-                    log.error("Khong dua duoc CSDL ve MULTI_USER, hay chay tay: ALTER DATABASE {} SET MULTI_USER",
-                            bracket(db), e);
+            try (ResultSet header = s.executeQuery("RESTORE HEADERONLY FROM DISK = N'" + literal(file) + "'")) {
+                if (!header.next() || !db.equals(header.getString("DatabaseName")) || header.getInt("BackupType") != 1) {
+                    throw new BusinessException(HttpStatus.BAD_REQUEST, "Ban sao luu khong thuoc co so du lieu hien tai");
                 }
             }
+            s.execute("RESTORE VERIFYONLY FROM DISK = N'" + literal(file) + "' WITH CHECKSUM");
+            String setMultiUser = "ALTER DATABASE " + bracket(db) + " SET MULTI_USER";
+            s.execute("ALTER DATABASE " + bracket(db) + " SET SINGLE_USER WITH ROLLBACK IMMEDIATE");
+            try {
+                s.execute("RESTORE DATABASE " + bracket(db) + " FROM DISK = N'" + literal(file) + "' WITH REPLACE");
+            } catch (SQLException restoreFailure) {
+                try {
+                    s.execute(setMultiUser);
+                } catch (SQLException recoveryFailure) {
+                    restoreFailure.addSuppressed(recoveryFailure);
+                    log.error("Khong dua duoc CSDL ve MULTI_USER, hay chay tay: {}", setMultiUser, recoveryFailure);
+                }
+                throw restoreFailure;
+            }
+            s.execute(setMultiUser);
             log.warn("Da phuc hoi CSDL {} tu {}", db, file);
         } catch (SQLException e) {
             throw new BusinessException(HttpStatus.INTERNAL_SERVER_ERROR, "Phuc hoi that bai: " + e.getMessage());
@@ -160,23 +185,23 @@ public class BackupService {
         }
     }
 
-    private Path backupDir(Statement s) throws SQLException, IOException {
+    private String backupDir(Statement s) throws SQLException, IOException {
         if (!configuredDir.isEmpty()) {
-            return Path.of(configuredDir).toAbsolutePath().normalize();
+            return configuredDir;
         }
         try (ResultSet rs = s.executeQuery("SELECT CAST(SERVERPROPERTY('InstanceDefaultBackupPath') AS NVARCHAR(500))")) {
             if (rs.next() && rs.getString(1) != null) {
-                return Path.of(rs.getString(1));
+                return rs.getString(1);
             }
         }
         throw new IOException("Chua cau hinh app.backup.dir va SQL Server khong co thu muc sao luu mac dinh");
     }
 
-    private static BackupInfo info(Path file, String name) throws IOException {
-        Long size = Files.exists(file) ? Files.size(file) : null;
-        LocalDateTime modified = Files.exists(file)
-                ? LocalDateTime.ofInstant(Files.getLastModifiedTime(file).toInstant(), ZoneId.systemDefault()) : null;
-        return new BackupInfo(name, size, modified);
+    private static String backupPath(String dir, String name) {
+        if (dir.endsWith("/") || dir.endsWith("\\")) {
+            return dir + name;
+        }
+        return dir + (dir.contains("\\") || dir.matches("^[A-Za-z]:.*") ? "\\" : "/") + name;
     }
 
     /** Ten doi tuong SQL Server: dat trong [ ], ] thanh ]]. */
@@ -185,7 +210,7 @@ public class BackupService {
     }
 
     /** Duong dan dat trong N'...': ' thanh ''. (Ten file sao luu da duoc kiem tra theo mau nen khong co ky tu la.) */
-    private static String literal(Path p) {
-        return p.toString().replace("'", "''");
+    private static String literal(String p) {
+        return p.replace("'", "''");
     }
 }

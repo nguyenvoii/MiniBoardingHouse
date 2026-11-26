@@ -191,6 +191,22 @@ class ChiServicesTest {
     }
 
     @Test
+    void cleaningConfirmationMakesRoomAvailableButRejectsOccupiedRooms() {
+        RoomRepository rooms = mock(RoomRepository.class);
+        EntityManager em = mock(EntityManager.class);
+        Room room = room(1);
+        when(rooms.findById(1)).thenReturn(Optional.of(room));
+        when(rooms.save(any(Room.class))).thenAnswer(i -> i.getArgument(0));
+        longQuery(em, 0L);
+        RoomService service = roomService(rooms, em);
+
+        room.setStatus("RENTED");
+        assertThrows(BusinessException.class, () -> service.confirmCleanedAndAvailable(1));
+        room.setStatus("CLEANING");
+        assertEquals("VACANT", service.confirmCleanedAndAvailable(1).getStatus());
+    }
+
+    @Test
     void createRoomValidatesInputBeforeTouchingDb() {
         RoomService s = roomService(mock(RoomRepository.class), mock(EntityManager.class));
         RoomDTO d = new RoomDTO();

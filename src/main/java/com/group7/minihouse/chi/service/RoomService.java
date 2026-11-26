@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class RoomService {
 
-    private static final Set<String> STATUSES = Set.of("VACANT", "RENTED", "REPAIRING", "SUSPENDED");
+    private static final Set<String> STATUSES = Set.of("VACANT", "RENTED", "REPAIRING", "CLEANING", "SUSPENDED");
 
     private final RoomRepository roomRepository;
     private final PropertyFloorRepository floorRepository;
@@ -110,7 +110,7 @@ public class RoomService {
         }
         String status = dto.getStatus() != null ? dto.getStatus().trim().toUpperCase() : "VACANT";
         if (!STATUSES.contains(status)) {
-            throw new BusinessException("Trạng thái phòng không hợp lệ (VACANT, RENTED, REPAIRING, SUSPENDED)");
+            throw new BusinessException("Trạng thái phòng không hợp lệ (VACANT, RENTED, REPAIRING, CLEANING, SUSPENDED)");
         }
         if ("RENTED".equals(status)) {
             throw new BusinessException("Phòng mới chưa có hợp đồng nên không thể ở trạng thái RENTED");
@@ -206,7 +206,7 @@ public class RoomService {
     @Transactional
     public RoomDTO updateRoomStatus(Integer roomId, String newStatus) {
         if (newStatus == null || !STATUSES.contains(newStatus.trim().toUpperCase())) {
-            throw new BusinessException("Trạng thái phòng không hợp lệ (VACANT, RENTED, REPAIRING, SUSPENDED)");
+            throw new BusinessException("Trạng thái phòng không hợp lệ (VACANT, RENTED, REPAIRING, CLEANING, SUSPENDED)");
         }
         String status = newStatus.trim().toUpperCase();
         Room room = roomRepository.findById(roomId)
@@ -224,13 +224,15 @@ public class RoomService {
         return toDTO(roomRepository.save(room));
     }
 
-    // UC 29: Xác nhận phòng đã vệ sinh xong, cho thuê lại (chuyển REPAIRING -> VACANT)
+    // UC 29: Xác nhận phòng đã vệ sinh xong, cho thuê lại (chuyển CLEANING -> VACANT)
     @Transactional
     public RoomDTO confirmCleanedAndAvailable(Integer roomId) {
         Room room = roomRepository.findById(roomId)
-                .orElseThrow(() -> new BusinessException("Không tìm thấy phòng có ID: " + roomId));
-        room.setStatus("VACANT");
-        return toDTO(roomRepository.save(room));
+                .orElseThrow(() -> BusinessException.notFound("Phong"));
+        if (!"CLEANING".equals(room.getStatus())) {
+            throw new BusinessException("Chi xac nhan ve sinh cho phong dang cho ve sinh");
+        }
+        return updateRoomStatus(roomId, "VACANT");
     }
 
     private RoomType findRoomType(Integer id, Property property) {

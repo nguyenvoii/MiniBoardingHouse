@@ -103,6 +103,7 @@ const STATUS: Record<string, StatusDef> = {
   VACANT: { label: 'Trống', tone: 'wait', icon: 'bed' },
   REPAIRING: { label: 'Đang sửa', tone: 'warn', icon: 'settings' },
   SUSPENDED: { label: 'Tạm ngưng', tone: 'off', icon: 'lock' },
+  CLEANING: { label: 'Chờ dọn dẹp', tone: 'warn', icon: 'clock' },
   LOCKED: { label: 'Đã khóa', tone: 'danger', icon: 'lock' },
   INACTIVE: { label: 'Chưa kích hoạt', tone: 'wait', icon: 'clock' },
   // trả phòng, thiết bị

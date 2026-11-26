@@ -125,7 +125,7 @@ public class PrepaymentService {
     /** Tu dong can tru toan bo tien du (toi da bang so con no) vao hoa don moi phat hanh. */
     @Transactional
     public void autoDeduct(Invoice inv) {
-        var pre = prepaymentRepo.findByTenantTenantId(inv.getTenant().getTenantId());
+        var pre = prepaymentRepo.findByTenantIdForUpdate(inv.getTenant().getTenantId());
         if (pre.isEmpty() || pre.get().getExcessBalance().signum() <= 0) {
             return;
         }
@@ -143,12 +143,14 @@ public class PrepaymentService {
 
     @Transactional
     public PrepaymentResponse undoDeduction(Integer deductionId, Integer actorId, String ip) {
-        PrepaymentDeduction d = deductionRepo.findById(deductionId)
+        PrepaymentDeduction original = deductionRepo.findById(deductionId)
+                .orElseThrow(() -> notFound("Lan can tru " + deductionId));
+        Invoice inv = invoiceRepo.findByIdForUpdate(original.getTargetInvoice().getInvoiceId())
+                .orElseThrow(() -> notFound("Hoa don"));
+        PrepaymentDeduction d = deductionRepo.findByIdForUpdate(deductionId)
                 .orElseThrow(() -> notFound("Lan can tru " + deductionId));
         TenantPrepayment pre = prepaymentRepo.findByTenantIdForUpdate(d.getPrepayment().getTenant().getTenantId())
-                .orElse(d.getPrepayment());
-        Invoice inv = invoiceRepo.findByIdForUpdate(d.getTargetInvoice().getInvoiceId())
-                .orElse(d.getTargetInvoice());
+                .orElseThrow(() -> notFound("So du tra truoc"));
         pre.setExcessBalance(pre.getExcessBalance().add(d.getDeductedAmount()));
         pre.setUpdatedAt(LocalDateTime.now());
         calculator.setPaid(inv, calculator.paidOf(inv).subtract(d.getDeductedAmount()).max(BigDecimal.ZERO),

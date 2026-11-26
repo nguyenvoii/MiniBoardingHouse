@@ -4,7 +4,7 @@ import { api, ApiError, can, errText, Page, PROPERTY_ID } from '../lib/api';
 import { getMonth } from '../lib/ctx';
 import { date, money, monthLabel } from '../lib/format';
 import type { Anomaly, Calculation, EligibleContract, Fee, Invoice, Issue, Period } from '../data/types';
-import { confirmDialog, dl, emptyState, field, formError, input, openDialog, pageHead, panel, plate, statusBadge, table, toast } from '../ui/kit';
+import { confirmDialog, dl, emptyState, field, formError, input, openDialog, pageHead, panel, plate, select, statusBadge, table, toast } from '../ui/kit';
 import { routeLine, Stop } from '../ui/route';
 
 void ({} as Page<unknown>);
@@ -70,6 +70,8 @@ export async function billingDetailPage(view: HTMLElement, params: Record<string
   const draft = p.status === 'DRAFT';
   const reload = () => billingDetailPage(view, params);
 
+  // UC72: cách chia khoản «Điện nước chung» cho các phòng
+  const alloc = select([['PER_RESIDENT', 'Chia điện nước chung theo số người ở'], ['PER_ROOM', 'Chia đều theo số phòng']], 'PER_RESIDENT', { 'aria-label': 'Cách chia điện nước chung', disabled: !draft });
   const calcBtn = h('button', { class: draft && p.roomCount ? 'btn secondary' : 'btn', disabled: !draft }, icon('calc', 16), p.roomCount ? 'Tính lại' : 'Tính tiền');
   calcBtn.addEventListener('click', async () => {
     if (p.roomCount && !(await confirmDialog('Tính lại kỳ', 'Các dòng tự tính sẽ được tính lại theo dữ liệu mới nhất, mọi chỉnh sửa tay trên dòng tự tính sẽ mất. Khoản bạn đã «Thêm khoản» thì được giữ lại. Tiếp tục?', 'Tính lại'))) return;
@@ -77,7 +79,7 @@ export async function billingDetailPage(view: HTMLElement, params: Record<string
   });
   const calcNow = () => busy(calcBtn, async () => {
     try {
-      const r = await api.post<Calculation>(`/api/billing/periods/${id}/calculate`);
+      const r = await api.post<Calculation>(`/api/billing/periods/${id}/calculate?sharedAllocation=${alloc.value}`);
       toast(`Đã tính ${r.fees.length} phòng${r.warnings.length ? `, ${r.warnings.length} cảnh báo` : ''}`);
       await reload();
     } catch (e) { toast(errText(e), 'err'); }
@@ -141,7 +143,7 @@ export async function billingDetailPage(view: HTMLElement, params: Record<string
 
   view.replaceChildren(
     h('p', null, h('a', { href: '#/billing' }, '← Các kỳ tính tiền')),
-    pageHead(`Kỳ ${monthLabel(p.monthYear).toLowerCase()}`, why, [statusBadge(p.status), calcBtn, approveBtn, canReopen ? reopenBtn : null, issueBtn].filter(Boolean) as Node[]),
+    pageHead(`Kỳ ${monthLabel(p.monthYear).toLowerCase()}`, why, [statusBadge(p.status), alloc, calcBtn, approveBtn, canReopen ? reopenBtn : null, issueBtn].filter(Boolean) as Node[]),
     h('div', { class: 'stack' },
       h('section', { class: 'panel route' }, routeLine(stops)),
       changeTenantPanel(calc.fees, calc.warnings),

@@ -1,13 +1,15 @@
+import { showPhotos } from '../ui/photo';
 import { h, busy } from '../lib/dom';
 import { icon } from '../lib/icons';
-import { api, errText, loadSession, Page } from '../lib/api';
+import { api, can, errText, loadSession, Page, PROPERTY_ID } from '../lib/api';
 import { dateTime, money } from '../lib/format';
+import type { Invoice } from '../data/types';
 import { liveContracts } from '../data/live';
 import type { Staff } from '../data/types';
 import { emptyState, field, formError, input, openDialog, pageHead, plate, select, table, toast } from '../ui/kit';
 
 export interface Ticket {
-  requestId: number; roomId: number; roomCode: string; tenantId: number | null; tenantName: string | null; category: string; description: string;
+  issuePhotoUrl?: string | null; requestId: number; roomId: number; roomCode: string; tenantId: number | null; tenantName: string | null; category: string; description: string;
   priority: string; status: string; createdAt: string;
   log: { assignedStaffId: number | null; assignedStaffName: string | null; repairCost: number | null; tenantRating: number | null; resolutionNotes: string | null; completedAt: string | null } | null;
 }
@@ -79,7 +81,8 @@ async function openTicket(t: Ticket, catLabel: string, reload: () => void): Prom
     h('dl', { class: 'dl' }, h('dt', null, 'Loại'), h('dd', null, catLabel), h('dt', null, 'Người báo'), h('dd', null, t.tenantName ?? '–'), h('dt', null, 'Gửi lúc'), h('dd', null, dateTime(t.createdAt)),
       h('dt', null, 'Người xử lý'), h('dd', null, t.log?.assignedStaffName ?? 'Chưa phân công'), h('dt', null, 'Chi phí sửa'), h('dd', null, t.log?.repairCost != null ? `${money(t.log.repairCost)} ₫` : '–'),
       h('dt', null, 'Kết quả'), h('dd', null, t.log?.resolutionNotes ?? '–'), h('dt', null, 'Người thuê đánh giá'), h('dd', null, t.log?.tenantRating ? `${t.log.tenantRating}/5 sao` : '–')),
-    h('div', null, h('h3', { style: 'margin-bottom:6px' }, 'Mô tả'), h('p', null, t.description)),
+    h('div', null, h('h3', { style: 'margin-bottom:6px' }, 'Mô tả'), h('p', null, t.description),
+      t.issuePhotoUrl ? h('button', { class: 'btn secondary sm', onclick: () => showPhotos('Ảnh sự cố', [{ label: `Phòng ${t.roomCode}`, url: t.issuePhotoUrl as string }]) }, 'Xem ảnh sự cố') : null),
     h('p', { class: 'muted' }, NEXT[t.status] ?? ''),
   );
   const act = (label: string, fn: () => void, cls = '') => {
@@ -102,6 +105,7 @@ async function openTicket(t: Ticket, catLabel: string, reload: () => void): Prom
   }
   if (t.status === 'ASSIGNED') foot.push(act('Bắt đầu xử lý', () => void call(`/api/maintenance-requests/${t.requestId}/start`, undefined, 'Đã bắt đầu xử lý'), 'secondary'));
   if (t.status === 'ASSIGNED' || t.status === 'IN_PROGRESS') foot.push(act('Ghi kết quả, hoàn tất', () => { d.close(); resolve(t, reload); }));
+  if ((t.status === 'RESOLVED' || t.status === 'CLOSED') && can('LANDLORD', 'MANAGER')) foot.push(act('Điều chỉnh hóa đơn', () => { d.close(); void adjustInvoice(t, reload); }, 'secondary'));
   if (t.status === 'RESOLVED') foot.push(act('Xác nhận hoàn tất', () => void call(`/api/maintenance-requests/${t.requestId}/close`, undefined, 'Đã hoàn tất yêu cầu')));
   d.foot.append(...foot);
 }
@@ -136,6 +140,27 @@ function resolve(t: Ticket, done: () => void): void {
   d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Hủy'), ok);
   ok.addEventListener('click', () => busy(ok, async () => {
     try { await api.patch(`/api/maintenance-requests/${t.requestId}/resolve`, { repairCost: Number(cost.value || 0), resolutionNotes: notes.value.trim() }); d.close(); toast('Đã hoàn tất'); done(); }
+    catch (e) { err.replaceChildren(formError(errText(e))); }
+  }));
+}
+
+/** UC111: sau khi xử lý xong yêu cầu kiểm tra công tơ/sự cố, giảm số tiền còn nợ của hóa đơn của khách đó. */
+async function adjustInvoice(t: Ticket, done: () => void): Promise<void> {
+  const d = openDialog(`Điều chỉnh hóa đơn · phòng ${t.roomCode}`);
+  const err = h('div');
+  let invoices: Invoice[] = [];
+  try { invoices = (await api.get<Invoice[]>(`/api/invoices?propertyId=${PROPERTY_ID}&roomCode=${encodeURIComponent(t.roomCode)}`)).filter((i) => i.remainingAmount > 0 && i.paymentStatus !== 'CANCELLED'); } catch (e) { err.replaceChildren(formError(errText(e))); }
+  const inv = select(invoices.map((i) => [String(i.invoiceId), `${i.invoiceCode} · còn ${money(i.remainingAmount)} ₫`] as [string, string]), '', { 'aria-label': 'Hóa đơn cần điều chỉnh' });
+  const amount = input({ type: 'number', min: '0', step: '1000', class: 'input num-in', 'aria-label': 'Số tiền giảm' });
+  const reason = h('textarea', { class: 'textarea', placeholder: 'Kết quả kiểm tra, vì sao giảm (bắt buộc)', 'aria-label': 'Lý do điều chỉnh' }) as HTMLTextAreaElement;
+  d.body.append(err, h('p', { class: 'muted' }, 'Chỉ giảm được phần còn nợ của hóa đơn chưa thanh toán đủ. Khách được báo trong ứng dụng.'),
+    invoices.length ? field('Hóa đơn', inv) : emptyState('Không có hóa đơn còn nợ', 'Phòng này không có hóa đơn nào cần điều chỉnh.'),
+    field('Số tiền giảm (₫)', amount), field('Lý do', reason));
+  const ok = h('button', { class: 'btn', disabled: !invoices.length }, 'Điều chỉnh hóa đơn');
+  d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Hủy'), ok);
+  ok.addEventListener('click', () => busy(ok, async () => {
+    if (!(Number(amount.value) > 0) || !reason.value.trim()) { err.replaceChildren(formError('Nhập số tiền giảm lớn hơn 0 và lý do.')); return; }
+    try { await api.post(`/api/maintenance-requests/${t.requestId}/invoice-adjustment`, { invoiceId: Number(inv.value), reduceAmount: Number(amount.value), reason: reason.value.trim() }); d.close(); toast('Đã điều chỉnh hóa đơn theo kết quả kiểm tra'); done(); }
     catch (e) { err.replaceChildren(formError(errText(e))); }
   }));
 }

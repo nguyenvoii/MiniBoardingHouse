@@ -40,7 +40,7 @@ export interface QrInfo { payment: Payment; bankName: string; accountNumber: str
 export interface Contract {
   contractId: number; contractCode: string; roomId: number; roomCode: string; tenantId: number; tenantName: string; templateId: number | null;
   startDate: string; endDate: string; monthlyRentPrice: number; depositAmount: number; paymentCycleMonths: number; paymentDueDay: number;
-  lateFeePerDay: number | null; electricTerms: string | null; waterTerms: string | null; depositRefundConditions: string | null;
+  lateFeePerDay: number | null; electricTerms: string | null; waterTerms: string | null; serviceTerms?: string | null; depositRefundConditions: string | null;
   digitalSignatureUrl: string | null; pdfContractUrl: string | null; status: string; createdAt: string;
 }
 export interface Adjustment { adjustmentId: number; adjustmentType: string; oldValue: string | null; newValue: string | null; adjustedBy: number | null; adjustedAt: string }

@@ -7,16 +7,23 @@ import com.group7.minihouse.viet.dto.CheckoutDtos.CheckoutResponse;
 import com.group7.minihouse.viet.dto.CheckoutDtos.CreateCheckoutRequest;
 import com.group7.minihouse.viet.dto.DebtDtos.DebtResponse;
 import com.group7.minihouse.viet.dto.DebtDtos.InvoiceHistoryItem;
+import com.group7.minihouse.viet.dto.DebtDtos.PaymentHistoryItem;
+import com.group7.minihouse.viet.dto.EquipmentDtos.CategoryResponse;
 import com.group7.minihouse.viet.dto.EquipmentDtos.CreateEquipmentRequest;
 import com.group7.minihouse.viet.dto.EquipmentDtos.EquipmentResponse;
 import com.group7.minihouse.viet.dto.MaintenanceDtos.CreateMaintenanceRequest;
 import com.group7.minihouse.viet.dto.MaintenanceDtos.MaintenanceResponse;
 import com.group7.minihouse.viet.dto.MaintenanceDtos.RatingRequest;
+import com.group7.minihouse.viet.dto.TenantRoomDtos.TenantRoom;
 import com.group7.minihouse.viet.service.CheckoutService;
 import com.group7.minihouse.viet.service.DebtService;
 import com.group7.minihouse.viet.service.EquipmentService;
+import com.group7.minihouse.viet.service.IncidentCategoryService;
 import com.group7.minihouse.viet.service.MaintenanceService;
+import com.group7.minihouse.viet.service.TenantRoomResolver;
+import java.io.IOException;
 import java.util.List;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -24,6 +31,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * API cua NGUOI THUE (duoi /api/me/**, chi role TENANT - da chan o SecurityConfig). Ma khach thue luon lay tu token,
@@ -37,13 +47,23 @@ public class TenantSelfServiceController {
     private final CheckoutService checkoutService;
     private final MaintenanceService maintenanceService;
     private final EquipmentService equipmentService;
+    private final TenantRoomResolver tenantRooms;
+    private final IncidentCategoryService categories;
 
     public TenantSelfServiceController(DebtService debtService, CheckoutService checkoutService,
-                                       MaintenanceService maintenanceService, EquipmentService equipmentService) {
+                                       MaintenanceService maintenanceService, EquipmentService equipmentService,
+                                       TenantRoomResolver tenantRooms, IncidentCategoryService categories) {
         this.debtService = debtService;
         this.checkoutService = checkoutService;
         this.maintenanceService = maintenanceService;
         this.equipmentService = equipmentService;
+        this.tenantRooms = tenantRooms;
+        this.categories = categories;
+    }
+
+    @GetMapping("/rooms")
+    public ApiResponse<List<TenantRoom>> rooms(@AuthenticationPrincipal AuthUser user) {
+        return ApiResponse.ok(tenantRooms.roomsForTenant(CurrentUser.requireTenantId(user)));
     }
 
     /** UC94: cong no cua toi. */
@@ -56,6 +76,12 @@ public class TenantSelfServiceController {
     @GetMapping("/debts/invoices")
     public ApiResponse<List<InvoiceHistoryItem>> invoiceHistory(@AuthenticationPrincipal AuthUser user) {
         return ApiResponse.ok(debtService.myInvoiceHistory(CurrentUser.requireTenantId(user)));
+    }
+
+    @GetMapping("/debts/invoices/{invoiceId}/payments")
+    public ApiResponse<List<PaymentHistoryItem>> payments(@PathVariable Integer invoiceId,
+                                                         @AuthenticationPrincipal AuthUser user) {
+        return ApiResponse.ok(debtService.myPayments(CurrentUser.requireTenantId(user), invoiceId));
     }
 
     /** UC101: gui yeu cau tra phong (contractId co the bo trong neu chi co 1 hop dong). */
@@ -71,10 +97,18 @@ public class TenantSelfServiceController {
     }
 
     /** UC110-112: gui su co / yeu cau sua chua (kem URL anh). */
-    @PostMapping("/maintenance-requests")
+    @PostMapping(value = "/maintenance-requests", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ApiResponse<MaintenanceResponse> createMaintenance(@RequestBody CreateMaintenanceRequest req,
                                                               @AuthenticationPrincipal AuthUser user) {
         return ApiResponse.ok(maintenanceService.create(req, CurrentUser.requireTenantId(user)));
+    }
+
+    @PostMapping(value = "/maintenance-requests", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<MaintenanceResponse> createMaintenanceWithPhoto(
+            @RequestPart("request") CreateMaintenanceRequest req, @RequestPart("file") MultipartFile file,
+            @AuthenticationPrincipal AuthUser user) throws IOException {
+        Integer tenantId = CurrentUser.requireTenantId(user);
+        return ApiResponse.ok(maintenanceService.create(req, tenantId, file.getBytes()));
     }
 
     @GetMapping("/maintenance-requests")
@@ -87,6 +121,13 @@ public class TenantSelfServiceController {
     public ApiResponse<MaintenanceResponse> rate(@PathVariable Integer id, @RequestBody RatingRequest req,
                                                  @AuthenticationPrincipal AuthUser user) {
         return ApiResponse.ok(maintenanceService.rate(id, CurrentUser.requireTenantId(user), req));
+    }
+
+    @GetMapping("/incident-categories")
+    public ApiResponse<List<CategoryResponse>> categories(@RequestParam(required = false) String type,
+                                                         @AuthenticationPrincipal AuthUser user) {
+        CurrentUser.requireTenantId(user);
+        return ApiResponse.ok(categories.search(type, true));
     }
 
     @PostMapping("/equipment-requests")

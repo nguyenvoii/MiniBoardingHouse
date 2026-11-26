@@ -10,12 +10,21 @@ import com.group7.minihouse.shared.entity.MeterReading;
 
 public interface MeterReadingRepository extends JpaRepository<MeterReading, Integer> {
 
+    @Query("select r from MeterReading r where r.period.periodId = :periodId "
+            + "order by r.room.roomCode, r.readingId")
     List<MeterReading> findByPeriodPeriodIdOrderByRoomRoomCode(Integer periodId);
 
+    @Query("select r from MeterReading r where r.period.periodId = :periodId "
+            + "and r.room.roomId = :roomId and r.closingContract is null")
     Optional<MeterReading> findByPeriodPeriodIdAndRoomRoomId(Integer periodId, Integer roomId);
 
+    Optional<MeterReading> findFirstByPeriodPeriodIdAndRoomRoomIdAndClosingContractIsNotNullOrderByReadingIdDesc(
+            Integer periodId, Integer roomId);
+
+    boolean existsByPeriodPeriodIdAndRoomRoomIdAndReadingIdGreaterThan(Integer periodId, Integer roomId, Integer readingId);
+
     /** Chi so ky ngay truoc (ky co ngay ket thuc som hon ngay bat dau ky hien tai). */
-    Optional<MeterReading> findFirstByRoomRoomIdAndPeriodEndDateLessThanOrderByPeriodEndDateDesc(
+    Optional<MeterReading> findFirstByRoomRoomIdAndPeriodEndDateLessThanOrderByPeriodEndDateDescReadingIdDesc(
             Integer roomId, LocalDate beforeDate);
 
     /** Lich su tieu thu cua mot phong, loc theo khoang ngay cua ky (UC 58, 59). */

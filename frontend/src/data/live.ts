@@ -3,7 +3,7 @@
 import { api, Page, PROPERTY_ID } from '../lib/api';
 import type { Contract } from './types';
 
-export type RoomStatus = 'RENTED' | 'VACANT' | 'REPAIRING' | 'SUSPENDED';
+export type RoomStatus = 'RENTED' | 'VACANT' | 'REPAIRING' | 'SUSPENDED' | 'CLEANING';
 
 export interface RoomType {
   roomTypeId: number;
@@ -91,7 +91,7 @@ export function loadProperties(): Promise<PropertyInfo[]> {
 
 function roomStatus(apiStatus: string, hasContract: boolean): RoomStatus {
   if (hasContract) return 'RENTED';
-  if (apiStatus === 'REPAIRING' || apiStatus === 'SUSPENDED') return apiStatus;
+  if (apiStatus === 'REPAIRING' || apiStatus === 'SUSPENDED' || apiStatus === 'CLEANING') return apiStatus;
   return 'VACANT'; // kể cả khi DB ghi RENTED mà không còn hợp đồng hiệu lực
 }
 

@@ -14,6 +14,7 @@ import com.group7.minihouse.phi.service.PasswordRecoveryService;
 import com.group7.minihouse.shared.dto.ApiResponse;
 import com.group7.minihouse.shared.exception.BusinessException;
 import com.group7.minihouse.shared.security.AuthUser;
+import com.group7.minihouse.shared.security.CurrentUser;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -64,14 +65,16 @@ public class AuthController {
     }
 
     @PostMapping("/send-phone-verification")
-    public ApiResponse<Void> sendPhoneVerification(@RequestBody ForgotPasswordRequest req) {
-        registrationService.requestPhoneVerification(req.identifier());
+    public ApiResponse<Void> sendPhoneVerification(@Valid @RequestBody ForgotPasswordRequest req,
+                                                    @AuthenticationPrincipal AuthUser actor) {
+        registrationService.requestPhoneVerification(CurrentUser.requireUserId(actor), req.identifier());
         return ApiResponse.ok("Da gui ma xac thuc so dien thoai", null);
     }
 
     @PostMapping("/verify-phone")
-    public ApiResponse<Void> verifyPhone(@Valid @RequestBody VerifyPhoneRequest req, HttpServletRequest http) {
-        registrationService.verifyPhone(req.phone(), req.code(), http.getRemoteAddr());
+    public ApiResponse<Void> verifyPhone(@Valid @RequestBody VerifyPhoneRequest req, @AuthenticationPrincipal AuthUser actor,
+                                         HttpServletRequest http) {
+        registrationService.verifyPhone(CurrentUser.requireUserId(actor), req.phone(), req.code(), http.getRemoteAddr());
         return ApiResponse.ok("Da xac thuc so dien thoai", null);
     }
 

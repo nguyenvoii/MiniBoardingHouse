@@ -6,6 +6,7 @@ import com.group7.minihouse.viet.dto.EquipmentDtos.CategoryRequest;
 import com.group7.minihouse.viet.dto.EquipmentDtos.CategoryResponse;
 import com.group7.minihouse.viet.repository.IncidentCategoryRepository;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
@@ -35,7 +36,7 @@ public class IncidentCategoryService {
         if (req == null) {
             throw new BusinessException("Thieu du lieu");
         }
-        String code = VietSupport.requireText(req.categoryCode(), "ma nhom").toUpperCase();
+        String code = VietSupport.requireText(req.categoryCode(), "ma nhom").toUpperCase(Locale.ROOT);
         if (!CODE.matcher(code).matches()) {
             throw new BusinessException("Ma nhom chi gom chu hoa, so, dau gach duoi (2-50 ky tu)");
         }
@@ -48,9 +49,8 @@ public class IncidentCategoryService {
         }
         IncidentCategory c = new IncidentCategory();
         c.setCategoryCode(code);
-        c.setCategoryName(VietSupport.requireText(req.categoryName(), "ten nhom"));
         c.setCategoryType(type);
-        c.setDescription(VietSupport.blankToNull(req.description()));
+        applyDescription(c, req);
         c.setIsActive(true);
         return CategoryResponse.from(repository.save(c));
     }
@@ -62,8 +62,13 @@ public class IncidentCategoryService {
         if (req == null) {
             throw new BusinessException("Thieu du lieu");
         }
-        c.setCategoryName(VietSupport.requireText(req.categoryName(), "ten nhom"));
-        c.setDescription(VietSupport.blankToNull(req.description()));
+        String code = VietSupport.blankToNull(req.categoryCode());
+        String type = VietSupport.blankToNull(req.categoryType());
+        if ((code != null && !c.getCategoryCode().equalsIgnoreCase(code))
+                || (type != null && !c.getCategoryType().equalsIgnoreCase(type))) {
+            throw new BusinessException("Khong duoc doi ma hoac loai nhom");
+        }
+        applyDescription(c, req);
         return CategoryResponse.from(repository.save(c));
     }
 
@@ -75,6 +80,16 @@ public class IncidentCategoryService {
         IncidentCategory c = find(id);
         c.setIsActive(active);
         return CategoryResponse.from(repository.save(c));
+    }
+
+    private static void applyDescription(IncidentCategory category, CategoryRequest request) {
+        String name = VietSupport.requireText(request.categoryName(), "ten nhom");
+        String description = VietSupport.blankToNull(request.description());
+        if (name.length() > 100 || (description != null && description.length() > 255)) {
+            throw new BusinessException("Ten nhom toi da 100 ky tu, mo ta toi da 255 ky tu");
+        }
+        category.setCategoryName(name);
+        category.setDescription(description);
     }
 
     private IncidentCategory find(Integer id) {

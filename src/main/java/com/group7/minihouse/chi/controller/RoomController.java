@@ -67,7 +67,7 @@ public class RoomController {
         return ApiResponse.ok("Cập nhật trạng thái thành công", roomService.updateRoomStatus(id, status));
     }
 
-    // UC 29: Xác nhận phòng đã vệ sinh xong, cho thuê lại (REPAIRING -> VACANT)
+    // UC 29: Xác nhận phòng đã vệ sinh xong, cho thuê lại (CLEANING -> VACANT)
     @PatchMapping("/{id}/confirm-cleaned")
     public ApiResponse<RoomDTO> confirmCleaned(@PathVariable Integer id) {
         return ApiResponse.ok("Đã xác nhận vệ sinh phòng xong, sẵn sàng cho thuê", roomService.confirmCleanedAndAvailable(id));

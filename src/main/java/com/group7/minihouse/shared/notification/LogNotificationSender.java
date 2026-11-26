@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 /**
  * Ban dev: khong gui that, chi in thong bao ra log de lay ma OTP khi test/demo.
  * app.notification.log-otp=true (MAC DINH, de chay local lay duoc ma OTP/mat khau tam): in ca noi dung o muc INFO.
- * Dat false khi chay that: chi in nguoi nhan + tieu de o INFO, noi dung (co ma OTP) chi o muc DEBUG.
+ * Dat false khi chay that: chi in nguoi nhan + tieu de o INFO, bo noi dung co ma OTP.
  */
 @Component
 public class LogNotificationSender implements NotificationSender {
@@ -26,8 +26,7 @@ public class LogNotificationSender implements NotificationSender {
         if (logBody) {
             log.info("[THONG BAO GIA LAP] den={} | {} | {}", recipient, subject, body);
         } else {
-            log.info("[THONG BAO GIA LAP] den={} | {} | (noi dung chi o muc DEBUG)", recipient, subject);
-            log.debug("[THONG BAO GIA LAP] noi dung: {}", body);
+            log.info("[THONG BAO GIA LAP] den={} | {} |", recipient, subject);
         }
     }
 }

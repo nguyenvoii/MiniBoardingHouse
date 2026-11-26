@@ -1,6 +1,7 @@
 import { h, busy } from '../lib/dom';
 import { icon } from '../lib/icons';
-import { api, ApiError, can, errText, loadSession, Page } from '../lib/api';
+import { api, ApiError, can, errText, loadSession, Page, PROPERTY_ID } from '../lib/api';
+import { loadLive } from '../data/live';
 import { dateTime, money, monthLabel } from '../lib/format';
 import { getMonth } from '../lib/ctx';
 import type { Invoice, Payment, QrInfo } from '../data/types';
@@ -101,6 +102,7 @@ export async function paymentsPage(view: HTMLElement): Promise<void> {
 
   view.replaceChildren(
     pageHead('Thanh toán', 'Đối chiếu tiền vào tài khoản với hóa đơn. Giao dịch chờ xác nhận chưa được cộng vào hóa đơn.', [
+      h('button', { class: 'btn secondary', onclick: () => void prepaymentDrawer() }, icon('wallet', 16), 'Số dư trả trước'),
       h('button', { class: 'btn secondary', onclick: () => void receiptsDrawer() }, icon('receipt', 16), 'Phiếu thu'),
       h('button', { class: 'btn', onclick: () => matchDialog(() => void load()) }, icon('search', 16), 'Đối chiếu chuyển khoản'),
     ]),
@@ -126,7 +128,9 @@ async function receiptsDrawer(): Promise<void> {
         { key: 't', label: 'Loại', render: (r) => VOUCHER[r.voucherType] ?? r.voucherType },
         { key: 'a', label: 'Số tiền (₫)', num: true, render: (r) => h('b', null, money(r.amount)) },
         { key: 'd', label: 'Lập lúc', render: (r) => dateTime(r.createdAt) },
-        { key: 'p', label: '', render: (r) => h('button', { class: 'btn secondary sm', onclick: (e: Event) => { e.stopPropagation(); void printReceipt(r.voucherId); } }, icon('print', 14), 'In') },
+        { key: 'p', label: '', render: (r) => h('div', { class: 'row-actions' },
+          h('button', { class: 'btn secondary sm', onclick: (e: Event) => { e.stopPropagation(); void printReceipt(r.voucherId); } }, icon('print', 14), 'In'),
+          h('button', { class: 'btn secondary sm', onclick: async (e: Event) => { e.stopPropagation(); try { await api.post(`/api/receipts/${r.voucherId}/send-confirmation`); toast('Đã gửi xác nhận thanh toán cho khách'); } catch (x) { toast(errText(x), 'err'); } } }, icon('send', 14), 'Gửi xác nhận')) },
       ], list) : emptyState('Chưa có phiếu thu', 'Lập phiếu cho một giao dịch đã thu thành công.'));
   };
   d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Đóng'), h('button', { class: 'btn', onclick: () => newReceipt(() => void paint()) }, icon('plus', 16), 'Lập phiếu thu'));
@@ -240,4 +244,62 @@ function openPayment(p: Payment, reload: () => void): void {
     d.body.append(h('p', { class: 'muted' }, 'Ghi nhầm giao dịch này? Chỉ chủ trọ hoặc quản lý hủy được, hãy báo họ.'));
   }
   d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Đóng'));
+}
+
+// ------------------------------------------------------------------ UC92: tiền trả dư, cấn trừ kỳ sau, hoàn tiền
+interface Prepay { prepaymentId: number | null; tenantId: number; excessBalance: number; updatedAt: string | null }
+interface Deduction { deductionId: number; targetInvoiceId: number; deductedAmount: number; deductedAt: string }
+
+async function prepaymentDrawer(): Promise<void> {
+  const { tenants } = await loadLive();
+  const d = openDialog('Số dư trả trước của khách', { drawer: true });
+  const who = select(tenants.map((t) => [String(t.tenantId), `${t.name} · ${t.phone}`] as [string, string]), '', { 'aria-label': 'Chọn khách' });
+  const body = h('div', { class: 'stack' });
+  d.body.append(h('p', { class: 'muted' }, 'Tiền khách trả dư được giữ thành số dư, cấn trừ vào hóa đơn kỳ sau hoặc hoàn lại cho khách.'), field('Khách', who), body);
+  d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Đóng'));
+  const paint = async () => {
+    if (!who.value) { body.replaceChildren(emptyState('Chưa có khách', 'Thêm khách ở mục Khách hàng.')); return; }
+    const tid = Number(who.value);
+    body.replaceChildren(h('p', { class: 'muted' }, 'Đang tải...'));
+    try {
+      const [bal, ded, invs] = await Promise.all([
+        api.get<Prepay>(`/api/tenants/${tid}/prepayment`),
+        api.get<Deduction[]>(`/api/tenants/${tid}/prepayment/deductions`),
+        api.get<Invoice[]>(`/api/invoices?propertyId=${PROPERTY_ID}`).then((l) => l.filter((i) => i.tenantId === tid && i.remainingAmount > 0 && i.paymentStatus !== 'CANCELLED')),
+      ]);
+      const amount = input({ type: 'number', min: '0', step: '1000', class: 'input num-in', 'aria-label': 'Số tiền' });
+      const target = select(invs.map((i) => [String(i.invoiceId), `${i.invoiceCode} · còn ${money(i.remainingAmount)} ₫`] as [string, string]), '', { 'aria-label': 'Hóa đơn cần cấn trừ' });
+      const err = h('div');
+      const act = (label: string, cls: string, fn: () => Promise<unknown>, okMsg: string) => {
+        const b = h('button', { class: `btn ${cls}` }, label);
+        b.addEventListener('click', () => busy(b, async () => {
+          err.replaceChildren();
+          if (!(Number(amount.value) > 0)) { err.replaceChildren(formError('Nhập số tiền lớn hơn 0.')); return; }
+          try { await fn(); toast(okMsg); await paint(); } catch (e) { err.replaceChildren(formError(errText(e))); }
+        }));
+        return b;
+      };
+      const undo = (x: Deduction) => {
+        const b = h('button', { class: 'btn secondary sm' }, 'Hủy cấn trừ');
+        b.addEventListener('click', () => busy(b, async () => { try { await api.del(`/api/prepayments/deductions/${x.deductionId}`); toast('Đã hủy cấn trừ, số dư được cộng lại'); await paint(); } catch (e) { toast(errText(e), 'err'); } }));
+        return b;
+      };
+      body.replaceChildren(
+        h('div', { class: 'panel-body', style: 'border:1px solid var(--line);border-radius:10px' }, h('span', { class: 'muted' }, 'Số dư hiện có'), h('div', { style: 'font-size:26px;font-weight:700' }, `${money(bal.excessBalance)} ₫`)),
+        err,
+        h('div', { class: 'form-grid' }, field('Số tiền (₫)', amount), field('Hóa đơn cần cấn trừ', target)),
+        h('div', { style: 'display:flex;gap:8px;flex-wrap:wrap' },
+          act('Cấn trừ vào hóa đơn', '', () => { if (!target.value) throw new Error('Khách không có hóa đơn nào còn nợ để cấn trừ.'); return api.post('/api/prepayments/deduct', { tenantId: tid, targetInvoiceId: Number(target.value), amount: Number(amount.value) }); }, 'Đã cấn trừ vào hóa đơn'),
+          can('LANDLORD', 'MANAGER') ? act('Hoàn tiền cho khách', 'secondary', () => api.post('/api/prepayments/refund', { tenantId: tid, amount: Number(amount.value) }), 'Đã hoàn tiền, số dư đã trừ') : null as unknown as HTMLElement),
+        h('h3', { style: 'margin:8px 0 0' }, 'Lịch sử cấn trừ'),
+        ded.length ? table<Deduction>([
+          { key: 'i', label: 'Hóa đơn', render: (x) => `#${x.targetInvoiceId}` },
+          { key: 'a', label: 'Số tiền (₫)', num: true, render: (x) => money(x.deductedAmount) },
+          { key: 't', label: 'Lúc', render: (x) => dateTime(x.deductedAt) },
+          { key: 'u', label: '', render: undo },
+        ], ded) : h('p', { class: 'muted' }, 'Chưa cấn trừ lần nào.'));
+    } catch (e) { body.replaceChildren(formError(errText(e))); }
+  };
+  who.addEventListener('change', () => void paint());
+  await paint();
 }

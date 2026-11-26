@@ -253,7 +253,7 @@ class ContractServiceTest {
         RentalContract c = live("ACTIVE");
         service.transferRoom(100, new TransferRequest(2, null, null, null), 5, "ip");
         assertEquals(2, c.getRoom().getRoomId());
-        assertEquals("VACANT", room.getStatus());
+        assertEquals("CLEANING", room.getStatus());
         assertEquals("RENTED", room2.getStatus());
     }
 
@@ -276,9 +276,16 @@ class ContractServiceTest {
 
     @Test
     void transferClosesMetersWhenGiven() {
-        live("ACTIVE");
+        RentalContract contract = live("ACTIVE");
+        when(meterService.recordMoveOut(any())).thenReturn(new com.group7.minihouse.toan.dto.MeterDtos.ReadingResponse(
+                77, 9, 1, "P101", 0, 100, 100, 0, 50, 50, null, null, false));
+        var closing = new com.group7.minihouse.shared.entity.MeterReading();
+        when(em.find(com.group7.minihouse.shared.entity.MeterReading.class, 77)).thenReturn(closing);
         service.transferRoom(100, new TransferRequest(2, 9, 100, 50), 5, "ip");
-        verify(meterService).recordMoveOut(any());
+        assertEquals(contract, closing.getClosingContract());
+        var order = org.mockito.Mockito.inOrder(meterService);
+        order.verify(meterService).recordMoveOut(any());
+        order.verify(meterService).confirmReading(77);
     }
 
     @Test
@@ -286,7 +293,7 @@ class ContractServiceTest {
         RentalContract c = live("ACTIVE");
         ContractResponse r = service.terminate(100, new TerminateRequest("Khach chuyen di noi khac", "P101"), 5, "ip");
         assertEquals("TERMINATED", r.status());
-        assertEquals("VACANT", room.getStatus());
+        assertEquals("CLEANING", room.getStatus());
         assertNotNull(c);
         // lich su o / TERMINATED / chot chi so do ContractEndListener lam khi nhan su kien, chung voi Tra phong
         ArgumentCaptor<com.group7.minihouse.shared.event.ContractEndedEvent> ev =
@@ -301,7 +308,7 @@ class ContractServiceTest {
         RentalContract c = live("EXPIRED");
         ContractResponse r = service.terminate(100, new TerminateRequest("Khach da don di tu truoc", "P101"), 5, "ip");
         assertEquals("TERMINATED", r.status());
-        assertEquals("VACANT", room.getStatus());
+        assertEquals("CLEANING", room.getStatus());
         ArgumentCaptor<com.group7.minihouse.shared.event.ContractEndedEvent> ev =
                 ArgumentCaptor.forClass(com.group7.minihouse.shared.event.ContractEndedEvent.class);
         verify(publisher).publishEvent(ev.capture());

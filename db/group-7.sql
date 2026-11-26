@@ -118,7 +118,7 @@ CREATE TABLE [rooms] (
     [initial_electric_meter] INT NOT NULL DEFAULT 0,
     [initial_water_meter] INT NOT NULL DEFAULT 0,
     [status] NVARCHAR(30) NOT NULL DEFAULT 'VACANT' 
-        CHECK ([status] IN ('VACANT', 'RENTED', 'REPAIRING', 'SUSPENDED')),
+        CONSTRAINT CK_rooms_status CHECK ([status] IN ('VACANT', 'RENTED', 'REPAIRING', 'CLEANING', 'SUSPENDED')),
     [created_at] DATETIME2 NOT NULL DEFAULT GETDATE(),
     CONSTRAINT [UQ_property_room_code] UNIQUE([property_id], [room_code])
 );
@@ -157,6 +157,10 @@ CREATE TABLE [tenants] (
     [occupation] NVARCHAR(100) NULL,
     [emergency_contact_name] NVARCHAR(100) NULL,
     [emergency_contact_phone] VARCHAR(20) NULL,
+    [residence_start_date] DATE NULL,
+    [residence_end_date] DATE NULL,
+    CONSTRAINT CK_tenants_residence_dates CHECK (residence_end_date IS NULL
+        OR (residence_start_date IS NOT NULL AND residence_end_date >= residence_start_date)),
     [is_verified] BIT DEFAULT 0,
     [created_at] DATETIME2 NOT NULL DEFAULT GETDATE()
 );
@@ -246,6 +250,7 @@ CREATE TABLE [rental_contracts] (
     [late_fee_per_day] DECIMAL(18,2) DEFAULT 0,
     [electric_terms] NVARCHAR(255) NULL,
     [water_terms] NVARCHAR(255) NULL,
+    [service_terms] NVARCHAR(255) NULL,
     [deposit_refund_conditions] NVARCHAR(MAX) NULL,
     [digital_signature_url] NVARCHAR(500) NULL,
     [pdf_contract_url] NVARCHAR(500) NULL,
@@ -302,7 +307,8 @@ CREATE TABLE [meter_readings] (
     [reading_date] DATETIME2 NOT NULL DEFAULT GETDATE(),
     [recorded_by_user_id] INT NOT NULL FOREIGN KEY REFERENCES [users]([user_id]),
     [is_verified] BIT DEFAULT 1,
-    CONSTRAINT [UQ_period_room_reading] UNIQUE([period_id], [room_id])
+    [closing_contract_id] INT NULL CONSTRAINT [FK_meter_readings_closing_contract] REFERENCES [rental_contracts]([contract_id]),
+    CONSTRAINT [UQ_period_room_contract_reading] UNIQUE([period_id], [room_id], [closing_contract_id])
 );
 
 -- 23. Ảnh chụp công tơ điện & đồng hồ nước minh bạch
@@ -812,3 +818,18 @@ INSERT INTO dbo.standard_furnishings (item_name, quantity, condition_status, not
     (N'Bình nóng lạnh Ariston 20L', 1, N'Mới / Hoạt động tốt', N'Có chống giật ELCB an toàn'),
     (N'Bàn ghế làm việc / học tập', 1, N'Mới / Tốt', N'Bàn gỗ chân sắt + ghế xoay êm'),
     (N'Tủ lạnh mini 90L', 1, N'Mới / Hoạt động tốt', N'Tiết kiệm điện năng');
+GO
+
+SET XACT_ABORT ON;
+
+-- UC120: lich chay cua cac tac vu tu dong, chinh duoc tren giao dien (ghi de gia tri mac dinh trong cau hinh).
+IF OBJECT_ID(N'dbo.job_settings', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.job_settings (
+        job_name    NVARCHAR(60)  NOT NULL CONSTRAINT PK_job_settings PRIMARY KEY,
+        cron        NVARCHAR(60)  NOT NULL,
+        enabled     BIT           NOT NULL CONSTRAINT DF_job_settings_enabled DEFAULT 1,
+        updated_by  INT           NULL,
+        updated_at  DATETIME2     NOT NULL CONSTRAINT DF_job_settings_updated DEFAULT SYSDATETIME()
+    );
+END;

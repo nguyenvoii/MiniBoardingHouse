@@ -34,7 +34,9 @@ public class RoomAddonFeeService {
     @Transactional(readOnly = true)
     public List<RoomAddonFeeDTO.Response> getAll(Integer roomId, Boolean isActive) {
         List<RoomAddonFee> list;
-        if (roomId != null) {
+        if (roomId != null && isActive != null) {
+            list = addonFeeRepository.findByRoom_RoomIdAndIsActiveOrderByStartDateDesc(roomId, isActive);
+        } else if (roomId != null) {
             list = addonFeeRepository.findByRoom_RoomIdOrderByStartDateDesc(roomId);
         } else if (isActive != null) {
             list = addonFeeRepository.findByIsActiveOrderByStartDateDesc(isActive);
@@ -53,7 +55,7 @@ public class RoomAddonFeeService {
 
     @Transactional
     public RoomAddonFeeDTO.Response create(RoomAddonFeeDTO.CreateRequest req) {
-        if (req.getRoomId() == null) throw new BusinessException("Vui lòng chọn phòng");
+        if (req == null || req.getRoomId() == null) throw new BusinessException("Vui lòng chọn phòng");
         if (req.getFeeName() == null || req.getFeeName().trim().isEmpty()) {
             throw new BusinessException("Vui lòng nhập tên phụ phí dịch vụ");
         }
@@ -87,6 +89,9 @@ public class RoomAddonFeeService {
         if (req.getEquipmentRequestId() != null) {
             RoomEquipmentRequest eq = equipmentRequestRepository.findById(req.getEquipmentRequestId())
                     .orElseThrow(() -> BusinessException.notFound("Yêu cầu thiết bị #" + req.getEquipmentRequestId()));
+            if (!room.getRoomId().equals(eq.getRoom().getRoomId())) {
+                throw new BusinessException("Yeu cau thiet bi khong thuoc phong da chon");
+            }
             entity.setEquipmentRequest(eq);
         }
 

@@ -5,7 +5,12 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.group7.minihouse.phi.controller.CashierPaymentController;
+import com.group7.minihouse.phi.service.PaymentService;
 import com.group7.minihouse.shared.security.AuthUser;
+import com.group7.minihouse.shared.storage.FileStorage;
+import com.group7.minihouse.toan.controller.MeterReadingController;
+import com.group7.minihouse.toan.service.MeterReadingService;
 import com.group7.minihouse.shared.security.JwtService;
 import com.group7.minihouse.shared.security.UserStatusChecker;
 import java.util.Arrays;
@@ -26,8 +31,8 @@ import org.springframework.web.bind.annotation.RestController;
  * Luat URL khi app.security.enabled=true (khong can DB): mac dinh chi nhan vien duoc vao,
  * nguoi thue chi vao /api/me/** va /api/auth/** => dong doi quen @PreAuthorize cung khong lo du lieu cho nguoi thue.
  */
-@WebMvcTest(controllers = SecurityRulesTest.Probe.class)
-@Import({SecurityConfig.class, JwtService.class, SecurityRulesTest.Probe.class})
+@WebMvcTest(controllers = {SecurityRulesTest.Probe.class, MeterReadingController.class, CashierPaymentController.class})
+@Import({SecurityConfig.class, MethodSecurityConfig.class, JwtService.class, SecurityRulesTest.Probe.class})
 @TestPropertySource(properties = {
         "app.security.enabled=true",
         "app.jwt.secret=unit-test-secret-unit-test-secret-1234567890"})
@@ -78,6 +83,9 @@ class SecurityRulesTest {
     @Autowired MockMvc mvc;
     @Autowired JwtService jwt;
     @MockBean UserStatusChecker statusChecker;
+    @MockBean MeterReadingService meterReadingService;
+    @MockBean PaymentService paymentService;
+    @MockBean FileStorage storage;
 
     /** Vai tro "trong DB" ma statusChecker tra ve; bearer() dat bang vai tro trong token (nhu chua bi doi). */
     List<String> dbRoles = List.of();
@@ -111,6 +119,20 @@ class SecurityRulesTest {
                 .andExpect(status().isUnauthorized());
         mvc.perform(get("/api/auth/probe").header("Authorization", bearer("MANAGER")))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void meterAndPaymentReadsFollowRoleMatrix() throws Exception {
+        for (var role : List.of("LANDLORD", "MANAGER", "CASHIER", "METER_READER", "TENANT")) {
+            String token = bearer(role);
+            boolean manager = List.of("LANDLORD", "MANAGER").contains(role);
+            int meterStatus = manager || "METER_READER".equals(role) ? 200 : 403;
+            int paymentStatus = manager || "CASHIER".equals(role) ? 200 : 403;
+            mvc.perform(get("/api/meter-periods").param("propertyId", "1").header("Authorization", token))
+                    .andExpect(status().is(meterStatus));
+            mvc.perform(get("/api/payments/1").header("Authorization", token))
+                    .andExpect(status().is(paymentStatus));
+        }
     }
 
     private String bearer(String... roles) {

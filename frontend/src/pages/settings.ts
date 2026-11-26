@@ -1,7 +1,8 @@
 import { roomFurnishings } from './roomFurnishings';
 import { h, busy } from '../lib/dom';
 import { icon } from '../lib/icons';
-import { api, errText, loadSession, PROPERTY_ID } from '../lib/api';
+import { api, can, errText, loadSession, PROPERTY_ID } from '../lib/api';
+import { backupTab, categoriesTab, equipmentTab, jobsTab, templatesTab } from './systemTabs';
 import { date, money, isoDay } from '../lib/format';
 import { loadLive, loadProperties, loadRoomTypes, type PropertyInfo, type RoomType } from '../data/live';
 import { confirmDialog, emptyState, field, formError, input, openDialog, pageHead, select, table, toast } from '../ui/kit';
@@ -14,17 +15,18 @@ interface Bank { bankAccountId: number; propertyId: number; bankName: string; ac
 const CHARGE: Record<string, string> = {
   FIXED_ROOM: 'Cố định mỗi phòng', PER_PERSON: 'Theo đầu người', PER_VEHICLE: 'Theo số xe', PER_METER_UNIT: 'Theo đơn vị công tơ (chưa tự tính)',
 };
-const TABS = [['rates', 'Đơn giá điện nước'], ['services', 'Dịch vụ hàng tháng'], ['custom', 'Phụ thu và giảm trừ'], ['property', 'Khu trọ và tầng'], ['room-types', 'Loại phòng'], ['furnishings', 'Thiết bị chuẩn'], ['bank', 'Ngân hàng và mã QR']] as const;
+const TABS = [['rates', 'Đơn giá điện nước'], ['services', 'Dịch vụ hàng tháng'], ['custom', 'Phụ thu và giảm trừ'], ['property', 'Khu trọ và tầng'], ['room-types', 'Loại phòng'], ['furnishings', 'Thiết bị chuẩn'], ['bank', 'Ngân hàng và mã QR'], ['equipment', 'Thiết bị và phụ phí'], ['categories', 'Nhóm sự cố, thiết bị'], ['templates', 'Mẫu thông báo'], ['jobs', 'Lịch tự động'], ['backup', 'Sao lưu']] as const;
+const OWNER_ONLY = ['jobs', 'backup']; // chỉ chủ trọ
 
 export async function settingsPage(view: HTMLElement, _p: Record<string, string>, query: URLSearchParams): Promise<void> {
   let tab = query.get('tab') ?? 'rates';
   const body = h('div');
   const tabs = h('div', { class: 'tabs', role: 'tablist' });
   const paint = async () => {
-    tabs.replaceChildren(...TABS.map(([k, l]) => h('button', { role: 'tab', 'aria-selected': String(k === tab), onclick: () => { tab = k; void paint(); } }, l)));
+    tabs.replaceChildren(...TABS.filter(([k]) => !OWNER_ONLY.includes(k) || can('LANDLORD')).map(([k, l]) => h('button', { role: 'tab', 'aria-selected': String(k === tab), onclick: () => { tab = k; void paint(); } }, l)));
     body.replaceChildren(h('div', { class: 'panel-body' }, h('div', { class: 'skel', style: 'height:80px' })));
     try {
-      body.replaceChildren(tab === 'furnishings' ? h('div', { class: 'panel-body' }, roomFurnishings()) : tab === 'property' ? await propertyTab(paint) : tab === 'rates' ? await ratesTab(paint) : tab === 'services' ? await servicesTab(paint) : tab === 'custom' ? await customTab() : tab === 'room-types' ? await roomTypesTab(paint) : await bankTab(paint));
+      body.replaceChildren(tab === 'furnishings' ? h('div', { class: 'panel-body' }, roomFurnishings()) : tab === 'property' ? await propertyTab(paint) : tab === 'rates' ? await ratesTab(paint) : tab === 'services' ? await servicesTab(paint) : tab === 'custom' ? await customTab() : tab === 'room-types' ? await roomTypesTab(paint) : tab === 'equipment' ? await equipmentTab(paint) : tab === 'categories' ? await categoriesTab(paint) : tab === 'templates' ? await templatesTab(paint) : tab === 'jobs' && can('LANDLORD') ? await jobsTab(paint) : tab === 'backup' && can('LANDLORD') ? await backupTab(paint) : await bankTab(paint));
     } catch (e) { body.replaceChildren(emptyState('Chưa tải được', errText(e))); }
   };
   view.replaceChildren(pageHead('Cài đặt', 'Đơn giá, dịch vụ và tài khoản nhận tiền. Tính tiền hàng tháng đọc trực tiếp các mục này.'), h('section', { class: 'panel panel-flush' }, tabs, body));

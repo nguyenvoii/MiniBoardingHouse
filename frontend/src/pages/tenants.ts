@@ -40,6 +40,66 @@ export async function tenantsPage(view: HTMLElement): Promise<void> {
   );
 }
 
+
+interface FullTenant {
+  dob?: string | null; permanentAddress?: string | null; emergencyContactName?: string | null; emergencyContactPhone?: string | null;
+  residenceStartDate?: string | null; residenceEndDate?: string | null; isVerified?: boolean | null; frontImageUrl?: string | null; backImageUrl?: string | null;
+}
+
+/** Các trường hồ sơ ngoài tên/SĐT/CCCD: ngày sinh, địa chỉ, người liên hệ khẩn cấp, ngày bắt đầu/kết thúc cư trú. */
+function profileFields(init: FullTenant = {}) {
+  const dob = input({ type: 'date', value: init.dob ?? '', 'aria-label': 'Ngày sinh' });
+  const addr = input({ value: init.permanentAddress ?? '', maxlength: '255', placeholder: 'Không bắt buộc', 'aria-label': 'Địa chỉ thường trú' });
+  const emName = input({ value: init.emergencyContactName ?? '', maxlength: '100', placeholder: 'Không bắt buộc', 'aria-label': 'Người liên hệ khẩn cấp' });
+  const emPhone = input({ type: 'tel', value: init.emergencyContactPhone ?? '', maxlength: '20', placeholder: 'Không bắt buộc', 'aria-label': 'SĐT liên hệ khẩn cấp' });
+  const from = input({ type: 'date', value: init.residenceStartDate ?? '', 'aria-label': 'Ngày bắt đầu cư trú' });
+  const to = input({ type: 'date', value: init.residenceEndDate ?? '', 'aria-label': 'Ngày kết thúc cư trú' });
+  const node = h('div', { class: 'form-grid' }, field('Ngày sinh', dob), field('Địa chỉ thường trú', addr), field('Người liên hệ khẩn cấp', emName),
+    field('SĐT liên hệ khẩn cấp', emPhone), field('Bắt đầu cư trú', from), field('Kết thúc cư trú', to));
+  const check = (): string | null => (from.value && to.value && to.value < from.value ? 'Ngày kết thúc cư trú không được trước ngày bắt đầu.' : null);
+  const body = () => ({ dob: dob.value || null, permanentAddress: addr.value.trim(), emergencyContactName: emName.value.trim(), emergencyContactPhone: emPhone.value.trim(),
+    residenceStartDate: from.value || null, residenceEndDate: to.value || null });
+  const set = (v: FullTenant) => { dob.value = v.dob ?? ''; addr.value = v.permanentAddress ?? ''; emName.value = v.emergencyContactName ?? ''; emPhone.value = v.emergencyContactPhone ?? ''; from.value = v.residenceStartDate ?? ''; to.value = v.residenceEndDate ?? ''; };
+  return { node, check, body, set };
+}
+
+/** CCCD hai mặt + xác minh hồ sơ (UC32). */
+function idCardBox(tenantId: number): HTMLElement {
+  const box = h('div', { class: 'stack', style: 'gap:10px' });
+  const front = input({ type: 'file', accept: 'image/*', 'aria-label': 'Ảnh CCCD mặt trước' });
+  const back = input({ type: 'file', accept: 'image/*', 'aria-label': 'Ảnh CCCD mặt sau' });
+  const paint = async () => {
+    let t: FullTenant;
+    try { t = await api.get<FullTenant>(`/api/chi/tenants/${tenantId}`); } catch (e) { box.replaceChildren(formError(errText(e))); return; }
+    const img = async (url?: string | null, alt = '') => {
+      const src = url ? await api.blobUrl(url) : null;
+      return src ? h('img', { src, alt, style: 'max-width:220px;max-height:150px;border:1px solid var(--line);border-radius:8px' }) : h('span', { class: 'muted' }, 'Chưa có ảnh');
+    };
+    const err = h('div');
+    const up = h('button', { class: 'btn secondary sm' }, icon('plus', 14), 'Tải ảnh CCCD');
+    up.addEventListener('click', () => busy(up, async () => {
+      err.replaceChildren();
+      if (!front.files?.[0] || !back.files?.[0]) { err.replaceChildren(formError('Chọn đủ ảnh mặt trước và mặt sau.')); return; }
+      const f = new FormData(); f.append('front', front.files[0]); f.append('back', back.files[0]);
+      try { await api.uploadForm(`/api/chi/tenants/${tenantId}/id-card`, f); toast('Đã lưu ảnh CCCD'); await paint(); } catch (e) { err.replaceChildren(formError(errText(e))); }
+    }));
+    const ver = t.isVerified
+      ? h('span', { class: 'st ok' }, icon('check', 14), 'Đã xác minh')
+      : h('button', { class: 'btn sm' }, icon('check', 14), 'Xác minh hồ sơ');
+    if (!t.isVerified) ver.addEventListener('click', () => busy(ver as HTMLButtonElement, async () => {
+      try { await api.patch(`/api/chi/tenants/${tenantId}/verify`); toast('Đã xác minh hồ sơ'); await paint(); } catch (e) { toast(errText(e), 'err'); }
+    }));
+    box.replaceChildren(err,
+      dl([['Ngày sinh', date(t.dob ?? undefined)], ['Địa chỉ thường trú', t.permanentAddress || '–'], ['Liên hệ khẩn cấp', [t.emergencyContactName, t.emergencyContactPhone].filter(Boolean).join(' · ') || '–'],
+        ['Cư trú', t.residenceStartDate ? `${date(t.residenceStartDate)} – ${t.residenceEndDate ? date(t.residenceEndDate) : 'hiện nay'}` : '–'], ['Xác minh', ver]]),
+      h('div', { style: 'display:flex;gap:12px;flex-wrap:wrap' }, h('figure', { style: 'margin:0' }, await img(t.frontImageUrl, 'CCCD mặt trước'), h('figcaption', { class: 'muted' }, 'Mặt trước')),
+        h('figure', { style: 'margin:0' }, await img(t.backImageUrl, 'CCCD mặt sau'), h('figcaption', { class: 'muted' }, 'Mặt sau'))),
+      h('div', { style: 'display:flex;gap:8px;align-items:center;flex-wrap:wrap' }, front, back, up));
+  };
+  void paint();
+  return box;
+}
+
 function accountBadge(a: AccountInfo | null | undefined): HTMLElement {
   if (a === null || a === undefined) return h('span', { class: 'st off' }, icon('info', 14), 'Chưa đồng bộ hồ sơ');
   if (!a.exists) return h('span', { class: 'st wait' }, icon('clock', 14), 'Chưa cấp');
@@ -54,6 +114,7 @@ function open(t: LiveTenant, accounts: Accounts, refresh: () => void): void {
   d.body.append(
     h('div', { style: 'display:flex;gap:10px;align-items:center;flex-wrap:wrap' }, t.roomCode ? plate(t.roomCode, 'lg') : null),
     dl([['Điện thoại', t.phone], ['Email', t.email ?? '–'], ['CCCD', t.idNumber], ['Nghề nghiệp', t.job], ['Ở từ', date(t.since)], ['Hợp đồng', t.contract ? t.contract.contractCode : 'Chưa có']]),
+    h('section', null, h('h3', { style: 'margin-bottom:10px' }, 'Hồ sơ cư trú và CCCD'), idCardBox(t.tenantId)),
     h('div', null, h('h3', { style: 'margin-bottom:10px' }, 'Xe đăng ký (tính tiền gửi xe)'), vehiclesBox(t.tenantId)),
     h('section', null, h('h3', null, 'Lịch sử thuê phòng'), history),
     h('div', null, h('h3', { style: 'margin-bottom:10px' }, 'Tài khoản đăng nhập'), acct),
@@ -140,16 +201,20 @@ function editTenant(t: LiveTenant, done: () => void): void {
   const cccd = input({ value: t.idNumber, maxlength: '20' });
   const email = input({ type: 'email', value: t.email ?? '', placeholder: 'Không bắt buộc' });
   const job = input({ value: t.job === '–' ? '' : t.job, maxlength: '100', placeholder: 'Không bắt buộc' });
+  const prof = profileFields();
   d.body.append(err, h('div', { class: 'form-grid' }, field('Họ và tên', name), field('Số điện thoại', phone, 'Đổi số điện thoại thì khách đăng nhập bằng số mới'),
-    field('Số CCCD', cccd), field('Email', email), field('Nghề nghiệp', job)));
+    field('Số CCCD', cccd), field('Email', email), field('Nghề nghiệp', job)), prof.node);
+  void api.get<FullTenant>(`/api/chi/tenants/${t.tenantId}`).then(prof.set).catch(() => undefined);
   const ok = h('button', { class: 'btn' }, 'Lưu hồ sơ');
   d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Hủy'), ok);
   ok.addEventListener('click', () => busy(ok, async () => {
     err.replaceChildren();
     if (!name.value.trim() || !phone.value.trim() || !cccd.value.trim()) { err.replaceChildren(formError('Họ tên, số điện thoại và số CCCD không được để trống.')); return; }
+    const bad = prof.check();
+    if (bad) { err.replaceChildren(formError(bad)); return; }
     try {
       // email, nghề nghiệp để trống thì gửi chuỗi rỗng (xóa); backend giữ nguyên trường không gửi
-      await api.put(`/api/chi/tenants/${t.tenantId}`, { fullName: name.value.trim(), phoneNumber: phone.value.trim(), identityNumber: cccd.value.trim(), email: email.value.trim(), occupation: job.value.trim() });
+      await api.put(`/api/chi/tenants/${t.tenantId}`, { fullName: name.value.trim(), phoneNumber: phone.value.trim(), identityNumber: cccd.value.trim(), email: email.value.trim(), occupation: job.value.trim(), ...prof.body() });
       d.close(); toast('Đã lưu hồ sơ khách'); done();
     } catch (e) { err.replaceChildren(formError(errText(e))); }
   }));
@@ -176,15 +241,19 @@ export function addTenant(done: (created?: { tenantId: number }) => void): void 
   const cccd = input({ placeholder: 'Số CCCD', maxlength: '20' });
   const email = input({ type: 'email', placeholder: 'Không bắt buộc' });
   const job = input({ placeholder: 'Không bắt buộc', maxlength: '100' });
+  const prof = profileFields();
   d.body.append(err, h('div', { class: 'form-grid' }, field('Họ và tên', name), field('Số điện thoại', phone, 'Dùng làm tài khoản đăng nhập của khách'),
-    field('Số CCCD', cccd), field('Email', email), field('Nghề nghiệp', job)));
+    field('Số CCCD', cccd), field('Email', email), field('Nghề nghiệp', job)), prof.node);
   const ok = h('button', { class: 'btn' }, 'Thêm khách hàng');
   d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Hủy'), ok);
   ok.addEventListener('click', () => busy(ok, async () => {
     err.replaceChildren();
     if (!name.value.trim() || !phone.value.trim() || !cccd.value.trim()) { err.replaceChildren(formError('Nhập đủ họ tên, số điện thoại và số CCCD.')); return; }
+    const bad = prof.check();
+    if (bad) { err.replaceChildren(formError(bad)); return; }
     try {
       const created = await api.post<{ tenantId: number }>('/api/chi/tenants', {
+        ...prof.body(),
         fullName: name.value.trim(), phoneNumber: phone.value.trim(), identityNumber: cccd.value.trim(),
         email: email.value.trim() || null, occupation: job.value.trim() || null,
       });

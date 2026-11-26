@@ -190,7 +190,7 @@ class CheckoutServiceTest {
         when(inspectionRepo.findByCheckout_CheckoutId(50)).thenReturn(Optional.of(ins));
         service.finalizeCheckout(50, 5);
         assertEquals("TERMINATED", contract.getStatus());
-        assertEquals("VACANT", room.getStatus());
+        assertEquals("CLEANING", room.getStatus());
         assertEquals("FINALIZED", request.getStatus());
         ArgumentCaptor<ContractEndedEvent> ev = ArgumentCaptor.forClass(ContractEndedEvent.class);
         verify(publisher).publishEvent(ev.capture());

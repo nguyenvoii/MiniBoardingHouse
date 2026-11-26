@@ -169,6 +169,14 @@ export const api = {
     f.append('file', file, (file as File).name || 'file.png');
     return request<T>(method, p, undefined, true, f);
   },
+  /** Gửi nhiều tệp/trường một lần (ví dụ ảnh CCCD hai mặt). */
+  uploadForm: <T>(p: string, f: FormData, method: 'POST' | 'PUT' = 'POST') => request<T>(method, p, undefined, true, f),
+  /** Ảnh cần token (CCCD): tải về thành URL tạm để gắn vào <img>. */
+  async blobUrl(path: string): Promise<string | null> {
+    const s = loadSession();
+    const res = await fetch(path, { headers: s ? { Authorization: `Bearer ${s.token}` } : {} });
+    return res.ok ? URL.createObjectURL(await res.blob()) : null;
+  },
   /** Tải file nhị phân (PDF, Excel) kèm token rồi mở/lưu. */
   async download(path: string, filename: string): Promise<void> {
     const s = loadSession();

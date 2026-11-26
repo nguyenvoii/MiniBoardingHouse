@@ -10,6 +10,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.group7.minihouse.phi.dto.BillingDtos.CalculationResult;
+import com.group7.minihouse.phi.dto.BillingDtos.SharedAllocation;
 import com.group7.minihouse.phi.repository.BillingPeriodRepository;
 import com.group7.minihouse.phi.repository.CalculatedFeeRepository;
 import com.group7.minihouse.phi.repository.FeeItemRepository;
@@ -130,6 +131,30 @@ class BillingContractsTest {
 
     private FeeItemDetail itemNamed(String prefix) {
         return savedItems.stream().filter(i -> i.getItemName().startsWith(prefix)).findFirst().orElse(null);
+    }
+
+    @Test
+    void sharedCostByRoomAllocatesTheFullAmountAcrossThreeRooms() {
+        List<RentalContract> contracts = new ArrayList<>();
+        for (int i = 1; i <= 3; i++) {
+            Room billedRoom = new Room();
+            billedRoom.setRoomId(i);
+            billedRoom.setRoomCode("P10" + i);
+            RentalContract contract = contract("ACTIVE", LocalDate.of(2026, 11, 1), LocalDate.of(2027, 1, 31));
+            contract.setRoom(billedRoom);
+            contract.setContractId(i);
+            contracts.add(contract);
+        }
+        answers.put("select c from RentalContract c where c.room.property", contracts);
+        answers.put("select count(r) from RoomResident", 1L);
+        answers.put("coalesce(sum(e.amount)", new BigDecimal("100.00"));
+
+        service.calculate(10, null, null, SharedAllocation.PER_ROOM);
+
+        List<BigDecimal> shares = savedItems.stream()
+                .filter(item -> BillingService.ITEM_SHARED.equals(item.getItemName()))
+                .map(FeeItemDetail::getSubtotal).toList();
+        assertEquals(List.of(new BigDecimal("33.33"), new BigDecimal("33.34"), new BigDecimal("33.33")), shares);
     }
 
     // ---- F3

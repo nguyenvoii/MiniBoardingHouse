@@ -26,7 +26,7 @@ export async function staffPage(view: HTMLElement): Promise<void> {
   let timer: number | undefined;
   q.addEventListener('input', () => { clearTimeout(timer); timer = window.setTimeout(() => void load(), 300); });
   view.replaceChildren(
-    pageHead('Nhân viên', 'Tài khoản và quyền của người vận hành khu trọ.', can('LANDLORD') ? [h('button', { class: 'btn', onclick: () => add(load) }, icon('plus', 16), 'Thêm nhân viên')] : []),
+    pageHead('Nhân viên', 'Tài khoản và quyền của người vận hành khu trọ.', [h('button', { class: 'btn secondary', onclick: () => void permissionMatrix() }, icon('lock', 16), 'Quyền theo vai trò'), ...(can('LANDLORD') ? [h('button', { class: 'btn', onclick: () => add(load) }, icon('plus', 16), 'Thêm nhân viên')] : [])]),
     panel(null, [h('div', { class: 'toolbar' }, h('div', { class: 'grow' }, q)), holder], { flush: true }),
   );
   await load();
@@ -97,3 +97,26 @@ export async function activityTable(): Promise<HTMLElement> {
 }
 
 void select;
+
+/** UC11/UC12: bảng quyền chi tiết của từng vai trò (chủ trọ, quản lý, thu ngân, ghi chỉ số, người thuê). */
+async function permissionMatrix(): Promise<void> {
+  const d = openDialog('Quyền theo vai trò', { drawer: true });
+  d.foot.append(h('button', { class: 'btn', onclick: d.close }, 'Đóng'));
+  try {
+    const [perms, matrix, mine] = await Promise.all([
+      api.get<Array<{ permissionCode: string; permissionName: string; module: string }>>('/api/permissions'),
+      api.get<Record<string, string[]>>('/api/roles/permissions'),
+      api.get<string[]>('/api/auth/permissions'),
+    ]);
+    const roles = Object.keys(matrix);
+    const mark = (ok: boolean) => (ok ? h('span', { class: 'st ok', 'aria-label': 'Có quyền' }, '✓') : h('span', { class: 'muted', 'aria-label': 'Không có quyền' }, '–'));
+    d.body.append(
+      h('p', { class: 'muted' }, 'Quyền mặc định của từng vai trò. Gán vai trò cho nhân viên ở bảng danh sách; việc chặn thao tác được áp dụng ở máy chủ theo vai trò.'),
+      h('p', null, `Bạn đang có ${mine.length} quyền.`),
+      table<{ permissionCode: string; permissionName: string; module: string }>([
+        { key: 'm', label: 'Phân hệ', render: (x) => x.module },
+        { key: 'n', label: 'Quyền', render: (x) => x.permissionName },
+        ...roles.map((r) => ({ key: r, label: ROLE_NAMES[r] ?? r, render: (x: { permissionCode: string }) => mark(matrix[r].includes(x.permissionCode)) })),
+      ], perms, { empty: emptyState('Chưa có danh mục quyền', 'Máy chủ chưa nạp danh mục quyền.') }));
+  } catch (e) { d.body.append(formError(errText(e))); }
+}

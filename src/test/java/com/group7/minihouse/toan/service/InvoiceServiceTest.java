@@ -16,6 +16,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
 import com.group7.minihouse.shared.entity.Invoice;
+import com.group7.minihouse.shared.entity.NotificationTemplate;
+import com.group7.minihouse.shared.entity.Tenant;
+import com.group7.minihouse.viet.repository.NotificationTemplateRepository;
+import com.group7.minihouse.viet.service.NotificationSender;
 import com.group7.minihouse.shared.entity.User;
 import com.group7.minihouse.shared.exception.BusinessException;
 import com.group7.minihouse.toan.dto.CancelInvoiceRequest;
@@ -38,13 +42,51 @@ class InvoiceServiceTest {
     @Mock private PartialPaymentLogRepository partialPaymentLogRepo;
     @Mock private ToanUserActivityLogRepository activityLogRepo;
     @Mock private ToanUserRepository userRepo;
+    @Mock private NotificationSender webNotifications;
+    @Mock private NotificationTemplateRepository notificationTemplates;
 
     private InvoiceService service;
 
     @BeforeEach
     void setUp() {
         service = new InvoiceService(invoiceRepo, notificationRepo, calculator, prepaymentService,
-                mailGateway, paymentTransactionRepo, partialPaymentLogRepo, activityLogRepo, userRepo);
+                mailGateway, paymentTransactionRepo, partialPaymentLogRepo, activityLogRepo, userRepo, webNotifications, notificationTemplates);
+    }
+
+    @Test
+    void invoiceEmailRendersActiveEmailTemplateAsEscapedText() {
+        Invoice invoice = invoice("UNPAID", BigDecimal.ZERO);
+        Tenant tenant = new Tenant();
+        tenant.setEmail("tenant@example.test");
+        invoice.setTenant(tenant);
+        when(invoiceRepo.findById(10)).thenReturn(Optional.of(invoice));
+        when(notificationRepo.save(any())).thenAnswer(call -> call.getArgument(0));
+        var gateway = mock(InvoiceMailGateway.class);
+        when(mailGateway.getIfAvailable()).thenReturn(gateway);
+        var template = new NotificationTemplate();
+        template.setSubject("Reminder {{invoice}}");
+        template.setContent("<Amount> {{amount}}");
+        when(notificationTemplates.findActive("INVOICE_ISSUED", "EMAIL")).thenReturn(Optional.of(template));
+
+        assertEquals("SENT", service.sendEmail(10).status());
+
+        verify(gateway).send(eq("tenant@example.test"), eq("Reminder " + invoice.getInvoiceCode()),
+                contains("&lt;Amount&gt; " + invoice.getTotalAmount().toPlainString()));
+    }
+
+    @Test
+    void sendingInvoiceToAppCreatesWebsiteNotificationForInvoiceTenant() {
+        Invoice invoice = invoice("UNPAID", BigDecimal.ZERO);
+        Tenant tenant = new Tenant();
+        tenant.setTenantId(20);
+        invoice.setTenant(tenant);
+        when(invoiceRepo.findById(10)).thenReturn(Optional.of(invoice));
+        when(notificationRepo.save(any())).thenAnswer(call -> call.getArgument(0));
+
+        service.sendToApp(10);
+
+        verify(webNotifications).notifyTenant(eq(20), eq("INVOICE_ISSUED"), anyString(),
+                anyString(), anyMap(), eq("INVOICE"), eq(10));
     }
 
     @Test

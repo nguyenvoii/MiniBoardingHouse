@@ -1,7 +1,9 @@
 package com.group7.minihouse.toan.controller;
 
 import java.util.List;
+import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -139,9 +141,24 @@ public class InvoiceController {
         return service.notifications(id);
     }
 
+    @PostMapping("/{id}/share-link")
+    @PreAuthorize("hasAnyRole('LANDLORD','MANAGER','CASHIER')")
+    public ShareLink shareLink(@PathVariable Integer id) {
+        return service.shareLink(id);
+    }
+
+    @DeleteMapping("/{id}/share-link")
+    @PreAuthorize("hasAnyRole('LANDLORD','MANAGER','CASHIER')")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void revokeShareLink(@PathVariable Integer id) {
+        service.revokeShareLink(id);
+    }
+
     @GetMapping("/share/{token}")
-    public InvoiceDetail shared(@PathVariable("token") String token) {
-        return service.detailByShareToken(token);
+    public ResponseEntity<SharedInvoice> shared(@PathVariable("token") String token) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .header("Referrer-Policy", "no-referrer")
+                .body(service.detailByShareToken(token));
     }
 
     // UC 83

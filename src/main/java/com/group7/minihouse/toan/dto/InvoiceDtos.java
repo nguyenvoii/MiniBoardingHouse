@@ -30,6 +30,12 @@ public final class InvoiceDtos {
                                 BigDecimal discountAmount, BigDecimal latePenaltyAmount,
                                 List<FeeLine> items) {}
 
+    public record ShareLink(String shareLink) {}
+
+    public record SharedInvoice(String invoiceCode, String monthYear, LocalDate issueDate, LocalDate dueDate,
+                                BigDecimal totalAmount, BigDecimal paidAmount, BigDecimal remainingAmount,
+                                String paymentStatus) {}
+
     public record NotificationResponse(Integer notificationId, Integer invoiceId, String channel,
                                        LocalDateTime sentAt, String status) {}
 

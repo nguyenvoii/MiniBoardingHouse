@@ -6,6 +6,7 @@ import { date, dateTime, money, monthLabel, isoDay } from '../lib/format';
 import type { Contract, ContractDetail, Notification, QrInfo } from '../data/types';
 import { dl, emptyState, field, formError, openDialog, plate, select, statusBadge, toast } from '../ui/kit';
 import { signPad, ADJ, fmtVal, isNum } from './contracts';
+import { input } from '../ui/kit';
 import type { InvoiceDetail } from '../data/types';
 import { routeLine } from '../ui/route';
 
@@ -138,6 +139,12 @@ async function openMyInvoice(i: MyInvoice): Promise<void> {
     dl([['Hạn trả', date(i.dueDate)], ['Tổng', `${money(i.totalAmount)} ₫`], ['Đã trả', `${money(i.paidAmount)} ₫`], ['Còn lại', `${money(i.remainingAmount)} ₫`]]),
     h('div', { class: 'stack', style: 'gap:6px' }, ...detail.items.map((x) => h('div', { class: 'list-row' },
       h('div', { class: 'grow' }, h('b', null, x.itemName), h('span', null, `${x.quantity} × ${money(x.unitPrice)} ₫`)), h('b', { class: 'money' }, `${money(x.subtotal)} ₫`)))));
+  const pays = h('div', null, h('span', { class: 'muted' }, 'Đang tải lịch sử thanh toán…'));
+  d.body.append(h('section', null, h('h3', { style: 'margin:10px 0 6px' }, 'Lịch sử thanh toán'), pays));
+  const PAY_METHOD: Record<string, string> = { CASH: 'tiền mặt', BANK_TRANSFER: 'chuyển khoản', QR_CODE: 'mã QR', GATEWAY: 'cổng thanh toán', PREPAYMENT: 'trừ vào số dư' };
+  void api.get<Array<{ id: number; method: string | null; status: string | null; amount: number; paidAt: string | null }>>(`/api/me/debts/invoices/${i.invoiceId}/payments`).then((l) => {
+    pays.replaceChildren(l.length ? h('ul', { style: 'margin:0;padding-left:18px' }, ...l.map((x) => h('li', null, `${money(x.amount)} ₫ · ${PAY_METHOD[x.method ?? ''] ?? x.method ?? ''}${x.paidAt ? ` · ${dateTime(x.paidAt)}` : ''}${x.status && x.status !== 'SUCCESS' ? ' · chờ chủ trọ xác nhận' : ''}`))) : h('p', { class: 'muted', style: 'margin:0' }, 'Chưa có khoản thanh toán nào.'));
+  }).catch((e) => pays.replaceChildren(formError(errText(e))));
   d.foot.append(h('button', { class: 'btn', onclick: d.close }, 'Đóng'));
 }
 
@@ -176,8 +183,10 @@ export async function meInvoicesPage(view: HTMLElement): Promise<void> {
           h('span', { class: 'muted' }, `${i.invoiceCode} · hạn ${date(i.dueDate)}`),
           h('button', { class: 'btn secondary', onclick: () => void openMyInvoice(i) }, icon('receipt', 16), 'Xem chi tiết các khoản'),
           owed(i) && i.paidAmount > 0 ? h('span', { class: 'muted' }, `Đã trả ${money(i.paidAmount)} ₫, còn ${money(i.remainingAmount)} ₫`) : null,
-          owed(i) ? h('button', { class: 'btn block', onclick: (e: Event) => payQr(i, e.currentTarget as HTMLElement) }, icon('qr', 16), `Trả ${money(i.remainingAmount)} ₫`) : null)))
+          owed(i) ? h('button', { class: 'btn block', onclick: (e: Event) => payQr(i, e.currentTarget as HTMLElement) }, icon('qr', 16), `Trả ${money(i.remainingAmount)} ₫ bằng QR`) : null,
+          owed(i) ? h('button', { class: 'btn secondary block', onclick: (e: Event) => payOnline(i, e.currentTarget as HTMLElement) }, icon('card', 16), 'Thanh toán online (payOS)') : null)))
       : h('section', { class: 'panel' }, emptyState('Chưa có hóa đơn', 'Hóa đơn hàng tháng sẽ hiện ở đây khi chủ trọ phát hành.')),
+    receiptsBox(),
   );
 }
 
@@ -185,6 +194,7 @@ export async function meContractsPage(view: HTMLElement): Promise<void> {
   const list = await api.get<Contract[]>('/api/me/contracts');
   view.replaceChildren(
     h('h2', null, 'Hợp đồng của tôi'),
+    myRoomsBox(),
     list.length ? h('div', { class: 'stack' }, ...list.map((c) => h('section', { class: 'panel' },
       h('div', { class: 'panel-head' }, h('div', { style: 'display:flex;gap:10px;align-items:center' }, plate(c.roomCode), h('b', null, c.contractCode)), statusBadge(c.status)),
       h('div', { class: 'panel-body stack', style: 'gap:14px' },
@@ -236,14 +246,23 @@ const TICKET_LABEL: Record<string, [string, string]> = {
 
 interface MyTicket { requestId: number; roomCode: string; category: string; description: string; priority: string; status: string; createdAt: string; log: { resolutionNotes: string | null; tenantRating: number | null } | null }
 
+interface MyEquip { equipmentRequestId: number; roomCode: string; equipmentName: string; requestType: string; estimatedMonthlyFee: number | null; status: string; note: string | null }
+const EQ_LABEL: Record<string, [string, string]> = { PENDING: ['Chờ chủ trọ duyệt', 'warn'], APPROVED: ['Đã duyệt, chờ lắp đặt', 'info'], REJECTED: ['Bị từ chối', 'off'], INSTALLED: ['Đã lắp đặt, tính phụ phí hàng tháng', 'ok'], REMOVED: ['Đã tháo', 'off'] };
+
 export async function meSupportPage(view: HTMLElement): Promise<void> {
   const list = await api.get<MyTicket[]>('/api/me/maintenance-requests');
+  const equip = await api.get<MyEquip[]>('/api/me/equipment-requests').catch(() => [] as MyEquip[]);
   const booking = h('button', { class: 'btn secondary block', onclick: () => requestBooking() }, 'Gửi yêu cầu thuê phòng');
   const send = h('button', { class: 'btn lg block', onclick: () => newTicket(() => void meSupportPage(view)) }, icon('plus', 20), 'Báo sự cố');
   mount(view,
     h('h2', null, 'Hỗ trợ'),
     send,
+    h('button', { class: 'btn secondary block', onclick: () => newEquipment(() => void meSupportPage(view)) }, icon('plus', 20), 'Xin lắp hoặc dùng thêm thiết bị'),
     booking,
+    equip.length ? h('section', { class: 'panel panel-flush' }, h('h3', { style: 'padding:12px 16px 0' }, 'Yêu cầu thiết bị của bạn'), ...equip.map((q) => h('div', { class: 'inv-row' },
+      h('div', { class: 'inv-top' }, h('b', null, q.equipmentName), (() => { const [l, tone] = EQ_LABEL[q.status] ?? [q.status, 'off']; return h('span', { class: `st ${tone}` }, l); })()),
+      h('span', { class: 'muted' }, `Phòng ${q.roomCode} · ${q.requestType === 'INSTALL' ? 'Lắp mới' : 'Dùng thêm'}${q.estimatedMonthlyFee ? ` · phí dự kiến ${money(q.estimatedMonthlyFee)} ₫/tháng` : ''}`),
+      q.note ? h('span', { class: 'muted' }, `Ghi chú của chủ trọ: ${q.note}`) : null))) : null,
     list.length
       ? h('section', { class: 'panel panel-flush' }, ...list.map((t) => h('div', { class: 'inv-row' },
           h('div', { class: 'inv-top' }, h('b', null, SUPPORT_CATEGORIES.find((c) => c[0] === t.category)?.[1] ?? t.category), (() => { const [l, tone] = TICKET_LABEL[t.status] ?? [t.status, 'off']; return h('span', { class: `st ${tone}` }, l); })()),
@@ -261,13 +280,25 @@ function newTicket(done: () => void): void {
   const d = openDialog('Báo sự cố');
   const err = h('div');
   const cat = select(SUPPORT_CATEGORIES);
+  // danh mục do chủ trọ quản lý (UC113); lỗi thì dùng danh sách mặc định
+  void api.get<Array<{ categoryCode: string; categoryName: string }>>('/api/me/incident-categories?type=INCIDENT').then((l) => { if (l.length) { cat.replaceChildren(...l.map((c) => new Option(c.categoryName, c.categoryCode))); } }).catch(() => undefined);
+  const photo = input({ type: 'file', accept: 'image/*', 'aria-label': 'Ảnh sự cố' });
   const desc = h('textarea', { class: 'textarea', placeholder: 'Mô tả sự cố để chủ trọ xử lý nhanh' }) as HTMLTextAreaElement;
   const urgent = h('input', { type: 'checkbox' }) as HTMLInputElement;
-  d.body.append(err, field('Loại sự cố', cat), field('Mô tả', desc), h('label', { style: 'display:flex;gap:8px;align-items:center;font-weight:500' }, urgent, 'Khẩn cấp (nguy hiểm hoặc mất điện nước hoàn toàn)'));
+  d.body.append(err, field('Loại sự cố', cat), field('Mô tả', desc), field('Ảnh sự cố (không bắt buộc)', photo), h('label', { style: 'display:flex;gap:8px;align-items:center;font-weight:500' }, urgent, 'Khẩn cấp (nguy hiểm hoặc mất điện nước hoàn toàn)'));
   const ok = h('button', { class: 'btn' }, 'Gửi');
   d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Hủy'), ok);
   ok.addEventListener('click', () => busy(ok, async () => {
-    try { await api.post('/api/me/maintenance-requests', { category: cat.value, description: desc.value.trim(), priority: urgent.checked ? 'URGENT' : 'NORMAL' }); d.close(); toast('Đã gửi yêu cầu'); done(); }
+    try {
+      const body = { category: cat.value, description: desc.value.trim(), priority: urgent.checked ? 'URGENT' : 'NORMAL' };
+      if (photo.files?.[0]) {
+        const form = new FormData();
+        form.append('request', new Blob([JSON.stringify(body)], { type: 'application/json' }));
+        form.append('file', photo.files[0]);
+        await api.uploadForm('/api/me/maintenance-requests', form);
+      } else await api.post('/api/me/maintenance-requests', body);
+      d.close(); toast('Đã gửi yêu cầu'); done();
+    }
     catch (e) { err.replaceChildren(formError(errText(e))); }
   }));
 }
@@ -281,4 +312,79 @@ function rate(id: number, done: () => void): void {
   ok.addEventListener('click', () => busy(ok, async () => {
     try { await api.post(`/api/me/maintenance-requests/${id}/rating`, { rating: Number(stars.value) }); d.close(); toast('Cảm ơn bạn đã đánh giá'); done(); } catch (e) { toast(errText(e), 'err'); }
   }));
+}
+
+function newEquipment(done: () => void): void {
+  const d = openDialog('Xin lắp hoặc dùng thêm thiết bị');
+  const err = h('div');
+  const kind = select([['INSTALL', 'Lắp thiết bị mới trong phòng'], ['EXTRA_USAGE', 'Dùng thêm thiết bị (tính thêm phí)']]);
+  const cat = select([['', 'Không chọn nhóm']]);
+  void api.get<Array<{ categoryId: number; categoryName: string }>>('/api/me/incident-categories?type=EQUIPMENT').then((l) => l.forEach((c) => cat.append(new Option(c.categoryName, String(c.categoryId))))).catch(() => undefined);
+  const name = input({ placeholder: 'Ví dụ: Tủ lạnh mini, máy giặt', maxlength: '100', 'aria-label': 'Tên thiết bị' });
+  const fee = input({ type: 'number', min: '0', step: '1000', placeholder: 'Nếu đã thỏa thuận', class: 'input num-in', 'aria-label': 'Phí dự kiến mỗi tháng' });
+  d.body.append(err, field('Loại yêu cầu', kind), field('Nhóm thiết bị', cat), field('Tên thiết bị', name), field('Phí dự kiến mỗi tháng (₫, không bắt buộc)', fee));
+  const ok = h('button', { class: 'btn' }, 'Gửi yêu cầu');
+  d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Hủy'), ok);
+  ok.addEventListener('click', () => busy(ok, async () => {
+    if (!name.value.trim()) { err.replaceChildren(formError('Nhập tên thiết bị.')); return; }
+    try { await api.post('/api/me/equipment-requests', { requestType: kind.value, categoryId: cat.value ? Number(cat.value) : null, equipmentName: name.value.trim(), estimatedMonthlyFee: fee.value ? Number(fee.value) : null }); d.close(); toast('Đã gửi yêu cầu, chờ chủ trọ duyệt'); done(); }
+    catch (e) { err.replaceChildren(formError(errText(e))); }
+  }));
+}
+
+// ------------------------------------------------------------------ UC86: thanh toán online qua payOS (cần chủ trọ cấu hình khóa payOS)
+async function payOnline(inv: MyInvoice, btn: HTMLElement): Promise<void> {
+  await busy(btn, async () => {
+    try {
+      const q = await api.post<QrInfo>('/api/me/payments/qr', { invoiceId: inv.invoiceId, method: 'GATEWAY' });
+      const c = await api.post<{ checkoutUrl: string }>(`/api/me/payments/${q.payment.transactionId}/payos/checkout`);
+      window.open(c.checkoutUrl, '_blank', 'noopener');
+      const d = openDialog('Thanh toán online', { width: 420 });
+      d.body.append(h('p', null, 'Trang thanh toán payOS đã mở ở tab mới. Thanh toán xong, quay lại đây bấm Kiểm tra để cập nhật hóa đơn.'));
+      const check = h('button', { class: 'btn' }, 'Kiểm tra đã thanh toán');
+      check.addEventListener('click', () => busy(check, async () => {
+        try {
+          const r = await api.post<{ confirmed: boolean; message: string }>(`/api/me/payments/${q.payment.transactionId}/payos/reconcile`);
+          toast(r.confirmed ? 'Đã ghi nhận thanh toán' : 'payOS chưa xác nhận đã nhận tiền, thử lại sau ít phút', r.confirmed ? 'ok' : 'err');
+          if (r.confirmed) { d.close(); location.reload(); }
+        } catch (e) { toast(errText(e), 'err'); }
+      }));
+      d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Đóng'), check);
+    } catch (e) {
+      const m = errText(e);
+      toast(/404|khong tim thay|not found/i.test(m) || (e instanceof Error && /Lỗi 404/.test(e.message)) ? 'Cổng thanh toán online chưa được bật. Hãy trả bằng mã QR hoặc liên hệ chủ trọ.' : m, 'err');
+    }
+  });
+}
+
+// ------------------------------------------------------------------ UC90: biên nhận của tôi
+interface MyReceipt { voucherId: number; voucherCode: string; invoiceCode: string; voucherType: string; amount: number; createdAt: string }
+
+function receiptsBox(): HTMLElement {
+  const box = h('section', { class: 'panel panel-flush' }, h('p', { class: 'muted', style: 'padding:12px 16px' }, 'Đang tải biên nhận…'));
+  void api.get<MyReceipt[]>('/api/me/receipts').then((l) => {
+    box.replaceChildren(h('h3', { style: 'padding:12px 16px 0' }, 'Biên nhận đã nhận'), ...(l.length ? l.map((r) => h('div', { class: 'inv-row' },
+      h('div', { class: 'inv-top' }, h('b', null, r.voucherCode), h('b', { class: 'money' }, `${money(r.amount)} ₫`)),
+      h('span', { class: 'muted' }, `Hóa đơn ${r.invoiceCode} · ${dateTime(r.createdAt)}`),
+      h('button', { class: 'btn secondary', onclick: async () => {
+        const s = loadSession();
+        const res = await fetch(`/api/me/receipts/${r.voucherId}/print`, { headers: s ? { Authorization: `Bearer ${s.token}` } : {} });
+        if (!res.ok) { toast(`Không mở được biên nhận (lỗi ${res.status}).`, 'err'); return; }
+        window.open(URL.createObjectURL(new Blob([await res.text()], { type: 'text/html' })), '_blank');
+      } }, icon('print', 16), 'Xem và in biên nhận'))) : [h('p', { class: 'muted', style: 'padding:0 16px 12px' }, 'Chưa có biên nhận nào. Biên nhận hiện ở đây sau khi chủ trọ lập phiếu thu.')]));
+  }).catch((e) => box.replaceChildren(formError(errText(e))));
+  return box;
+}
+
+// ------------------------------------------------------------------ UC36: phòng của tôi và người ở cùng
+interface MyRoom { roomId: number; roomCode: string; areaSqm: number; maxOccupants: number; contractCode: string; residents: Array<{ fullName: string; relationshipWithPrimary: string | null }> }
+
+export function myRoomsBox(): HTMLElement {
+  const box = h('section', { class: 'panel' }, h('p', { class: 'muted' }, 'Đang tải thông tin phòng…'));
+  void api.get<MyRoom[]>('/api/me/rooms').then((l) => {
+    box.replaceChildren(...(l.length ? l.map((r) => h('div', { class: 'panel-body stack', style: 'gap:10px' },
+      h('div', { style: 'display:flex;gap:10px;align-items:center' }, plate(r.roomCode, 'lg'), h('span', { class: 'muted' }, `Hợp đồng ${r.contractCode}`)),
+      dl([['Diện tích', `${r.areaSqm} m²`], ['Số người tối đa', String(r.maxOccupants)], ['Người ở cùng', r.residents.length ? r.residents.map((x) => `${x.fullName}${x.relationshipWithPrimary ? ` (${x.relationshipWithPrimary})` : ''}`).join(', ') : 'Chưa khai báo']]))) : [emptyState('Chưa có phòng', 'Thông tin phòng hiện ở đây khi bạn có hợp đồng.')]));
+  }).catch((e) => box.replaceChildren(formError(errText(e))));
+  return box;
 }

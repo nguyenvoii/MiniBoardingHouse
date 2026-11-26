@@ -32,6 +32,7 @@ import { profilePage } from './pages/profile';
 import { meHomePage, meInvoicesPage, meContractsPage, meNotificationsPage, meSupportPage } from './pages/me';
 import { metersPage } from './pages/meters';
 import { settingsPage } from './pages/settings';
+import { sharedInvoicePage } from './pages/shared';
 import { expensesPage } from './pages/expenses';
 import { debtsPage } from './pages/debts';
 import { maintenancePage } from './pages/maintenance';
@@ -109,6 +110,8 @@ function keepMonthRoute(view: HTMLElement, path: string): void {
 async function render(): Promise<void> {
   const s = loadSession();
   const { path } = current();
+  const shareMatch = /^\/share\/([\w-]+)$/.exec(path);
+  if (shareMatch) { shell = null; shellKind = null; await sharedInvoicePage(app, shareMatch[1]); return; } // xem hóa đơn qua liên kết, không cần đăng nhập
   if (!s) {
     shell = null;
     shellKind = null;
@@ -139,7 +142,7 @@ async function render(): Promise<void> {
   const m = match(path);
   document.title = `${TITLES[path] ?? (path.startsWith('/billing/') ? 'Kỳ tính tiền' : 'Stayly')} · Stayly`.replace('Stayly · Stayly', 'Stayly');
   // Trang cũ có thể vẫn đang tải khi người dùng chuyển màn.
-  const view = shell.view.cloneNode(false) as HTMLElement;
+  let view = shell.view.cloneNode(false) as HTMLElement;
   shell.view.replaceWith(view);
   shell.view = view;
   shell.setActive(path);
@@ -160,18 +163,24 @@ async function render(): Promise<void> {
   }
   const run = async () => {
     if (!view.isConnected) return;
+    // Mỗi lần tải dùng một khung mới: đổi tháng liên tiếp thì lần tải cũ ghi vào khung đã bỏ, không đè kết quả mới.
+    const v = view.cloneNode(false) as HTMLElement;
+    view.replaceWith(v);
+    view = v;
+    if (shell) shell.view = v;
     routeObserver?.disconnect(); // ngắt theo dõi của trang trước, kẻo nó chèn thanh tuyến vào trang mới
     routeObserver = null;
-    view.replaceChildren(skeletonRows(6));
+    v.replaceChildren(skeletonRows(6));
     try {
-      await m.route.handler(view, m.params, current().query);
-      if (!view.isConnected) return;
-      enterView(view);
-      keepMonthRoute(view, path);
+      await m.route.handler(v, m.params, current().query);
+      if (!v.isConnected) return;
+      enterView(v);
+      keepMonthRoute(v, path);
     } catch (e) {
-      view.replaceChildren(errorState(errText(e), () => void run()));
+      if (!v.isConnected) return;
+      v.replaceChildren(errorState(errText(e), () => void run()));
     }
-    if (document.activeElement === document.body) view.focus({ preventScroll: true });
+    if (v.isConnected && document.activeElement === document.body) v.focus({ preventScroll: true });
   };
   // Chọn tháng chỉ có nghĩa ở các màn tính theo tháng; màn khác thì ẩn đi để khỏi gây hiểu nhầm.
   const monthPages = ['/', '/billing', '/meters', '/invoices', '/payments', '/expenses', '/reports'];

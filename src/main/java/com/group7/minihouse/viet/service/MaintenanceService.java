@@ -8,6 +8,7 @@ import com.group7.minihouse.shared.entity.Room;
 import com.group7.minihouse.shared.entity.Tenant;
 import com.group7.minihouse.shared.entity.User;
 import com.group7.minihouse.shared.exception.BusinessException;
+import com.group7.minihouse.shared.storage.FileStorage;
 import com.group7.minihouse.viet.dto.MaintenanceDtos.AssignRequest;
 import com.group7.minihouse.viet.dto.MaintenanceDtos.CreateMaintenanceRequest;
 import com.group7.minihouse.viet.dto.MaintenanceDtos.InvoiceAdjustmentRequest;
@@ -21,6 +22,7 @@ import com.group7.minihouse.viet.repository.MaintenanceRequestRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.math.BigDecimal;
+import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -29,6 +31,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * UC110-115: su co / yeu cau sua chua. Luong: OPEN -> ASSIGNED (phan cong) -> IN_PROGRESS -> RESOLVED
@@ -42,6 +46,9 @@ public class MaintenanceService {
     static final Set<String> STATUSES = Set.of("OPEN", "ASSIGNED", "IN_PROGRESS", "RESOLVED", "CLOSED");
     static final Set<String> PRIORITIES = Set.of("LOW", "NORMAL", "URGENT");
 
+    public static final String PHOTO_ROUTE = "/api/auth/maintenance-photos";
+    private static final String PHOTO_FOLDER = "maintenance";
+
     @PersistenceContext
     private EntityManager em;
 
@@ -50,20 +57,27 @@ public class MaintenanceService {
     private final IncidentCategoryRepository categoryRepository;
     private final TenantRoomResolver tenantRoomResolver;
     private final NotificationSender notificationSender;
+    private final FileStorage storage;
 
     public MaintenanceService(MaintenanceRequestRepository requestRepository, MaintenanceLogRepository logRepository,
                               IncidentCategoryRepository categoryRepository, TenantRoomResolver tenantRoomResolver,
-                              NotificationSender notificationSender) {
+                              NotificationSender notificationSender, FileStorage storage) {
         this.requestRepository = requestRepository;
         this.logRepository = logRepository;
         this.categoryRepository = categoryRepository;
         this.tenantRoomResolver = tenantRoomResolver;
         this.notificationSender = notificationSender;
+        this.storage = storage;
     }
 
     /** tenantFromToken != null: nguoi thue tu gui (phong suy ra tu hop dong); null: nhan vien ghi nhan ho. */
     @Transactional
     public MaintenanceResponse create(CreateMaintenanceRequest req, Integer tenantFromToken) {
+        return create(req, tenantFromToken, null);
+    }
+
+    @Transactional
+    public MaintenanceResponse create(CreateMaintenanceRequest req, Integer tenantFromToken, byte[] photo) {
         if (req == null) {
             throw new BusinessException("Thieu noi dung yeu cau");
         }
@@ -98,11 +112,36 @@ public class MaintenanceService {
         r.setTenant(tenant);
         r.setCategory(category);
         r.setDescription(description);
-        r.setIssuePhotoUrl(VietSupport.blankToNull(req.issuePhotoUrl()));
+        String photoUrl = VietSupport.blankToNull(req.issuePhotoUrl());
+        if (photo != null) {
+            String name = storage.saveImage(PHOTO_FOLDER, photo, 5L * 1024 * 1024);
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCompletion(int status) {
+                    if (status == STATUS_ROLLED_BACK) {
+                        storage.delete(PHOTO_FOLDER, name);
+                    }
+                }
+            });
+            photoUrl = PHOTO_ROUTE + "/" + name;
+        } else if (photoUrl != null && photoUrl.regionMatches(true, 0, PHOTO_ROUTE + "/", 0, PHOTO_ROUTE.length() + 1)) {
+            throw new BusinessException("Hay tai tep anh len cung yeu cau");
+        }
+        r.setIssuePhotoUrl(photoUrl);
         r.setPriority(priority == null ? "NORMAL" : priority);
         r.setStatus("OPEN");
         r.setCreatedAt(LocalDateTime.now());
         return MaintenanceResponse.from(requestRepository.save(r), null);
+    }
+
+    @Transactional(readOnly = true)
+    public Path photo(String name, Integer tenantId) {
+        MaintenanceRequest request = requestRepository.findFirstByIssuePhotoUrl(PHOTO_ROUTE + "/" + name)
+                .orElseThrow(() -> BusinessException.notFound("Anh su co"));
+        if (tenantId != null && (request.getTenant() == null || !tenantId.equals(request.getTenant().getTenantId()))) {
+            throw BusinessException.notFound("Anh su co");
+        }
+        return storage.find(PHOTO_FOLDER, name).orElseThrow(() -> BusinessException.notFound("Anh su co"));
     }
 
     @Transactional(readOnly = true)
@@ -223,6 +262,9 @@ public class MaintenanceService {
         if (reduce == null || reduce.signum() <= 0) {
             throw new BusinessException("So tien giam phai lon hon 0");
         }
+        if (reduce.stripTrailingZeros().scale() > 2) {
+            throw new BusinessException("So tien giam chi duoc co toi da 2 chu so thap phan");
+        }
         String reason = VietSupport.requireText(req.reason(), "ly do dieu chinh");
         Invoice inv = em.find(Invoice.class, req.invoiceId(), jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
         if (inv == null) {
@@ -230,6 +272,10 @@ public class MaintenanceService {
         }
         if (!inv.getCalculatedFee().getRoom().getRoomId().equals(r.getRoom().getRoomId())) {
             throw new BusinessException("Hoa don khong thuoc phong cua su co nay");
+        }
+        if (r.getTenant() != null
+                && (inv.getTenant() == null || !r.getTenant().getTenantId().equals(inv.getTenant().getTenantId()))) {
+            throw new BusinessException("Hoa don khong thuoc khach thue cua su co nay");
         }
         if (Set.of("PAID", "CANCELLED").contains(inv.getPaymentStatus())) {
             throw new BusinessException("Khong dieu chinh duoc hoa don da thanh toan hoac da huy");
@@ -250,8 +296,8 @@ public class MaintenanceService {
         String old = log.getResolutionNotes();
         log.setResolutionNotes(old == null || old.isBlank() ? note : old + " " + note);
         logRepository.save(log);
-        if (r.getTenant() != null) {
-            notificationSender.notifyTenant(r.getTenant().getTenantId(), "INVOICE_ADJUSTED",
+        if (inv.getTenant() != null) {
+            notificationSender.notifyTenant(inv.getTenant().getTenantId(), "INVOICE_ADJUSTED",
                     "Hóa đơn được điều chỉnh",
                     "Hóa đơn {{invoice}} đã được giảm {{amount}} đ sau khi kiểm tra. Lý do: {{reason}}",
                     Map.of("invoice", inv.getInvoiceCode(), "amount", reduce.toPlainString(), "reason", reason),

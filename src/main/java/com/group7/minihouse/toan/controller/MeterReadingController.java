@@ -1,6 +1,13 @@
 package com.group7.minihouse.toan.controller;
 
+import java.io.IOException;
 import java.time.LocalDate;
+import com.group7.minihouse.shared.storage.FileStorage;
+import org.springframework.core.io.PathResource;
+import org.springframework.http.CacheControl;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -12,12 +19,18 @@ import com.group7.minihouse.toan.service.MeterReadingService;
 /** API chi so dien nuoc (UC 53-60). */
 @RestController
 @RequestMapping("/api")
+@PreAuthorize(MeterReadingController.METER_ROLES)
 public class MeterReadingController {
 
-    private final MeterReadingService service;
+    private static final String PHOTO_FOLDER = "meter-photos";
+    static final String METER_ROLES = "hasAnyRole('LANDLORD','MANAGER','METER_READER')";
 
-    public MeterReadingController(MeterReadingService service) {
+    private final MeterReadingService service;
+    private final FileStorage storage;
+
+    public MeterReadingController(MeterReadingService service, FileStorage storage) {
         this.service = service;
+        this.storage = storage;
     }
 
     // UC 53
@@ -42,7 +55,6 @@ public class MeterReadingController {
 
     // UC 54, 55
     @PostMapping("/meter-readings")
-    @PreAuthorize("hasAnyRole('LANDLORD','MANAGER','METER_READER')")
     @ResponseStatus(HttpStatus.CREATED)
     public ReadingResponse record(@RequestBody ReadingRequest req,
                                   @org.springframework.security.core.annotation.AuthenticationPrincipal
@@ -61,7 +73,6 @@ public class MeterReadingController {
 
     /** Phong can ghi chi so cua ky (theo hop dong chong len ky, khong chi hop dong hom nay). Cho ca METER_READER. */
     @GetMapping("/meter-periods/{periodId}/missing-rooms")
-    @PreAuthorize("hasAnyRole('LANDLORD','MANAGER','METER_READER')")
     public List<MissingRoom> missingRooms(@PathVariable("periodId") Integer periodId) {
         return service.missingRooms(periodId);
     }
@@ -71,11 +82,38 @@ public class MeterReadingController {
         return service.getReading(id);
     }
 
-    @PostMapping("/meter-readings/{id}/photos")
-    @PreAuthorize("hasAnyRole('LANDLORD','MANAGER','METER_READER')")
+    @PostMapping(value = "/meter-readings/{id}/photos", consumes = MediaType.APPLICATION_JSON_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     public PhotoResponse addPhoto(@PathVariable("id") Integer id, @RequestBody PhotoRequest req) {
         return service.addPhoto(id, req);
+    }
+
+    @PostMapping(value = "/meter-readings/{id}/photos", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @ResponseStatus(HttpStatus.CREATED)
+    public PhotoResponse uploadPhoto(@PathVariable("id") Integer id, @RequestParam String meterType,
+                                     @RequestParam("file") MultipartFile file) throws IOException {
+        String name = storage.saveImage(PHOTO_FOLDER, file.getBytes(), 5L * 1024 * 1024);
+        try {
+            return service.addPhoto(id, new PhotoRequest(meterType, "/api/meter-photos/" + name));
+        } catch (RuntimeException failure) {
+            try {
+                storage.delete(PHOTO_FOLDER, name);
+            } catch (RuntimeException cleanupFailure) {
+                failure.addSuppressed(cleanupFailure);
+            }
+            throw failure;
+        }
+    }
+
+    @GetMapping("/meter-photos/{name}")
+    public ResponseEntity<PathResource> photo(@PathVariable String name) {
+        return storage.find(PHOTO_FOLDER, name)
+                .map(path -> ResponseEntity.ok()
+                        .contentType(MediaType.parseMediaType(FileStorage.contentTypeOf(name)))
+                        .cacheControl(CacheControl.noStore())
+                        .header("X-Content-Type-Options", "nosniff")
+                        .body(new PathResource(path)))
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @GetMapping("/meter-readings/{id}/photos")
@@ -135,13 +173,11 @@ public class MeterReadingController {
 
     // UC 60
     @PostMapping("/meter-readings/move-in")
-    @PreAuthorize("hasAnyRole('LANDLORD','MANAGER','METER_READER')")
     public MoveInResponse moveIn(@RequestBody MoveInRequest req) {
         return service.recordMoveIn(req);
     }
 
     @PostMapping("/meter-readings/move-out")
-    @PreAuthorize("hasAnyRole('LANDLORD','MANAGER','METER_READER')")
     @ResponseStatus(HttpStatus.CREATED)
     public ReadingResponse moveOut(@RequestBody MoveOutRequest req,
                                    @org.springframework.security.core.annotation.AuthenticationPrincipal

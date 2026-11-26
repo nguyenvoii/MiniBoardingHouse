@@ -56,6 +56,42 @@ class JobSchedulerTest {
     }
 
     @Test
+    void updateScheduleChangesCronAndReschedulesRunningJob() {
+        JobScheduler s = scheduler(true, new MockEnvironment(), new FakeJob("a"));
+        s.start();
+        org.mockito.ArgumentCaptor<Trigger> cap = org.mockito.ArgumentCaptor.forClass(Trigger.class);
+        s.updateSchedule("a", "0 15 9 * * *", true, 1);
+        verify(taskScheduler, times(2)).schedule(any(Runnable.class), cap.capture());
+        assertEquals(new CronTrigger("0 15 9 * * *"), cap.getAllValues().get(1));
+        assertEquals("0 15 9 * * *", s.list().get(0).cron());
+        assertTrue(s.list().get(0).overridden());
+    }
+
+    @Test
+    void disablingAJobOrUsingDashStopsAutoRunButManualRunStillWorks() {
+        FakeJob job = new FakeJob("a");
+        JobScheduler s = scheduler(true, new MockEnvironment(), job);
+        s.start();
+        s.updateSchedule("a", "0 0 8 * * *", false, 1);
+        assertEquals("-", s.list().get(0).cron());
+        assertEquals(false, s.list().get(0).scheduled());
+        s.runNow("a");
+        assertEquals(1, job.runs.get());
+        s.updateSchedule("a", "-", true, 1);
+        verify(taskScheduler, times(1)).schedule(any(Runnable.class), any(Trigger.class)); // chi lan khoi dong dau
+    }
+
+    @Test
+    void invalidCronOrUnknownJobIsRejected() {
+        JobScheduler s = scheduler(true, new MockEnvironment(), new FakeJob("a"));
+        BusinessException bad = assertThrows(BusinessException.class, () -> s.updateSchedule("a", "khong phai cron", true, 1));
+        assertEquals(HttpStatus.BAD_REQUEST, bad.getStatus());
+        assertEquals(HttpStatus.BAD_REQUEST, assertThrows(BusinessException.class, () -> s.updateSchedule("a", " ", true, 1)).getStatus());
+        assertEquals(HttpStatus.NOT_FOUND, assertThrows(BusinessException.class, () -> s.updateSchedule("zzz", "0 0 8 * * *", true, 1)).getStatus());
+        assertEquals("0 0 3 * * *", s.list().get(0).cron()); // cron cu giu nguyen
+    }
+
+    @Test
     void startDoesNothingWhenDisabled() {
         JobScheduler s = scheduler(false, new MockEnvironment(), new FakeJob("a"));
         s.start();

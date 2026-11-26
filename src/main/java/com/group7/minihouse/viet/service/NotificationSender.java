@@ -61,8 +61,13 @@ public class NotificationSender {
         if (tenant == null || tenant.getPhoneNumber() == null || tenant.getPhoneNumber().isBlank()) {
             return false;
         }
-        List<User> users = em.createQuery("select u from User u where u.phoneNumber = :p and u.status = 'ACTIVE'",
-                User.class).setParameter("p", tenant.getPhoneNumber().trim()).getResultList();
+        List<User> users = em.createQuery("select distinct ur.user from UserRole ur"
+                        + " where ur.role.roleCode = 'TENANT' and ur.user.status = 'ACTIVE'"
+                        + " and ur.user.phoneNumber = :phone", User.class)
+                .setParameter("phone", tenant.getPhoneNumber().trim()).getResultList().stream()
+                .filter(user -> user.getCreatedAt() == null || tenant.getCreatedAt() == null
+                        || !user.getCreatedAt().isBefore(tenant.getCreatedAt()))
+                .toList();
         if (users.isEmpty()) {
             return false;
         }

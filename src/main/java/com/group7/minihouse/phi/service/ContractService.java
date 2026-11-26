@@ -283,15 +283,34 @@ public class ContractService {
     @Transactional
     public ContractResponse updateUtilityTerms(Integer id, UtilityTermsRequest req, Integer actorId, String ip) {
         RentalContract c = liveContract(id);
+        if (req == null) {
+            throw bad("Thieu dieu khoan hop dong");
+        }
         if (req.electricTerms() != null) {
-            record(c, "UTILITY_TERMS", c.getElectricTerms(), limit(req.electricTerms()), actorId);
-            c.setElectricTerms(req.electricTerms().trim());
+            String terms = checkedUtilityTerms(req.electricTerms());
+            record(c, "UTILITY_TERMS", c.getElectricTerms(), terms, actorId);
+            c.setElectricTerms(terms);
         }
         if (req.waterTerms() != null) {
-            c.setWaterTerms(req.waterTerms().trim());
+            String terms = checkedUtilityTerms(req.waterTerms());
+            record(c, "WATER_TERMS", c.getWaterTerms(), terms, actorId);
+            c.setWaterTerms(terms);
+        }
+        if (req.serviceTerms() != null) {
+            String terms = checkedUtilityTerms(req.serviceTerms());
+            record(c, "SERVICE_TERMS", c.getServiceTerms(), terms, actorId);
+            c.setServiceTerms(terms);
         }
         audit(actorId, "UPDATE_CONTRACT_UTILITY", "Sua dieu khoan dien nuoc hop dong " + c.getContractCode(), ip);
         return toResponse(c);
+    }
+
+    private static String checkedUtilityTerms(String value) {
+        String terms = value.trim();
+        if (terms.length() > 255) {
+            throw bad("Dieu khoan khong duoc dai qua 255 ky tu");
+        }
+        return terms.isEmpty() ? null : terms;
     }
 
     // ------------------------------------------------------------------ UC45: PDF
@@ -321,6 +340,7 @@ public class ContractService {
         l.add("Phat tre han: " + money(c.getLateFeePerDay()) + " VND/ngay");
         if (c.getElectricTerms() != null) l.add("Dieu khoan dien: " + c.getElectricTerms());
         if (c.getWaterTerms() != null) l.add("Dieu khoan nuoc: " + c.getWaterTerms());
+        if (c.getServiceTerms() != null) l.add("Dieu khoan dich vu chung: " + c.getServiceTerms());
         if (c.getDepositRefundConditions() != null) l.add("Dieu kien hoan coc: " + c.getDepositRefundConditions());
         if (c.getTemplate() != null) {
             l.add("");
@@ -456,8 +476,11 @@ public class ContractService {
             throw bad("Chot chi so can du periodId, closingElectric, closingWater");
         }
         if (closing) {
-            meterService.recordMoveOut(new MoveOutRequest(oldRoom.getRoomId(), req.periodId(),
+            var finalReading = meterService.recordMoveOut(new MoveOutRequest(oldRoom.getRoomId(), req.periodId(),
                     req.closingElectric(), req.closingWater(), actorId, null, null));
+            em.find(com.group7.minihouse.shared.entity.MeterReading.class, finalReading.readingId())
+                    .setClosingContract(c);
+            meterService.confirmReading(finalReading.readingId());
         }
         List<?> residents = em.createQuery(
                 "select r from RoomResident r where r.room.roomId = :room and r.isActive = true")
@@ -467,7 +490,7 @@ public class ContractService {
         }
         record(c, "ROOM_TRANSFER", oldRoom.getRoomCode(), newRoom.getRoomCode(), actorId);
         c.setRoom(newRoom);
-        oldRoom.setStatus("VACANT");
+        oldRoom.setStatus("CLEANING");
         newRoom.setStatus("RENTED");
         audit(actorId, "TRANSFER_ROOM", "Chuyen hop dong " + c.getContractCode() + " tu phong "
                 + oldRoom.getRoomCode() + " sang " + newRoom.getRoomCode(), ip);
@@ -628,7 +651,8 @@ public class ContractService {
                 c.getRoom().getRoomCode(), c.getTenant().getTenantId(), c.getTenant().getFullName(),
                 c.getTemplate() == null ? null : c.getTemplate().getTemplateId(), c.getStartDate(), c.getEndDate(),
                 c.getMonthlyRentPrice(), c.getDepositAmount(), c.getPaymentCycleMonths(), c.getPaymentDueDay(),
-                c.getLateFeePerDay(), c.getElectricTerms(), c.getWaterTerms(), c.getDepositRefundConditions(),
+                c.getLateFeePerDay(), c.getElectricTerms(), c.getWaterTerms(), c.getServiceTerms(),
+                c.getDepositRefundConditions(),
                 c.getDigitalSignatureUrl(), c.getPdfContractUrl(), c.getStatus(), c.getCreatedAt());
     }
 

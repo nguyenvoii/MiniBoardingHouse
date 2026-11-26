@@ -12,10 +12,12 @@ import org.springframework.transaction.annotation.Transactional;
 import com.group7.minihouse.shared.exception.BusinessException;
 import com.group7.minihouse.toan.dto.PaymentDtos.ReceiptRequest;
 import com.group7.minihouse.toan.dto.PaymentDtos.ReceiptResponse;
+import com.group7.minihouse.toan.dto.PaymentDtos.TenantReceipt;
 import com.group7.minihouse.shared.entity.PaymentTransaction;
 import com.group7.minihouse.shared.entity.ReceiptVoucher;
 import com.group7.minihouse.toan.repository.ReceiptVoucherRepository;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import jakarta.persistence.PersistenceContext;
 
 /** Phieu thu (UC 89) va xac nhan / bien nhan thanh toan (UC 90). */
@@ -63,7 +65,7 @@ public class ReceiptService {
      * phieu khong duoc vuot so tien giao dich (tinh ca cac phieu da lap truoc do).
      */
     private ReceiptResponse doCreate(ReceiptRequest req, Integer actorId, String ip) {
-        if (req.voucherType() == null || !TYPES.contains(req.voucherType().toUpperCase())) {
+        if (req == null || req.voucherType() == null || !TYPES.contains(req.voucherType().toUpperCase())) {
             throw bad("voucherType phai thuoc " + TYPES);
         }
         if (req.amount() == null || req.amount().signum() <= 0) {
@@ -75,6 +77,9 @@ public class ReceiptService {
             if (tx == null) {
                 throw notFound("Giao dich " + req.transactionId());
             }
+            // Use the same invoice-first lock as payment confirmation and reversal.
+            em.lock(tx.getInvoice(), LockModeType.PESSIMISTIC_WRITE);
+            em.refresh(tx);
             if (!"SUCCESS".equals(tx.getStatus())) {
                 throw new BusinessException(HttpStatus.CONFLICT, "Chi lap phieu thu cho giao dich da thu thanh cong");
             }
@@ -131,7 +136,26 @@ public class ReceiptService {
     /** Bien nhan HTML de in / luu PDF. */
     @Transactional(readOnly = true)
     public String printableHtml(Integer voucherId) {
-        ReceiptVoucher v = find(voucherId);
+        return printableHtml(find(voucherId), true);
+    }
+
+    @Transactional(readOnly = true)
+    public List<TenantReceipt> forTenant(Integer tenantId) {
+        return receiptRepo.findSuccessfulForTenant(tenantId).stream().map(voucher -> {
+            var invoice = voucher.getTransaction().getInvoice();
+            return new TenantReceipt(voucher.getVoucherId(), voucher.getVoucherCode(), invoice.getInvoiceId(),
+                    invoice.getInvoiceCode(), voucher.getVoucherType(), voucher.getAmount(), voucher.getCreatedAt());
+        }).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public String printableHtmlForTenant(Integer tenantId, Integer voucherId) {
+        ReceiptVoucher voucher = receiptRepo.findSuccessfulForTenant(tenantId, voucherId)
+                .orElseThrow(() -> notFound("Phieu thu"));
+        return printableHtml(voucher, false);
+    }
+
+    private String printableHtml(ReceiptVoucher v, boolean includeNote) {
         StringBuilder sb = new StringBuilder();
         sb.append("<!DOCTYPE html><html lang=\"vi\"><head><meta charset=\"UTF-8\"><title>")
                 .append(esc(v.getVoucherCode())).append("</title></head>")
@@ -144,7 +168,7 @@ public class ReceiptService {
                     .append("<br>Phuong thuc: ").append(esc(v.getTransaction().getPaymentMethod())).append("</p>");
         }
         sb.append("<h3>So tien: ").append(v.getAmount().toPlainString()).append(" VND</h3>");
-        if (v.getNote() != null) {
+        if (includeNote && v.getNote() != null) {
             sb.append("<p>Ghi chu: ").append(esc(v.getNote())).append("</p>");
         }
         return sb.append("</body></html>").toString();

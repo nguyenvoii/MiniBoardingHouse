@@ -11,6 +11,8 @@ public class TenantDTO {
     private LocalDate dob;
     private String identityNumber;
     private String permanentAddress;
+    private LocalDate residenceStartDate;
+    private LocalDate residenceEndDate;
     private String occupation;
     private String emergencyContactName;
     private String emergencyContactPhone;
@@ -42,6 +44,12 @@ public class TenantDTO {
     public String getPermanentAddress() { return permanentAddress; }
     public void setPermanentAddress(String permanentAddress) { this.permanentAddress = permanentAddress; }
 
+    public LocalDate getResidenceStartDate() { return residenceStartDate; }
+    public void setResidenceStartDate(LocalDate value) { this.residenceStartDate = value; }
+
+    public LocalDate getResidenceEndDate() { return residenceEndDate; }
+    public void setResidenceEndDate(LocalDate value) { this.residenceEndDate = value; }
+
     public String getOccupation() { return occupation; }
     public void setOccupation(String occupation) { this.occupation = occupation; }
 
@@ -70,6 +78,8 @@ public class TenantDTO {
         private LocalDate dob;
         private String identityNumber;
         private String permanentAddress;
+        private LocalDate residenceStartDate;
+        private LocalDate residenceEndDate;
         private String occupation;
         private String emergencyContactName;
         private String emergencyContactPhone;
@@ -93,6 +103,12 @@ public class TenantDTO {
 
         public String getPermanentAddress() { return permanentAddress; }
         public void setPermanentAddress(String permanentAddress) { this.permanentAddress = permanentAddress; }
+
+        public LocalDate getResidenceStartDate() { return residenceStartDate; }
+        public void setResidenceStartDate(LocalDate value) { this.residenceStartDate = value; }
+
+        public LocalDate getResidenceEndDate() { return residenceEndDate; }
+        public void setResidenceEndDate(LocalDate value) { this.residenceEndDate = value; }
 
         public String getOccupation() { return occupation; }
         public void setOccupation(String occupation) { this.occupation = occupation; }

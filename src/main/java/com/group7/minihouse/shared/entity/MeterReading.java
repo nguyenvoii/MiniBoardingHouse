@@ -23,6 +23,13 @@ public class MeterReading {
     @JoinColumn(name = "room_id", nullable = false)
     private Room room;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "closing_contract_id")
+    private RentalContract closingContract;
+
+    public RentalContract getClosingContract() { return closingContract; }
+    public void setClosingContract(RentalContract closingContract) { this.closingContract = closingContract; }
+
     @Column(name = "old_electric", nullable = false)
     private Integer oldElectric;
 

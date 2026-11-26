@@ -34,6 +34,12 @@ public class Tenant {
     @Column(name = "permanent_address", length = 255)
     private String permanentAddress;
 
+    @Column(name = "residence_start_date")
+    private LocalDate residenceStartDate;
+
+    @Column(name = "residence_end_date")
+    private LocalDate residenceEndDate;
+
     @Column(name = "occupation", length = 100)
     private String occupation;
 
@@ -71,6 +77,12 @@ public class Tenant {
 
     public String getPermanentAddress() { return permanentAddress; }
     public void setPermanentAddress(String permanentAddress) { this.permanentAddress = permanentAddress; }
+
+    public LocalDate getResidenceStartDate() { return residenceStartDate; }
+    public void setResidenceStartDate(LocalDate value) { this.residenceStartDate = value; }
+
+    public LocalDate getResidenceEndDate() { return residenceEndDate; }
+    public void setResidenceEndDate(LocalDate value) { this.residenceEndDate = value; }
 
     public String getOccupation() { return occupation; }
     public void setOccupation(String occupation) { this.occupation = occupation; }

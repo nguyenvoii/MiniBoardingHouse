@@ -12,4 +12,8 @@ public interface UtilityReadingPeriodRepository extends JpaRepository<UtilityRea
     List<UtilityReadingPeriod> findByIsClosedAndEndDateBefore(Boolean isClosed, LocalDate date);
 
     boolean existsByPropertyPropertyIdAndPeriodName(Integer propertyId, String periodName);
+
+    /** Co ky nao cua khu da phu len khoang [start, end] (bat dau <= end moi va ket thuc >= start moi). */
+    boolean existsByPropertyPropertyIdAndStartDateLessThanEqualAndEndDateGreaterThanEqual(
+            Integer propertyId, LocalDate end, LocalDate start);
 }

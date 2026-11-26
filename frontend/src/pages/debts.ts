@@ -24,6 +24,7 @@ const stBadge = (s: string) => { const [l, t] = DEBT_STATUS[s] ?? [s, 'off']; re
 export async function debtsPage(view: HTMLElement): Promise<void> {
   const state = { status: 'ACTIVE_ONLY' };
   const holder = h('div');
+  const search = input({ type: 'search', placeholder: 'Tìm theo phòng hoặc tên người thuê', 'aria-label': 'Tìm công nợ' });
   const status = select([['ACTIVE_ONLY', 'Còn nợ'], ['', 'Tất cả'], ['NORMAL', 'Đang theo dõi'], ['WARNING_OVERDUE', 'Quá hạn cảnh báo'], ['LONG_TERM_DEBT', 'Nợ kéo dài'], ['CLEARED', 'Đã thanh toán hết']], 'ACTIVE_ONLY', { 'aria-label': 'Lọc theo tình trạng công nợ' });
   // Bảng công nợ là bảng tổng hợp từ hóa đơn: cập nhật lại mỗi lần mở trang để khớp Tổng quan (tính lại an toàn, không ghi trùng).
   const canRefresh = can('LANDLORD', 'MANAGER');
@@ -31,8 +32,16 @@ export async function debtsPage(view: HTMLElement): Promise<void> {
   const sum = await api.get<DebtSummary>('/api/debts/summary');
   const load = async () => {
     const q = state.status === 'ACTIVE_ONLY' ? '' : `status=${state.status}&`;
-    const r = await api.get<Page<Debt>>(`/api/debts?${q}size=100`);
-    const rows = state.status === 'ACTIVE_ONLY' ? r.items.filter((d) => d.debtStatus !== 'CLEARED') : r.items;
+    // nạp hết các trang (mỗi trang 100 dòng) để tìm kiếm và sắp xếp thấy đủ mọi khoản nợ, không chỉ 100 dòng đầu
+    let all: Debt[] = [];
+    for (let pg = 0; pg < 60; pg++) {
+      const r = await api.get<Page<Debt>>(`/api/debts?${q}page=${pg}&size=100`);
+      all = all.concat(r.items);
+      if (pg + 1 >= r.totalPages) break;
+    }
+    const k = search.value.trim().toLocaleLowerCase('vi');
+    const rows = (state.status === 'ACTIVE_ONLY' ? all.filter((d) => d.debtStatus !== 'CLEARED') : all)
+      .filter((d) => !k || `${d.roomCode} ${d.tenantName}`.toLocaleLowerCase('vi').includes(k));
     holder.replaceChildren(table<Debt>([
       { key: 'r', label: 'Phòng', render: (d) => plate(d.roomCode), sort: (a, b) => a.roomCode.localeCompare(b.roomCode) },
       { key: 't', label: 'Người thuê', render: (d) => d.tenantName },
@@ -44,6 +53,8 @@ export async function debtsPage(view: HTMLElement): Promise<void> {
     ], rows, { onRow: (d) => openDebt(d.debtId, () => void load()), empty: emptyState('Không có công nợ', 'Công nợ được tạo khi có hóa đơn chưa trả. Bấm «Tính lại công nợ» để cập nhật.') }));
   };
   status.addEventListener('change', () => { state.status = status.value; void load(); });
+  let timer: number | undefined;
+  search.addEventListener('input', () => { clearTimeout(timer); timer = window.setTimeout(() => void load(), 250); });
 
   const recalc = h('button', { class: 'btn secondary', title: 'Công nợ tự cập nhật mỗi lần mở trang; bấm để làm mới ngay' }, icon('refresh', 16), 'Làm mới');
   recalc.addEventListener('click', () => busy(recalc, async () => {
@@ -63,7 +74,7 @@ export async function debtsPage(view: HTMLElement): Promise<void> {
       h('div', { class: 'figures' },
         h('div', { class: `figure ${sum.totalOutstanding > 0 ? 'alert' : ''}` }, h('span', { class: 'label' }, 'Tổng công nợ'), h('span', { class: 'value' }, money(sum.totalOutstanding), h('small', null, '₫')), h('span', { class: 'note' }, `${sum.debtorCount} người còn nợ`)),
         ...sum.byStatus.filter((s) => s.status !== 'CLEARED').slice(0, 3).map((s) => h('div', { class: 'figure' }, h('span', { class: 'label' }, (DEBT_STATUS[s.status] ?? [s.status])[0]), h('span', { class: 'value' }, String(s.count), h('small', null, 'khoản')), h('span', { class: 'note' }, `${money(s.totalAmount)} ₫`)))),
-      h('section', { class: 'panel panel-flush' }, h('div', { class: 'toolbar' }, h('span', { class: 'grow' }), status), holder),
+      h('section', { class: 'panel panel-flush' }, h('div', { class: 'toolbar' }, h('div', { class: 'grow' }, search), status), holder),
     ),
   );
   await load();

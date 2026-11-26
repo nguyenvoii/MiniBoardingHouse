@@ -11,12 +11,14 @@ import static org.mockito.Mockito.when;
 
 import com.group7.minihouse.phi.dto.BackupInfo;
 import com.group7.minihouse.shared.exception.BusinessException;
-import java.nio.file.Files;
+import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -35,6 +37,8 @@ class BackupServiceTest {
     DataSource ds = mock(DataSource.class);
     Connection conn = mock(Connection.class);
     Statement stmt = mock(Statement.class);
+    PreparedStatement historyQuery = mock(PreparedStatement.class);
+    ResultSet history = mock(ResultSet.class);
     ResultSet rs = mock(ResultSet.class);
     Connection masterConn = mock(Connection.class);
     Statement masterStmt = mock(Statement.class);
@@ -45,12 +49,19 @@ class BackupServiceTest {
 
     @BeforeEach
     void setUp() throws Exception {
+        when(conn.prepareStatement(anyString())).thenReturn(historyQuery);
+        when(historyQuery.executeQuery()).thenReturn(history);
         when(ds.getConnection()).thenReturn(conn);
         when(conn.createStatement()).thenReturn(stmt);
         when(stmt.executeQuery("SELECT DB_NAME()")).thenReturn(rs);
         when(rs.next()).thenReturn(true);
         when(rs.getString(1)).thenReturn("MiniBoardingHouseDB");
         when(masterConn.createStatement()).thenReturn(masterStmt);
+        ResultSet header = mock(ResultSet.class);
+        when(masterStmt.executeQuery(org.mockito.ArgumentMatchers.startsWith("RESTORE HEADERONLY"))).thenReturn(header);
+        when(header.next()).thenReturn(true);
+        when(header.getString("DatabaseName")).thenReturn("MiniBoardingHouseDB");
+        when(header.getInt("BackupType")).thenReturn(1);
         when(masterStmt.execute(anyString())).thenAnswer(inv -> { masterSql.add(inv.getArgument(0)); return false; });
         service = new BackupService(ds, () -> masterConn, log, clock, dir.toString());
     }
@@ -76,9 +87,12 @@ class BackupServiceTest {
 
     @Test
     void listShowsOnlyBakFilesNewestFirst() throws Exception {
-        Files.writeString(dir.resolve("mbh-20261115-030000.bak"), "x");
-        Files.writeString(dir.resolve("mbh-20261116-030000.bak"), "xx");
-        Files.writeString(dir.resolve("ghi-chu.txt"), "x");
+        when(history.next()).thenReturn(true, true, true, false);
+        when(history.getString(1)).thenReturn(dir.resolve("mbh-20261116-030000.bak").toString(),
+                dir.resolve("mbh-20261115-030000.bak").toString(), dir.resolve("ghi-chu.txt").toString());
+        when(history.getString(4)).thenReturn("MiniBoardingHouseDB");
+        when(history.getBigDecimal(2)).thenReturn(BigDecimal.valueOf(2), BigDecimal.ONE);
+        when(history.getTimestamp(3)).thenReturn(Timestamp.from(clock.instant()));
 
         List<BackupInfo> list = service.list();
 
@@ -87,9 +101,17 @@ class BackupServiceTest {
         assertEquals(2L, list.get(0).sizeBytes());
     }
 
+    private void backupInHistory() throws SQLException {
+        when(history.next()).thenReturn(true, false);
+        when(history.getString(1)).thenReturn(dir.resolve("mbh-20261116-030000.bak").toString());
+        when(history.getString(4)).thenReturn("MiniBoardingHouseDB");
+        when(history.getBigDecimal(2)).thenReturn(BigDecimal.ONE);
+        when(history.getTimestamp(3)).thenReturn(Timestamp.from(clock.instant()));
+    }
+
     @Test
     void restoreRunsSingleUserRestoreReplaceThenMultiUser() throws Exception {
-        Files.writeString(dir.resolve("mbh-20261116-030000.bak"), "x");
+        backupInHistory();
 
         service.restore("mbh-20261116-030000.bak", "MiniBoardingHouseDB");
 
@@ -103,7 +125,7 @@ class BackupServiceTest {
 
     @Test
     void restoreAlwaysReturnsDatabaseToMultiUserEvenWhenRestoreFails() throws Exception {
-        Files.writeString(dir.resolve("mbh-20261116-030000.bak"), "x");
+        backupInHistory();
         when(masterStmt.execute(anyString())).thenAnswer(inv -> {
             String sql = inv.getArgument(0);
             masterSql.add(sql);
@@ -117,12 +139,42 @@ class BackupServiceTest {
     }
 
     @Test
+    void invalidBackupDoesNotChangeDatabaseAccess() throws Exception {
+        backupInHistory();
+        org.mockito.Mockito.doAnswer(inv -> {
+            masterSql.add(inv.getArgument(0));
+            throw new SQLException("backup verification failed");
+        }).when(masterStmt).execute(anyString());
+
+        assertThrows(BusinessException.class, () -> service.restore("mbh-20261116-030000.bak", "MiniBoardingHouseDB"));
+
+        assertEquals(1, masterSql.size());
+        assertTrue(masterSql.get(0).startsWith("RESTORE VERIFYONLY"));
+    }
+
+    @Test
+    void restoreFailsWhenDatabaseCannotReturnToMultiUser() throws Exception {
+        backupInHistory();
+        org.mockito.Mockito.doAnswer(inv -> {
+            String sql = inv.getArgument(0);
+            masterSql.add(sql);
+            if (sql.endsWith("SET MULTI_USER")) throw new SQLException("multi-user failed");
+            return false;
+        }).when(masterStmt).execute(anyString());
+
+        assertThrows(BusinessException.class, () -> service.restore("mbh-20261116-030000.bak", "MiniBoardingHouseDB"));
+
+        assertEquals(4, masterSql.size());
+        assertTrue(masterSql.get(3).endsWith("SET MULTI_USER"));
+    }
+
+    @Test
     void restoreRejectsBadNameWrongConfirmAndMissingFile() throws Exception {
         for (String bad : List.of("../evil.bak", "mbh-1.bak'; DROP DATABASE x;--", "a/b.bak", "x.txt")) {
             assertEquals(HttpStatus.BAD_REQUEST, assertThrows(BusinessException.class,
                     () -> service.restore(bad, "MiniBoardingHouseDB")).getStatus());
         }
-        Files.writeString(dir.resolve("mbh-20261116-030000.bak"), "x");
+        backupInHistory();
         assertEquals(HttpStatus.BAD_REQUEST, assertThrows(BusinessException.class,
                 () -> service.restore("mbh-20261116-030000.bak", "sai-ten")).getStatus());
         assertEquals(HttpStatus.NOT_FOUND, assertThrows(BusinessException.class,

@@ -23,6 +23,15 @@ public interface ReceiptVoucherRepository extends JpaRepository<ReceiptVoucher, 
 
     List<ReceiptVoucher> findByTransactionTransactionIdOrderByCreatedAtDesc(Integer transactionId);
 
+    @Query("select v from ReceiptVoucher v join v.transaction t join t.invoice i"
+            + " where i.tenant.tenantId = :tenantId and t.status = 'SUCCESS'"
+            + " order by v.createdAt desc, v.voucherId desc")
+    List<ReceiptVoucher> findSuccessfulForTenant(@Param("tenantId") Integer tenantId);
+
+    @Query("select v from ReceiptVoucher v join v.transaction t join t.invoice i"
+            + " where v.voucherId = :id and i.tenant.tenantId = :tenantId and t.status = 'SUCCESS'")
+    Optional<ReceiptVoucher> findSuccessfulForTenant(@Param("tenantId") Integer tenantId, @Param("id") Integer id);
+
     @Query("select coalesce(sum(v.amount), 0) from ReceiptVoucher v join v.transaction t "
          + "where v.createdAt >= :from and v.createdAt < :to and t.status = 'SUCCESS'")
     BigDecimal sumSuccessfulReceipts(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);

@@ -1,21 +1,23 @@
 import { meterConsumption } from './meterConsumption';
 import { h, busy, mount } from '../lib/dom';
 import { icon } from '../lib/icons';
-import { api, ApiError, errText, loadSession, PROPERTY_ID } from '../lib/api';
+import { api, ApiError, can, errText, loadSession, PROPERTY_ID } from '../lib/api';
 import { getMonth } from '../lib/ctx';
 import { date, monthLabel } from '../lib/format';
+import { showPhotos } from '../ui/photo';
 import { emptyState, field, formError, input, openDialog, pageHead, panel, plate, select, statusBadge, table, toast } from '../ui/kit';
 
 interface MeterPeriod { periodId: number; propertyId: number; periodName: string; startDate: string; endDate: string; closed: boolean }
 interface MissingRoom { roomId: number; roomCode: string; floorNumber: number | null; contractId: number; tenantName: string; contractStatus: string }
 interface Reading {
   readingId: number; periodId: number; roomId: number; roomCode: string; oldElectric: number; newElectric: number; usedElectric: number;
-  oldWater: number; newWater: number; usedWater: number; readingDate: string; verified: boolean;
+  oldWater: number; newWater: number; usedWater: number; readingDate: string; verified: boolean; closingContractId?: number | null;
 }
 interface Alert { alertId: number; readingId: number; roomId: number; roomCode: string; utilityType: string; increasePercentage: number; alertMessage: string; resolved: boolean }
 
 export async function metersPage(view: HTMLElement): Promise<void> {
   const month = getMonth();
+  const manager = can('LANDLORD', 'MANAGER'); // người ghi chỉ số chỉ nhập số; tạo/đóng kỳ, xác nhận, điều chỉnh, xử lý cảnh báo là việc quản lý
   const periods = await api.get<MeterPeriod[]>(`/api/meter-periods?propertyId=${PROPERTY_ID}`);
   const sorted = [...periods].sort((a, b) => b.startDate.localeCompare(a.startDate));
   const sel = sorted.find((p) => p.startDate.startsWith(month)) ?? null;
@@ -24,7 +26,7 @@ export async function metersPage(view: HTMLElement): Promise<void> {
   const createBtn = h('button', { class: 'btn', disabled: !!sel, title: sel ? `${monthLabel(month)} đã có kỳ ghi chỉ số` : null, onclick: () => createPeriod(month, () => void metersPage(view)) }, icon('plus', 16), `Tạo kỳ ${monthLabel(month)}`);
   if (!sel) {
     mount(view,
-      pageHead('Chỉ số điện nước', `${monthLabel(month)} chưa có kỳ ghi chỉ số. Tạo kỳ rồi ghi chỉ số từng phòng để tính tiền.`, [consumption, createBtn]),
+      pageHead('Chỉ số điện nước', manager ? `${monthLabel(month)} chưa có kỳ ghi chỉ số. Tạo kỳ rồi ghi chỉ số từng phòng để tính tiền.` : `${monthLabel(month)} chưa có kỳ ghi chỉ số. Nhờ chủ trọ hoặc quản lý tạo kỳ.`, [consumption, ...(manager ? [createBtn] : [])]),
       sorted.length ? panel('Các kỳ đã có', table<MeterPeriod>([
         { key: 'n', label: 'Kỳ', render: (p) => h('b', null, p.periodName) },
         { key: 'd', label: 'Từ ngày – đến ngày', render: (p) => `${date(p.startDate)} – ${date(p.endDate)}` },
@@ -48,6 +50,8 @@ export async function metersPage(view: HTMLElement): Promise<void> {
   const prevPeriod = sorted.find((p) => p.startDate < sel.startDate);
   const prevReadings = prevPeriod ? await api.get<Reading[]>(`/api/meter-periods/${prevPeriod.periodId}/readings`).catch(() => [] as Reading[]) : [];
   const olds = new Map(prevReadings.map((r) => [r.roomId, { e: r.newElectric, w: r.newWater }]));
+  // chỉ số chốt chuyển phòng trong kỳ này là mốc của khách mới (readings đã sắp theo readingId)
+  readings.filter((r) => r.closingContractId != null).forEach((r) => olds.set(r.roomId, { e: r.newElectric, w: r.newWater }));
 
   const closeBtn = h('button', { class: 'btn secondary' }, icon('lock', 16), sel.closed ? 'Mở lại kỳ' : 'Đóng kỳ');
   closeBtn.addEventListener('click', () => busy(closeBtn, async () => {
@@ -57,14 +61,14 @@ export async function metersPage(view: HTMLElement): Promise<void> {
   const recordBtn = h('button', { class: 'btn', disabled: sel.closed || !missing.length, title: sel.closed ? 'Kỳ đã đóng' : missingError ? missingError : !missing.length ? 'Mọi phòng đã có chỉ số' : null, onclick: () => record(sel, missing, null, reload, olds) }, icon('plus', 16), 'Ghi chỉ số');
 
   mount(view,
-    pageHead(`Chỉ số điện nước · ${sel.periodName}`, `${date(sel.startDate)} – ${date(sel.endDate)}`, [sel.closed ? statusBadge('CLOSED') : h('span', { class: 'st ok' }, icon('check', 14), 'Đang mở'), consumption, closeBtn, recordBtn]),
+    pageHead(`Chỉ số điện nước · ${sel.periodName}`, `${date(sel.startDate)} – ${date(sel.endDate)}`, [sel.closed ? statusBadge('CLOSED') : h('span', { class: 'st ok' }, icon('check', 14), 'Đang mở'), consumption, ...(manager ? [closeBtn] : []), recordBtn]),
     h('div', { class: 'stack' },
       missingError ? formError(missingError) : null,
       missing.length && !sel.closed ? panel(`Còn ${missing.length} phòng chưa ghi chỉ số`, h('div', { class: 'panel-body', style: 'display:flex;gap:8px;flex-wrap:wrap' },
         ...missing.map((c) => h('button', { class: 'btn secondary sm', onclick: () => record(sel, missing, c, reload, olds) }, plate(c.roomCode), 'Ghi'))), { sub: 'Phòng có hợp đồng còn hiệu lực nhưng chưa có chỉ số trong kỳ. Thiếu chỉ số thì tiền điện nước của phòng đó tính bằng 0.' }) : null,
-      alerts.length ? alertPanel(alerts, reload) : null,
+      alerts.length ? alertPanel(alerts, reload, manager) : null,
       panel('Chỉ số từng phòng', table<Reading>([
-        { key: 'r', label: 'Phòng', render: (r) => plate(r.roomCode), sort: (a, b) => a.roomCode.localeCompare(b.roomCode) },
+        { key: 'r', label: 'Phòng', render: (r) => h('span', null, plate(r.roomCode), r.closingContractId != null ? h('span', { class: 'st warn', style: 'margin-left:6px', title: `Chỉ số chốt khi chuyển phòng (hợp đồng ${r.closingContractId})` }, 'Chốt chuyển phòng') : null), sort: (a, b) => a.roomCode.localeCompare(b.roomCode) },
         { key: 'oe', label: 'Điện cũ', num: true, render: (r) => r.oldElectric },
         { key: 'ne', label: 'Điện mới', num: true, render: (r) => r.newElectric },
         { key: 'ue', label: 'Dùng (kWh)', num: true, render: (r) => h('b', null, r.usedElectric), sort: (a, b) => a.usedElectric - b.usedElectric },
@@ -72,14 +76,16 @@ export async function metersPage(view: HTMLElement): Promise<void> {
         { key: 'nw', label: 'Nước mới', num: true, render: (r) => r.newWater },
         { key: 'uw', label: 'Dùng (m³)', num: true, render: (r) => h('b', null, r.usedWater), sort: (a, b) => a.usedWater - b.usedWater },
         { key: 'v', label: 'Xác nhận', render: (r) => (r.verified ? h('span', { class: 'st ok' }, icon('check', 14), 'Đã xác nhận') : h('span', { class: 'st warn' }, icon('clock', 14), 'Chưa xác nhận')) },
-        { key: 'a', label: '', render: (r) => rowActions(r, sel.closed, reload) },
+        { key: 'a', label: '', render: (r) => rowActions(r, sel.closed, reload, manager, readings.some((x) => x.roomId === r.roomId && x.readingId > r.readingId)) },
       ], readings, { empty: emptyState('Chưa có chỉ số nào', 'Bấm Ghi chỉ số để nhập số điện nước từng phòng.') }), { flush: true }),
     ),
   );
 }
 
-function rowActions(r: Reading, closed: boolean, reload: () => void): HTMLElement {
+function rowActions(r: Reading, closed: boolean, reload: () => void, manager: boolean, used: boolean): HTMLElement {
   const box = h('div', { class: 'row-actions' });
+  box.append(h('button', { class: 'btn secondary sm', onclick: () => void viewPhotos(r) }, 'Ảnh'));
+  if (!manager) return box;
   if (!r.verified && !closed) {
     const ok = h('button', { class: 'btn sm' }, icon('check', 14), 'Xác nhận');
     ok.addEventListener('click', () => busy(ok, async () => {
@@ -88,7 +94,7 @@ function rowActions(r: Reading, closed: boolean, reload: () => void): HTMLElemen
     }));
     box.append(ok);
   }
-  if (!closed) box.append(h('button', { class: 'btn secondary sm', onclick: () => adjust(r, reload) }, icon('edit', 14), 'Điều chỉnh'));
+  if (!closed) box.append(h('button', { class: 'btn secondary sm', disabled: used, title: used ? 'Đã làm mốc cho chỉ số của khách mới, không điều chỉnh được' : null, onclick: () => adjust(r, reload) }, icon('edit', 14), 'Điều chỉnh'));
   return box;
 }
 
@@ -98,6 +104,8 @@ function record(period: MeterPeriod, missing: MissingRoom[], pre: MissingRoom | 
   const room = select(missing.map((c) => [String(c.roomId), `${c.roomCode} · ${c.tenantName}`] as [string, string]), pre ? String(pre.roomId) : '');
   const ne = input({ type: 'number', min: '0', class: 'input num-in', placeholder: 'Số điện hiện tại' });
   const nw = input({ type: 'number', min: '0', class: 'input num-in', placeholder: 'Số nước hiện tại' });
+  const photoE = input({ type: 'file', accept: 'image/*', 'aria-label': 'Ảnh công tơ điện' });
+  const photoW = input({ type: 'file', accept: 'image/*', 'aria-label': 'Ảnh đồng hồ nước' });
   const oldHint = h('p', { class: 'muted', 'aria-live': 'polite' });
   const showOld = () => {
     const o = olds.get(Number(room.value));
@@ -106,7 +114,8 @@ function record(period: MeterPeriod, missing: MissingRoom[], pre: MissingRoom | 
   room.addEventListener('change', showOld); showOld();
   d.body.append(err,
     h('p', { class: 'muted' }, `Kỳ ${period.periodName}. Nhập số công tơ hiện tại của phòng.`), oldHint,
-    field('Phòng', room), h('div', { class: 'form-grid' }, field('Số điện mới (kWh)', ne), field('Số nước mới (m³)', nw)));
+    field('Phòng', room), h('div', { class: 'form-grid' }, field('Số điện mới (kWh)', ne), field('Số nước mới (m³)', nw)),
+    h('div', { class: 'form-grid' }, field('Ảnh công tơ điện (không bắt buộc)', photoE), field('Ảnh đồng hồ nước (không bắt buộc)', photoW)));
   const ok = h('button', { class: 'btn' }, 'Lưu chỉ số');
   d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Hủy'), ok);
   ok.addEventListener('click', () => busy(ok, async () => {
@@ -118,8 +127,16 @@ function record(period: MeterPeriod, missing: MissingRoom[], pre: MissingRoom | 
     if (o && Number(ne.value) < o.e) { err.replaceChildren(formError(`Số điện mới (${ne.value}) nhỏ hơn số cũ (${o.e}). Kiểm tra lại công tơ.`)); ne.focus(); return; }
     if (o && Number(nw.value) < o.w) { err.replaceChildren(formError(`Số nước mới (${nw.value}) nhỏ hơn số cũ (${o.w}). Kiểm tra lại công tơ.`)); nw.focus(); return; }
     try {
-      await api.post('/api/meter-readings', { periodId: period.periodId, roomId: Number(room.value), newElectric: Number(ne.value), newWater: Number(nw.value), recordedByUserId: s.userId });
-      d.close(); toast('Đã lưu chỉ số'); done();
+      const saved = await api.post<{ readingId: number }>('/api/meter-readings', { periodId: period.periodId, roomId: Number(room.value), newElectric: Number(ne.value), newWater: Number(nw.value), recordedByUserId: s.userId });
+      const failed: string[] = [];
+      for (const [type, f] of [['ELECTRIC', photoE.files?.[0]], ['WATER', photoW.files?.[0]]] as const) {
+        if (!f) continue;
+        const form = new FormData(); form.append('meterType', type); form.append('file', f);
+        try { await api.uploadForm(`/api/meter-readings/${saved.readingId}/photos`, form); } catch (e) { failed.push(`${type === 'ELECTRIC' ? 'điện' : 'nước'}: ${errText(e)}`); }
+      }
+      d.close();
+      if (failed.length) toast(`Đã lưu chỉ số nhưng chưa lưu được ảnh (${failed.join('; ')}). Mở Ảnh ở dòng chỉ số để thử lại.`, 'err'); else toast('Đã lưu chỉ số');
+      done();
     } catch (e) { err.replaceChildren(formError(errText(e))); }
   }));
 }
@@ -143,16 +160,16 @@ function adjust(r: Reading, done: () => void): void {
   }));
 }
 
-function alertPanel(alerts: Alert[], reload: () => void): HTMLElement {
+function alertPanel(alerts: Alert[], reload: () => void, manager: boolean): HTMLElement {
   return panel('Cảnh báo tiêu thụ bất thường', table<Alert>([
     { key: 'r', label: 'Phòng', render: (a) => plate(a.roomCode) },
     { key: 't', label: 'Loại', render: (a) => (a.utilityType === 'ELECTRIC' ? 'Điện' : 'Nước') },
     { key: 'p', label: 'Tăng', num: true, render: (a) => `+${Math.round(Number(a.increasePercentage))}%` },
     { key: 'm', label: 'Chi tiết', render: (a) => a.alertMessage },
-    { key: 'x', label: '', render: (a) => h('button', { class: 'btn secondary sm', onclick: async () => {
+    { key: 'x', label: '', render: (a) => !manager ? '' : h('button', { class: 'btn secondary sm', onclick: async () => {
       try { await api.post(`/api/meter-alerts/${a.alertId}/resolve`); toast('Đã đánh dấu đã xử lý'); reload(); } catch (e) { toast(errText(e), 'err'); }
     } }, 'Đã xử lý') },
-  ], alerts), { sub: 'So với kỳ trước. Kiểm tra lại công tơ rồi đánh dấu đã xử lý.', flush: true });
+  ], alerts), { sub: manager ? 'So với kỳ trước. Kiểm tra lại công tơ rồi đánh dấu đã xử lý.' : 'So với kỳ trước. Kiểm tra lại công tơ; quản lý sẽ đánh dấu đã xử lý.', flush: true });
 }
 
 function createPeriod(month: string, done: () => void): void {
@@ -173,4 +190,11 @@ function createPeriod(month: string, done: () => void): void {
       d.close(); toast('Đã tạo kỳ ghi chỉ số'); done();
     } catch (e) { err.replaceChildren(formError(errText(e))); }
   }));
+}
+
+async function viewPhotos(r: Reading): Promise<void> {
+  try {
+    const list = await api.get<Array<{ meterType: string; photoUrl: string }>>(`/api/meter-readings/${r.readingId}/photos`);
+    showPhotos(`Ảnh công tơ phòng ${r.roomCode}`, list.map((x) => ({ label: x.meterType === 'ELECTRIC' ? 'Công tơ điện' : 'Đồng hồ nước', url: x.photoUrl })));
+  } catch (e) { toast(errText(e), 'err'); }
 }
