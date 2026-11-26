@@ -9,7 +9,8 @@ import openpyxl
 from openpyxl.styles import Alignment
 
 SRC = 'docs/KET_QUA_E2E_NGHIEM_THU.xlsx'
-DST = 'docs/NGHIEM_THU_123_USE_CASE.xlsx'
+import sys
+DST = sys.argv[1] if len(sys.argv) > 1 else 'docs/NGHIEM_THU_123_USE_CASE.xlsx'
 SHEET = 'UC1–UC123'
 
 src = openpyxl.load_workbook(SRC)[SHEET]
