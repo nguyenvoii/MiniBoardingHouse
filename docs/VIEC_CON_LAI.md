@@ -1,7 +1,7 @@
 MINIBOARDINGHOUSE - CAC PHAN CHUA HOAN TOAN HOAN THIEN (cap nhat 27/11/2026)
 =========================================================================
 
-Tong quan: 123/123 use case da co giao dien + API + bang chung E2E tren SQL Server QA (455 JUnit dat, 19 kich ban
+Tong quan: 123/123 use case da co giao dien + API + bang chung E2E tren SQL Server QA (458 JUnit dat, 19 kich ban
 Playwright trong audit/e2e). Cac muc duoi day la phan CHUA that su dung duoc voi dich vu that, hoac con gioi han,
 de lam not trong tuong lai. Khong co loi P0/P1 da biet.
 
@@ -58,6 +58,16 @@ C. GIOI HAN THIET KE / VIEC NEN LAM TIEP
 - UC59: bieu do tieu thu dang cot don gian (the meter), chua co bieu do duong/so sanh nhieu phong.
 - Phan trang: man Cong no nap tat ca trang (toi da 6000 dong); cac man khac van gioi han 50-200 dong moi lan.
 - Phu hoi du lieu tu giao dien khong co "dry run"/kiem tra dung luong dia truoc.
+
+   Tu ra soat code (27/11):
+   - payOS: bam "Thanh toan online" lan hai cho cung giao dich gui lai cung orderCode (1e9 + id) nen payOS that co the tu choi
+     (API tra 502). Can ma don duy nhat moi lan hoac lay lai checkoutUrl cu khi co khoa that de thu.
+   - Nhac no chi ghi lich su (DebtReminder) khi gui duoc vao tai khoan cong khach; khach chua co tai khoan khong co dong lich su.
+   - Gui lai anh CCCD khong xoa anh cu tren dia (du lieu nhay cam ton dong); nen xoa sau khi luu anh moi.
+   - Doi phong co chot chi so bi 409 neu phong cu da co chi so thuong trong ky do (can dung chi so da ghi lam chi so chot).
+   - BillingJobs.remindAndMarkOverdue/closeExpiredMeterPeriods dung LocalDate.now() thay vi Clock (anh huong test theo gio).
+   - confirm-cleaned chi nhan phong CLEANING; phong REPAIRING doi trang thai bang "Doi trang thai".
+   - GET man hinh chi so/ky ghi chi so nay can vai tro quan ly/chu tro/nguoi ghi chi so (thu ngan khong doc duoc).
 
 D. MOI TRUONG KIEM THU (khong anh huong chay that)
 --------------------------------------------------

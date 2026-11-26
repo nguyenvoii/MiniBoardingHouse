@@ -154,7 +154,8 @@ class BillingContractsTest {
         List<BigDecimal> shares = savedItems.stream()
                 .filter(item -> BillingService.ITEM_SHARED.equals(item.getItemName()))
                 .map(FeeItemDetail::getSubtotal).toList();
-        assertEquals(List.of(new BigDecimal("33.33"), new BigDecimal("33.34"), new BigDecimal("33.33")), shares);
+        // VND không có phần lẻ (payOS yêu cầu số nguyên): lũy kế làm tròn 0 chữ số, phòng cuối nhận phần dư
+        assertEquals(List.of(new BigDecimal("33.00"), new BigDecimal("34.00"), new BigDecimal("33.00")), shares);
     }
 
     // ---- F3

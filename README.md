@@ -38,7 +38,7 @@ Phạm vi nghiệm thu là **123 use case có tên (UC1–UC123)** trong sheet *
 ### Kiểm thử
 
 - **E2E thật** (Playwright → frontend → API → SQL Server QA, không mock): 19 kịch bản `audit/e2e/*-flow.mjs` (đăng nhập/nhân viên/phân quyền, khách thuê, phòng, hợp đồng, nhận/trả phòng, chỉ số điện nước, tính tiền, hóa đơn, thanh toán, công nợ, sự cố, báo cáo, cài đặt, sao lưu). Mỗi kịch bản có cả tình huống lỗi và kiểm tra quyền. Chạy: `audit/e2e/run-all.sh <kịch bản>.mjs ...`.
-- **JUnit**: 455 test đạt (biên dịch bằng `javac` và `junit-platform-console-standalone` vì máy không có Maven).
+- **JUnit**: 458 test đạt (biên dịch bằng `javac` và `junit-platform-console-standalone` vì máy không có Maven).
 - `npm run build` (TypeScript + Vite) thành công; Spring Boot khởi động với SQL Server QA và `ddl-auto=validate` sau khi áp dụng `db/patch_11` đến `patch_16`.
 - Đã sửa trong đợt này: kỳ ghi chỉ số trùng khoảng thời gian, phòng "chờ dọn" hiển thị sai, đổi tháng nhanh hiện nhầm tháng, thông báo hóa đơn không dấu, màn công nợ chỉ thấy 100 dòng, thanh nút hóa đơn tràn màn hình.
 - Giao diện mới: hồ sơ cư trú và CCCD, ảnh công tơ/sự cố/hiện trạng, chia điện nước chung, chia sẻ và điều chỉnh hóa đơn, số dư trả trước, thiết bị và phụ phí, danh mục sự cố, mẫu thông báo, lịch tự động (sửa được giờ chạy), sao lưu và phục hồi, đăng ký chủ trọ, quyền theo vai trò, cổng khách (phòng, lịch sử thanh toán, biên nhận, xin thiết bị, thanh toán payOS).

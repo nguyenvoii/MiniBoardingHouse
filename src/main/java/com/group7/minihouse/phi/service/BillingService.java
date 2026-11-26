@@ -343,7 +343,7 @@ public class BillingService {
             if (d.primary && sharedTotal.signum() > 0 && totalWeight > 0) {
                 allocatedWeight += sharedAllocation == SharedAllocation.PER_ROOM ? 1 : d.residents;
                 BigDecimal cumulativeCost = sharedTotal.multiply(BigDecimal.valueOf(allocatedWeight))
-                        .divide(BigDecimal.valueOf(totalWeight), 2, RoundingMode.HALF_UP);
+                        .divide(BigDecimal.valueOf(totalWeight), 0, RoundingMode.HALF_UP);
                 d.add(ITEM_SHARED, BigDecimal.ONE, cumulativeCost.subtract(allocatedCost));
                 allocatedCost = cumulativeCost;
             }

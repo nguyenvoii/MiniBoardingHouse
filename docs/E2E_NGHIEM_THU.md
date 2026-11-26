@@ -25,4 +25,4 @@ payments, payments2, tenant-portal, debts, billing, anomaly, settings-reports, s
 - `billing-flow` dùng tháng quá khứ chưa có kỳ của khu 1 (chi phí vận hành không ghi được ở tương lai): còn khoảng 17 tháng; hết thì cần DB QA mới.
 - Chi phí vận hành chưa gắn khu trọ nên khoản "Điện nước chung" chỉ chia cho khu mặc định.
 - Ảnh chữ ký hợp đồng công khai theo tên UUID (thiết kế hiện tại).
-- Không có Maven trên máy: biên dịch và chạy JUnit bằng `javac` + `junit-platform-console-standalone` (455 test đạt).
+- Không có Maven trên máy: biên dịch và chạy JUnit bằng `javac` + `junit-platform-console-standalone` (458 test đạt).

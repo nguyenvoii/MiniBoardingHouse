@@ -125,6 +125,9 @@ public class JobScheduler {
             throw new BusinessException(HttpStatus.BAD_REQUEST,
                     "Cron khong hop le, can 6 truong: giay phut gio ngay thang thu (vi du 0 0 8 * * *)");
         }
+        if (value.length() > 60) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Cron toi da 60 ky tu");
+        }
         boolean on = jobEnabled == null || jobEnabled;
         if (settings != null) {
             JobSetting row = settings.findById(name).orElseGet(() -> {

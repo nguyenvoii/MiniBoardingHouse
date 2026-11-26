@@ -112,7 +112,7 @@ public class BackupService {
             while (rows.next()) {
                 String path = rows.getString(1);
                 String name = path.substring(Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\')) + 1);
-                if (!FILE_NAME.matcher(name).matches() || !backupPath(dir, name).equals(path)) {
+                if (!FILE_NAME.matcher(name).matches() || !samePath(backupPath(dir, name), path)) {
                     continue;
                 }
                 // A newer backup of another database may have overwritten this file.
@@ -195,6 +195,14 @@ public class BackupService {
             }
         }
         throw new IOException("Chua cau hinh app.backup.dir va SQL Server khong co thu muc sao luu mac dinh");
+    }
+
+    /** So sanh duong dan file sao luu: duong dan kieu Windows khong phan biet hoa thuong va dau gach cheo. */
+    static boolean samePath(String expected, String actual) {
+        if (expected.matches("^[A-Za-z]:.*") || expected.contains("\\")) {
+            return expected.replace('/', '\\').equalsIgnoreCase(actual.replace('/', '\\'));
+        }
+        return expected.equals(actual);
     }
 
     private static String backupPath(String dir, String name) {
