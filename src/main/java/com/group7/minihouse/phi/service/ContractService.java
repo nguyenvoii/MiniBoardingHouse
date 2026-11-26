@@ -476,11 +476,15 @@ public class ContractService {
             throw bad("Chot chi so can du periodId, closingElectric, closingWater");
         }
         if (closing) {
-            var finalReading = meterService.recordMoveOut(new MoveOutRequest(oldRoom.getRoomId(), req.periodId(),
-                    req.closingElectric(), req.closingWater(), actorId, null, null));
-            em.find(com.group7.minihouse.shared.entity.MeterReading.class, finalReading.readingId())
-                    .setClosingContract(c);
-            meterService.confirmReading(finalReading.readingId());
+            var reused = meterService.closeExistingRegularReading(req.periodId(), oldRoom.getRoomId(),
+                    req.closingElectric(), req.closingWater(), actorId, c);
+            if (reused.isEmpty()) {
+                var finalReading = meterService.recordMoveOut(new MoveOutRequest(oldRoom.getRoomId(), req.periodId(),
+                        req.closingElectric(), req.closingWater(), actorId, null, null));
+                em.find(com.group7.minihouse.shared.entity.MeterReading.class, finalReading.readingId())
+                        .setClosingContract(c);
+                meterService.confirmReading(finalReading.readingId());
+            }
         }
         List<?> residents = em.createQuery(
                 "select r from RoomResident r where r.room.roomId = :room and r.isActive = true")

@@ -237,6 +237,36 @@ public class MeterReadingService {
         return toResponse(r);
     }
 
+    /**
+     * Doi phong giua ky: neu phong cu da co chi so thuong trong ky thi dung chinh dong do lam chi so chot
+     * (dieu chinh len so chot, co ghi lich su) thay vi bao trung. Tra ve id dong da chot, hoac rong neu khong co dong thuong.
+     */
+    @Transactional
+    public java.util.Optional<Integer> closeExistingRegularReading(Integer periodId, Integer roomId, Integer electric, Integer water,
+                                               Integer userId, com.group7.minihouse.shared.entity.RentalContract contract) {
+        var existing = readingRepo.findByPeriodPeriodIdAndRoomRoomId(periodId, roomId);
+        if (existing.isEmpty()) {
+            return java.util.Optional.empty();
+        }
+        MeterReading r = existing.get();
+        if (Boolean.TRUE.equals(r.getPeriod().getIsClosed())) {
+            throw new BusinessException(HttpStatus.CONFLICT, "Ky ghi so da dong");
+        }
+        if (electric < r.getNewElectric() || water < r.getNewWater()) {
+            throw bad("Chi so chot (" + electric + "/" + water + ") nho hon chi so da ghi trong ky ("
+                    + r.getNewElectric() + "/" + r.getNewWater() + ")");
+        }
+        if (electric != r.getNewElectric()) {
+            adjustReading(r.getReadingId(), new AdjustRequest("NEW_ELECTRIC", electric, "Chot chi so khi chuyen phong", userId));
+        }
+        if (water != r.getNewWater()) {
+            adjustReading(r.getReadingId(), new AdjustRequest("NEW_WATER", water, "Chot chi so khi chuyen phong", userId));
+        }
+        r.setClosingContract(contract);
+        confirmReading(r.getReadingId());
+        return java.util.Optional.of(r.getReadingId());
+    }
+
     @Transactional
     public ReadingResponse adjustReading(Integer readingId, AdjustRequest req) {
         MeterReading r = findReading(readingId);

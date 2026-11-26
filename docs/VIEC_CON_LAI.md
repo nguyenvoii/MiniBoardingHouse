@@ -61,7 +61,6 @@ C. GIOI HAN THIET KE / VIEC NEN LAM TIEP
 
    Tu ra soat code (27/11):
    - Nhac no chi ghi lich su (DebtReminder) khi gui duoc vao tai khoan cong khach; khach chua co tai khoan khong co dong lich su.
-   - Doi phong co chot chi so bi 409 neu phong cu da co chi so thuong trong ky do (can dung chi so da ghi lam chi so chot).
    - BillingJobs.remindAndMarkOverdue/closeExpiredMeterPeriods dung LocalDate.now() thay vi Clock (anh huong test theo gio).
    - confirm-cleaned chi nhan phong CLEANING; phong REPAIRING doi trang thai bang "Doi trang thai".
    - GET man hinh chi so/ky ghi chi so nay can vai tro quan ly/chu tro/nguoi ghi chi so (thu ngan khong doc duoc).

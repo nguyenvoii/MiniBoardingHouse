@@ -258,6 +258,29 @@ const rdTok = await (async () => { const st = await api('POST', '/api/staff', { 
 assert.equal((await page.request.post(`${base}/api/contracts/${c2.contractId}/transfer`, { headers: { Authorization: `Bearer ${rdTok}`, 'Content-Type': 'application/json' }, data: { newRoomId: roomB.roomId } })).status(), 403, 'METER_READER không đổi phòng');
 log('UC50 lỗi + phân quyền đổi phòng OK');
 
+// ---------- chuyển phòng khi phòng cũ ĐÃ có chỉ số thường trong kỳ: dùng dòng đó làm chỉ số chốt (trước đây bị 409)
+{
+  const { fixtureRoom } = await import('./lib2.mjs');
+  const free = (await api('GET', '/api/meter-periods?propertyId=1')).map((p) => p.startDate.slice(0, 7));
+  let k = 2060; let mm = 1; const key2 = () => `${k}-${String(mm).padStart(2, '0')}`;
+  while (free.includes(key2())) { mm++; if (mm > 12) { mm = 1; k++; } }
+  const mth = key2();
+  const fa = await fixtureRoom(api, { label: 'TR', startMonth: mth });
+  const target = await api('POST', '/api/chi/rooms', { propertyId: 1, floorId: 1, roomCode: `E2E-TRB-${tag}`, areaSqm: 20, maxOccupants: 2, baseRentPrice: 3000000, depositAmount: 3000000, initialElectricMeter: 100, initialWaterMeter: 10 });
+  const per = await api('POST', '/api/meter-periods', { propertyId: 1, periodName: `E2E ${mth} ${tag}`, startDate: `${mth}-01`, endDate: `${mth}-28` });
+  const reg = await api('POST', '/api/meter-readings', { periodId: per.periodId, roomId: fa.room.roomId, newElectric: 120, newWater: 12, recordedByUserId: 1 });
+  const tr = (data) => page.request.post(`${base}/api/contracts/${fa.contract.contractId}/transfer`, { headers: { Authorization: `Bearer ${tokenNow}`, 'Content-Type': 'application/json' }, data });
+  const tokenNow = await token();
+  const low = await tr({ newRoomId: target.roomId, periodId: per.periodId, closingElectric: 110, closingWater: 12 });
+  assert.equal(low.status(), 400, 'chỉ số chốt thấp hơn số đã ghi bị từ chối');
+  const ok = await tr({ newRoomId: target.roomId, periodId: per.periodId, closingElectric: 130, closingWater: 15 });
+  assert.equal(ok.status(), 200, `chuyển phòng khi đã có chỉ số trong kỳ (${ok.status()})`);
+  const after = (await api('GET', `/api/meter-periods/${per.periodId}/readings`)).filter((r) => r.roomId === fa.room.roomId);
+  assert.equal(after.length, 1, 'dùng lại dòng chỉ số cũ, không tạo thêm');
+  assert.deepEqual([after[0].newElectric, after[0].newWater, after[0].closingContractId], [130, 15, fa.contract.contractId]);
+  log('Chuyển phòng khi phòng cũ đã có chỉ số trong kỳ OK');
+}
+
 console.log(JSON.stringify({ ok: true, month, periodId: period.periodId, c1: c1.contractId, c2: c2.contractId, roomA: roomA.roomId, roomB: roomB.roomId }));
 await page.screenshot({ path: 'screens/meters-closing-after.png', fullPage: true });
 await browser.close();
