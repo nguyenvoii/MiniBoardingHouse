@@ -63,7 +63,7 @@ C. GIOI HAN THIET KE / VIEC NEN LAM TIEP
    - Nhac no chi ghi lich su (DebtReminder) khi gui duoc vao tai khoan cong khach; khach chua co tai khoan khong co dong lich su.
    - BillingJobs.remindAndMarkOverdue/closeExpiredMeterPeriods dung LocalDate.now() thay vi Clock (anh huong test theo gio).
    - confirm-cleaned chi nhan phong CLEANING; phong REPAIRING doi trang thai bang "Doi trang thai".
-   - GET man hinh chi so/ky ghi chi so nay can vai tro quan ly/chu tro/nguoi ghi chi so (thu ngan khong doc duoc).
+   - Thu ngan khong doc duoc man chi so dien nuoc: day la quy tac co chu dich (SecurityRulesTest), khong phai loi.
 
 D. MOI TRUONG KIEM THU (khong anh huong chay that)
 --------------------------------------------------
