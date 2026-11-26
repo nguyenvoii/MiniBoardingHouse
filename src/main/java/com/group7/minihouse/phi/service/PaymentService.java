@@ -183,6 +183,37 @@ public class PaymentService {
         return confirmWith(ownedGatewayPayment(transactionId, tenantId), settledAmount, "payOS xac nhan", true);
     }
 
+    private static final String GATEWAY_PREFIX = "PAYOS-";
+
+    /**
+     * Ma don payOS cho 1 lan thanh toan: 1e9 + id*1000 + lan thu. Moi lan bam "Thanh toan online" cho cung giao dich
+     * dung ma don moi (payOS tu choi ma don trung); ma hien tai luu o transactionCode de doi soat sau do.
+     */
+    @Transactional
+    public long nextGatewayOrder(Integer transactionId, Integer tenantId) {
+        PaymentTransaction p = ownedGatewayPayment(transactionId, tenantId);
+        long attempt = 1;
+        String code = p.getTransactionCode();
+        if (code != null && code.startsWith(GATEWAY_PREFIX)) {
+            attempt = Long.parseLong(code.substring(GATEWAY_PREFIX.length())) % 1000 + 1;
+        }
+        if (attempt > 999) {
+            throw new BusinessException(HttpStatus.CONFLICT, "Qua nhieu lan thu thanh toan, hay tao giao dich moi");
+        }
+        long order = 1_000_000_000L + transactionId * 1000L + attempt;
+        p.setTransactionCode(GATEWAY_PREFIX + order);
+        return order;
+    }
+
+    @Transactional(readOnly = true)
+    public long currentGatewayOrder(Integer transactionId, Integer tenantId) {
+        String code = ownedGatewayPayment(transactionId, tenantId).getTransactionCode();
+        if (code != null && code.startsWith(GATEWAY_PREFIX)) {
+            return Long.parseLong(code.substring(GATEWAY_PREFIX.length()));
+        }
+        return 1_000_000_000L + transactionId; // giao dich tao truoc khi doi cach dat ma don
+    }
+
     private PaymentTransaction ownedGatewayPayment(Integer transactionId, Integer tenantId) {
         PaymentTransaction payment = load(transactionId);
         if (!"GATEWAY".equals(payment.getPaymentMethod())

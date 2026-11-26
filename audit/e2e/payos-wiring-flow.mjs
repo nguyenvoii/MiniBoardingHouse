@@ -19,6 +19,12 @@ assert.match(co.checkoutUrl, /^https:\/\/localhost:5443\/pay\/\d+$/);
 await popup; // trang thanh toán payOS mở ở tab mới (noopener nên không đọc được URL, đã kiểm checkoutUrl ở API)
 const gw = (await api('GET', `/api/payments?invoiceId=${fx.invoice.invoiceId}&size=10`)).items.find((p) => p.method === 'GATEWAY');
 assert.ok(gw && gw.status === 'FAILED', 'giao dịch GATEWAY đang chờ');
+// bấm thanh toán lần hai cho cùng giao dịch: mã đơn mới nên payOS không từ chối
+const again = await s.page.request.post(`${base}/api/me/payments/${gw.transactionId}/payos/checkout`, { headers: { Authorization: `Bearer ${tTok}` } });
+assert.equal(again.status(), 200, 'thanh toán lần hai dùng mã đơn mới');
+const co2 = (await again.json()).data;
+assert.notEqual(co2.orderCode, co.orderCode);
+co.checkoutUrl = co2.checkoutUrl;
 // chưa thanh toán: Kiểm tra -> chưa xác nhận, hóa đơn chưa đổi
 await t.page.getByRole('button', { name: 'Kiểm tra đã thanh toán' }).click();
 await t.page.getByText(/payOS chưa xác nhận/).first().waitFor();

@@ -94,7 +94,17 @@ public class TenantController {
         try {
             backName = storage.saveImage(CARD_FOLDER, backBytes, maxSize);
             String baseUrl = "/api/chi/tenants/" + id + CARD_PHOTO_ROUTE + "/";
+            var previous = tenantService.getById(id);
             tenantService.saveIdCard(id, baseUrl + frontName, baseUrl + backName);
+            for (String oldUrl : new String[] {previous.getFrontImageUrl(), previous.getBackImageUrl()}) {
+                if (oldUrl != null && oldUrl.startsWith(baseUrl)) { // anh cu khong con duoc dung: xoa de khong ton du lieu nhay cam
+                    try {
+                        storage.delete(CARD_FOLDER, oldUrl.substring(baseUrl.length()));
+                    } catch (RuntimeException ignore) {
+                        // khong de loi don dep lam hong viec luu anh moi
+                    }
+                }
+            }
         } catch (RuntimeException failure) {
             discardUpload(frontName, failure);
             discardUpload(backName, failure);

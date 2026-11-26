@@ -92,6 +92,15 @@ await dlg.getByAltText('CCCD mặt sau').waitFor();
 const t3 = await api('GET', `/api/chi/tenants/${t.tenantId}`);
 assert.ok(t3.frontImageUrl && t3.backImageUrl);
 assert.equal((await page.request.get(`${base}${t3.frontImageUrl}`)).status(), 401, 'ảnh CCCD không mở được khi chưa đăng nhập');
+// gửi lại ảnh CCCD: ảnh cũ bị xóa khỏi đĩa, ảnh mới xem được
+await dlg.getByLabel('Ảnh CCCD mặt trước').setInputFiles({ name: 'front2.png', mimeType: 'image/png', buffer: png });
+await dlg.getByLabel('Ảnh CCCD mặt sau').setInputFiles({ name: 'back2.png', mimeType: 'image/png', buffer: png });
+await dlg.getByRole('button', { name: 'Tải ảnh CCCD' }).click();
+await page.waitForTimeout(1500);
+const t4 = await api('GET', `/api/chi/tenants/${t.tenantId}`);
+assert.notEqual(t4.frontImageUrl, t3.frontImageUrl, 'ảnh mới thay ảnh cũ');
+assert.equal((await raw('GET', t3.frontImageUrl)).status(), 404, 'ảnh cũ đã bị xóa khỏi đĩa');
+assert.equal((await raw('GET', t4.frontImageUrl)).status(), 200, 'ảnh mới xem được');
 await dlg.getByRole('button', { name: 'Xác minh hồ sơ' }).click();
 await page.getByText('Đã xác minh hồ sơ').waitFor();
 assert.equal((await api('GET', `/api/chi/tenants/${t.tenantId}`)).isVerified, true);

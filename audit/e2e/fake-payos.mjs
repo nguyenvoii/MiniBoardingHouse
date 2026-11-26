@@ -17,6 +17,7 @@ https.createServer({ key: pem, cert: pem }, (req, res) => {
       const val = `amount=${b.amount}&cancelUrl=${b.cancelUrl}&description=${b.description}&orderCode=${b.orderCode}&returnUrl=${b.returnUrl}`;
       const sig = crypto.createHmac('sha256', KEY).update(val).digest('hex');
       if (sig !== b.signature) return send({ code: '201', desc: 'bad signature' }, 400);
+      if (orders.has(b.orderCode)) return send({ code: '231', desc: 'orderCode da ton tai' }, 400); // payOS that tu choi ma don trung
       orders.set(b.orderCode, { amount: b.amount, status: 'PENDING', amountPaid: 0 });
       return send({ code: '00', desc: 'success', data: { orderCode: b.orderCode, amount: b.amount, checkoutUrl: `https://localhost:5443/pay/${b.orderCode}` } });
     }

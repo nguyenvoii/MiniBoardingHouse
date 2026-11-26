@@ -36,21 +36,17 @@ public class PayOsCheckoutController {
         if (!"FAILED".equals(payment.status())) {
             throw new BusinessException(HttpStatus.CONFLICT, "Giao dich khong con cho thanh toan");
         }
-        return ApiResponse.ok(client.create(orderCode(id), amount(payment)));
+        return ApiResponse.ok(client.create(payments.nextGatewayOrder(id, CurrentUser.requireTenantId(actor)), amount(payment)));
     }
 
     @PostMapping("/reconcile")
     public ApiResponse<ConfirmResult> reconcile(@PathVariable Integer id, @AuthenticationPrincipal AuthUser actor) {
         Integer tenantId = CurrentUser.requireTenantId(actor);
         var payment = payments.gatewayPaymentForTenant(id, tenantId);
-        if (!client.paid(orderCode(id), amount(payment))) {
+        if (!client.paid(payments.currentGatewayOrder(id, tenantId), amount(payment))) {
             return ApiResponse.ok(new ConfirmResult(false, "payOS chua xac nhan da thu du so tien", payment));
         }
         return ApiResponse.ok(payments.reconcileGatewayPayment(id, tenantId, payment.amountPaid()));
-    }
-
-    private static long orderCode(Integer id) {
-        return 1_000_000_000L + id;
     }
 
     private static long amount(PaymentResponse payment) {
