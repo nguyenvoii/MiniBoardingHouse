@@ -5,6 +5,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -31,14 +32,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         String header = request.getHeader("Authorization");
         if (header != null && header.startsWith("Bearer ")) {
-            JwtService.Session session = jwtService.parseSession(header.substring(7).trim());
+            AuthUser token = jwtService.parse(header.substring(7).trim());
             // Token hop le nhung tai khoan da bi khoa/vo hieu hoa/xoa thi coi nhu chua dang nhap (401).
             // Vai tro lay tu DB moi request (khong lay tu token) nen giang chuc/doi vai tro co hieu luc ngay.
-            Optional<UserStatusChecker.State> dbState;
+            Optional<List<String>> dbRoles;
             try {
-                dbState = session == null ? Optional.empty()
-                        : statusChecker.state(session.user().userId(), session.id())
-                                .filter(state -> jwtService.matchesPassword(session, state.passwordHash()));
+                dbRoles = token == null ? Optional.empty() : statusChecker.activeRoles(token.userId());
             } catch (org.springframework.dao.DataAccessException ex) {
                 // Loi ha tang (mat ket noi DB): tra 503 de nguoi dung biet thu lai, khong ep dang nhap lai bang 401
                 response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
@@ -46,34 +45,15 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 response.getWriter().write("{\"success\":false,\"message\":\"Hệ thống tạm thời không kiểm tra được tài khoản, vui lòng thử lại sau\"}");
                 return;
             }
-            String path = request.getServletPath() + (request.getPathInfo() == null ? "" : request.getPathInfo());
-            if (path.isEmpty()) {
-                path = request.getRequestURI().substring(request.getContextPath().length());
-            }
-            if (dbState.isPresent() && dbState.get().mustChangePassword() && path.startsWith("/api/")
-                    && !allowedWithTemporaryPassword(request.getMethod(), path)) {
-                response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-                response.setContentType("application/json;charset=UTF-8");
-                response.getWriter().write("{\"success\":false,\"message\":\"Can doi mat khau tam truoc khi dung chuc nang nay\"}");
-                return;
-            }
-            if (dbState.isPresent()) {
-                AuthUser token = session.user();
-                AuthUser user = new AuthUser(token.userId(), token.email(), token.fullName(), dbState.get().roles(),
+            if (dbRoles.isPresent()) {
+                AuthUser user = new AuthUser(token.userId(), token.email(), token.fullName(), dbRoles.get(),
                         token.tenantId());
                 var authorities = user.roles().stream()
                         .map(r -> new SimpleGrantedAuthority("ROLE_" + r)).toList();
-                var authentication = new UsernamePasswordAuthenticationToken(user, null, authorities);
-                authentication.setDetails(session);
-                SecurityContextHolder.getContext().setAuthentication(authentication);
+                SecurityContextHolder.getContext().setAuthentication(
+                        new UsernamePasswordAuthenticationToken(user, null, authorities));
             }
         }
         chain.doFilter(request, response);
-    }
-
-    private static boolean allowedWithTemporaryPassword(String method, String path) {
-        return ("GET".equals(method) && "/api/auth/me".equals(path))
-                || ("POST".equals(method) && ("/api/auth/password".equals(path)
-                        || "/api/auth/qr-set-password".equals(path) || "/api/auth/logout".equals(path)));
     }
 }

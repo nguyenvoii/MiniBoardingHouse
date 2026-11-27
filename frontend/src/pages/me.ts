@@ -1,7 +1,7 @@
 import { requestBooking } from './bookings';
 import { h, busy, mount } from '../lib/dom';
 import { icon } from '../lib/icons';
-import { api, privateImage, errText, loadSession, Page } from '../lib/api';
+import { api, errText, loadSession, Page } from '../lib/api';
 import { date, dateTime, money, monthLabel, isoDay } from '../lib/format';
 import type { Contract, ContractDetail, Notification, QrInfo } from '../data/types';
 import { dl, emptyState, field, formError, openDialog, plate, select, statusBadge, toast } from '../ui/kit';
@@ -9,8 +9,6 @@ import { signPad, ADJ, fmtVal, isNum } from './contracts';
 import { input } from '../ui/kit';
 import type { InvoiceDetail } from '../data/types';
 import { routeLine } from '../ui/route';
-import { navigate } from '../lib/router';
-import { notificationTarget } from '../ui/bell';
 
 interface MyInvoice { invoiceId: number; invoiceCode: string; issueDate: string; dueDate: string; totalAmount: number; paidAmount: number; remainingAmount: number; paymentStatus: string }
 
@@ -166,7 +164,7 @@ async function payQr(inv: MyInvoice, btn: HTMLElement): Promise<void> {
       const q = await api.post<QrInfo>('/api/me/payments/qr', { invoiceId: inv.invoiceId, method: 'QR_CODE' });
       const d = openDialog('Quét mã để trả tiền', { width: 420 });
       d.body.append(
-        h('div', { class: 'qr-box' }, q.qrImageUrl ? privateImage(q.qrImageUrl, 'Mã QR ngân hàng') : h('p', { class: 'muted' }, 'Chủ trọ chưa tải ảnh QR. Hãy chuyển khoản theo thông tin bên dưới.')),
+        h('div', { class: 'qr-box' }, q.qrImageUrl ? h('img', { src: q.qrImageUrl, alt: 'Mã QR ngân hàng' }) : h('p', { class: 'muted' }, 'Chủ trọ chưa tải ảnh QR. Hãy chuyển khoản theo thông tin bên dưới.')),
         dl([['Số tiền', `${money(q.payment.amountPaid)} ₫`], ['Ngân hàng', q.bankName], ['Số tài khoản', q.accountNumber], ['Chủ tài khoản', q.accountHolder], ['Nội dung', h('span', { class: 'plate' }, q.transferContent)]]),
         h('p', { class: 'muted' }, 'Giữ nguyên nội dung chuyển khoản để chủ trọ đối chiếu. Hóa đơn được cập nhật sau khi chủ trọ xác nhận đã nhận tiền.'),
       );
@@ -225,13 +223,8 @@ export async function meNotificationsPage(view: HTMLElement): Promise<void> {
   view.replaceChildren(
     h('div', { style: 'display:flex;justify-content:space-between;align-items:center' }, h('h2', null, 'Thông báo'), r.items.some((n) => !n.isRead) ? readAll : null),
     r.items.length
-      ? h('section', { class: 'panel panel-flush' }, ...r.items.map((n) => h('div', { class: 'list-row', style: (n.isRead ? '' : 'background:var(--primary-faint);') + (notificationTarget(n, true) ? 'cursor:pointer' : '') },
-          h('div', { class: 'grow', onclick: () => {
-            const to = notificationTarget(n, true);
-            if (!to) return;
-            if (!n.isRead) void api.patch(`/api/me/notifications/${n.userNotificationId}/read`).catch(() => {});
-            navigate(to);
-          } }, h('b', null, n.title), h('span', { style: 'display:block' }, n.content), h('span', null, dateTime(n.createdAt))),
+      ? h('section', { class: 'panel panel-flush' }, ...r.items.map((n) => h('div', { class: 'list-row', style: n.isRead ? '' : 'background:var(--primary-faint)' },
+          h('div', { class: 'grow' }, h('b', null, n.title), h('span', { style: 'display:block' }, n.content), h('span', null, dateTime(n.createdAt))),
           h('div', { class: 'stack' },
             n.isRead
               ? action('Xóa', () => api.del('/api/me/notifications/' + n.userNotificationId))

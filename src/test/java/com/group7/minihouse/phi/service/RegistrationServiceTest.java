@@ -97,7 +97,7 @@ class RegistrationServiceTest {
         verify(userRoleRepository).save(ur.capture());
         assertEquals("LANDLORD", ur.getValue().getRole().getRoleCode());
         ArgumentCaptor<String> body = ArgumentCaptor.forClass(String.class);
-        verify(sender).sendHtml(eq("chu@x.vn"), anyString(), body.capture(), anyString());
+        verify(sender).send(eq("chu@x.vn"), anyString(), body.capture());
         assertTrue(body.getValue().contains("123456"));
     }
 
@@ -149,7 +149,7 @@ class RegistrationServiceTest {
         assertEquals("Chu That", old.getFullName());
         assertTrue(encoder.matches("Passw0rdOk", old.getPasswordHash()));
         assertEquals("INACTIVE", old.getStatus());
-        verify(sender).sendHtml(eq("chu@x.vn"), anyString(), anyString(), anyString());
+        verify(sender).send(eq("chu@x.vn"), anyString(), anyString());
     }
 
     // ---------- UC2 ----------
@@ -245,7 +245,7 @@ class RegistrationServiceTest {
         when(userRoleRepository.findRoleCodesByUserId(9)).thenReturn(List.of("LANDLORD"));
         when(otpService.issue(u, "EMAIL")).thenReturn("999000");
         service.resendVerification("chu@x.vn");
-        verify(sender).sendHtml(eq("chu@x.vn"), anyString(), anyString(), anyString());
+        verify(sender).send(eq("chu@x.vn"), anyString(), anyString());
 
         when(userRepository.findByEmailOrPhoneNumber("no@x.vn", "no@x.vn")).thenReturn(Optional.empty());
         service.resendVerification("no@x.vn"); // khong nem loi
@@ -259,6 +259,6 @@ class RegistrationServiceTest {
         when(otpService.issue(u, "EMAIL")).thenThrow(new BusinessException(HttpStatus.TOO_MANY_REQUESTS, "cho"));
 
         service.resendVerification("chu@x.vn");
-        verify(sender, never()).sendHtml(anyString(), anyString(), anyString(), anyString());
+        verify(sender, never()).send(anyString(), anyString(), anyString());
     }
 }

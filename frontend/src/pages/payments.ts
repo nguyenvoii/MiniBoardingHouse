@@ -1,6 +1,6 @@
 import { h, busy } from '../lib/dom';
 import { icon } from '../lib/icons';
-import { api, privateImage, ApiError, can, errText, loadSession, Page, PROPERTY_ID } from '../lib/api';
+import { api, ApiError, can, errText, loadSession, Page, PROPERTY_ID } from '../lib/api';
 import { dateTime, money, monthLabel } from '../lib/format';
 import { getMonth } from '../lib/ctx';
 import type { Invoice, Payment, QrInfo } from '../data/types';
@@ -54,7 +54,7 @@ export function openPaymentDialog(inv: Invoice, done: () => void): void {
 function showQr(q: QrInfo, done: () => void): void {
   const d = openDialog('Khách quét mã để trả tiền');
   d.body.append(
-    h('div', { class: 'qr-box' }, q.qrImageUrl ? privateImage(q.qrImageUrl, 'Mã QR ngân hàng') : h('p', { class: 'muted' }, 'Tài khoản chưa có ảnh QR. Gửi thông tin chuyển khoản bên dưới.')),
+    h('div', { class: 'qr-box' }, q.qrImageUrl ? h('img', { src: q.qrImageUrl, alt: 'Mã QR ngân hàng' }) : h('p', { class: 'muted' }, 'Tài khoản chưa có ảnh QR. Gửi thông tin chuyển khoản bên dưới.')),
     h('dl', { class: 'dl' }, h('dt', null, 'Ngân hàng'), h('dd', null, q.bankName), h('dt', null, 'Số tài khoản'), h('dd', null, q.accountNumber), h('dt', null, 'Chủ tài khoản'), h('dd', null, q.accountHolder),
       h('dt', null, 'Số tiền'), h('dd', null, `${money(q.payment.amountPaid)} ₫`), h('dt', null, 'Nội dung chuyển khoản'), h('dd', null, h('span', { class: 'plate' }, q.transferContent))),
     h('p', { class: 'muted' }, 'Giao dịch đang chờ. Khi tiền về tài khoản, mở Thanh toán và bấm Xác nhận.'),

@@ -28,16 +28,14 @@
 SET QUOTED_IDENTIFIER ON;
 GO
 
-DECLARE @pwd NVARCHAR(60) = N'$2a$10$Pc6uubpMhGt6uuP/TqMCyulqTZc2GQVvfgNqWPYx7ciLqNtJzs3uy';
-IF SESSION_CONTEXT(N'stayly_skip_demo_owner') IS NOT NULL OR (SELECT COUNT(*) FROM [users]) <> 1
-   OR NOT EXISTS (SELECT 1 FROM [users] WHERE [user_id] = 1 AND [email] = 'admin@minihouse.local'
-                  AND [password_hash] COLLATE Latin1_General_100_BIN2 = @pwd AND [status] = 'ACTIVE')
+IF (SELECT COUNT(*) FROM [users]) <> 1 OR NOT EXISTS (SELECT 1 FROM [users] WHERE [user_id] = 1 AND [email] = 'admin@minihouse.local')
    OR EXISTS (SELECT 1 FROM [properties]) OR EXISTS (SELECT 1 FROM [tenants]) OR EXISTS (SELECT 1 FROM [rental_contracts])
-    PRINT N'Dữ liệu mẫu chỉ dành cho database thử có tài khoản seed ban đầu. Đã bỏ qua.';
+    PRINT N'Database đã có dữ liệu (hoặc chưa chạy seed.sql): bỏ qua dữ liệu mẫu test.';
 ELSE
 BEGIN
     SET XACT_ABORT ON;
     BEGIN TRAN;
+    DECLARE @pwd NVARCHAR(255) = (SELECT [password_hash] FROM [users] WHERE [user_id] = 1);
     -- users: 20 dòng
     SET IDENTITY_INSERT [users] ON;
     INSERT INTO [users] ([user_id], [email], [phone_number], [password_hash], [full_name], [status], [must_change_password], [created_at], [updated_at]) VALUES

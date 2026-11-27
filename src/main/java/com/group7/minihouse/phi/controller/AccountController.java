@@ -7,13 +7,12 @@ import com.group7.minihouse.phi.service.AccountService;
 import com.group7.minihouse.shared.dto.ApiResponse;
 import com.group7.minihouse.shared.security.AuthUser;
 import com.group7.minihouse.shared.security.CurrentUser;
-import com.group7.minihouse.shared.security.JwtService;
-import java.util.Map;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import com.group7.minihouse.shared.storage.FileStorage;
 import java.io.IOException;
+import java.time.Duration;
 import org.springframework.core.io.PathResource;
 import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
@@ -36,12 +35,10 @@ public class AccountController {
 
     private final AccountService service;
     private final FileStorage fileStorage;
-    private final JwtService jwtService;
 
-    public AccountController(AccountService service, FileStorage fileStorage, JwtService jwtService) {
+    public AccountController(AccountService service, FileStorage fileStorage) {
         this.service = service;
         this.fileStorage = fileStorage;
-        this.jwtService = jwtService;
     }
 
     /** UC7: dat anh dai dien (form-data, truong "file": PNG/JPG/WebP toi da 2 MB). */
@@ -58,26 +55,24 @@ public class AccountController {
         return ApiResponse.ok(service.removeAvatar(CurrentUser.requireUserId(user), http.getRemoteAddr()));
     }
 
+    /** Xem anh dai dien. Cong khai (the img khong gui duoc token); ten file la UUID ngau nhien nen kho doan. */
     @GetMapping("/avatars/{name}")
-    public ResponseEntity<PathResource> avatar(@PathVariable String name, @AuthenticationPrincipal AuthUser user) {
-        if (!service.ownsAvatar(CurrentUser.requireUserId(user), name)) {
-            return ResponseEntity.notFound().build();
-        }
+    public ResponseEntity<PathResource> avatar(@PathVariable String name) {
         return fileStorage.find(AccountService.AVATAR_FOLDER, name)
                 .map(p -> ResponseEntity.ok()
                         .contentType(MediaType.parseMediaType(FileStorage.contentTypeOf(name)))
                         .header("X-Content-Type-Options", "nosniff")
-                        .cacheControl(CacheControl.noStore())
+                        .cacheControl(CacheControl.maxAge(Duration.ofHours(1)).cachePublic())
                         .body(new PathResource(p)))
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @PostMapping("/password")
-    public ApiResponse<Map<String, String>> changePassword(@Valid @RequestBody ChangePasswordRequest req,
+    public ApiResponse<Void> changePassword(@Valid @RequestBody ChangePasswordRequest req,
                                             @AuthenticationPrincipal AuthUser user, HttpServletRequest http) {
-        String hash = service.changePassword(CurrentUser.requireUserId(user), req.currentPassword(), req.newPassword(),
+        service.changePassword(CurrentUser.requireUserId(user), req.currentPassword(), req.newPassword(),
                 http.getRemoteAddr());
-        return ApiResponse.ok("Doi mat khau thanh cong", Map.of("accessToken", jwtService.generate(user, hash)));
+        return ApiResponse.ok("Doi mat khau thanh cong", null);
     }
 
     @GetMapping("/profile")

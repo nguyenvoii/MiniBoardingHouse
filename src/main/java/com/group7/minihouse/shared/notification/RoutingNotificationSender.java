@@ -36,14 +36,4 @@ public class RoutingNotificationSender implements NotificationSender {
         }
         fallback.send(recipient, subject, body);
     }
-
-    @Override
-    public void sendHtml(String recipient, String subject, String text, String html) {
-        var sender = recipient.contains("@") ? smtp.getIfAvailable() : null;
-        if (sender != null) {
-            sender.sendHtml(recipient, subject, text, html);
-        } else {
-            send(recipient, subject, text); // SMS / chua bat SMTP: chi can ban chu
-        }
-    }
 }

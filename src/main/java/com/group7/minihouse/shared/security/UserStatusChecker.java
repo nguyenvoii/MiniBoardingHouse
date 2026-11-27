@@ -10,7 +10,6 @@ import java.util.Optional;
  */
 public interface UserStatusChecker {
 
-    record State(List<String> roles, boolean mustChangePassword, String passwordHash) {}
-
-    Optional<State> state(Integer userId, String sessionId);
+    /** Vai tro hien tai neu tai khoan dang ACTIVE (co the rong); rong neu bi khoa/ngung/khong ton tai. */
+    Optional<List<String>> activeRoles(Integer userId);
 }

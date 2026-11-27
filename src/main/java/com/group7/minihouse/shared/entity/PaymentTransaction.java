@@ -37,8 +37,6 @@ public class PaymentTransaction {
     private User receivedByUser;
 
     @Column(name = "status", nullable = false, length = 20)
-    // Legacy schema uses FAILED for bank/QR payments awaiting confirmation.
-    // A SUCCESS marks a confirmed payment. FAILED alone does not indicate a processing error.
     private String status;
 
     public PaymentTransaction() {}

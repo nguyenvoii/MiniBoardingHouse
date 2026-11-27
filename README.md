@@ -85,7 +85,7 @@ Hợp đồng, hóa đơn, thanh toán thì tạo bằng giao diện.
 3. Thử `http://localhost:8080/api/ping`. Xem toàn bộ API tại Swagger: `http://localhost:8080/swagger-ui.html`.
 4. Chạy test: `mvn test`.
 
-**Giao diện Stayly** (thư mục `frontend/`): `cd frontend`, `npm install`, `npm run build`, rồi mở `http://localhost:8080/`. Bảo mật mặc định đã bật nên cần đăng nhập, và phải đặt `app.jwt.secret` (từ 32 ký tự) trong `application-local.properties`. Chi tiết: `docs/GIAO_DIEN_STAYLY.md`.
+**Giao diện Stayly** (thư mục `frontend/`): `cd frontend`, `npm install`, `npm run build`, rồi mở `http://localhost:8080/`. Cần bật `app.security.enabled=true` để đăng nhập. Chi tiết: `docs/GIAO_DIEN_STAYLY.md`.
 
 ---
 
@@ -96,10 +96,8 @@ Hợp đồng, hóa đơn, thanh toán thì tạo bằng giao diện.
 | Khóa | Mặc định | Ý nghĩa |
 |---|---|---|
 | `spring.datasource.username`, `spring.datasource.password` | không có | Tài khoản SQL Server (bắt buộc) |
-| `app.security.enabled` | `true` | `true` = bắt buộc đăng nhập JWT. Máy dev muốn gọi API không cần token thì đặt `false` ở `application-local.properties`, tuyệt đối không đặt `false` trên server |
-| `app.jwt.secret` | không có | Bắt buộc khi bảo mật bật (biến `APP_JWT_SECRET` trên server), từ 32 ký tự; thiếu, quá ngắn hoặc là chuỗi mặc định cũ thì app không khởi động |
-| `app.auth.allow-demo-accounts` | `false` | Khi chạy dữ liệu seed trên máy riêng, đặt `true` trong `application-local.properties` để đăng nhập bằng tài khoản mẫu |
-| `app.backup.enabled` | `false` | Bật sao lưu và phục hồi trong môi trường QA có tài khoản SQL phù hợp. Máy chủ dùng sao lưu do quản trị hạ tầng thiết lập |
+| `app.security.enabled` | `false` | `true` = bắt buộc đăng nhập JWT, dùng khi demo/bảo vệ |
+| `app.jwt.secret` | khóa dev | Bí mật ký JWT, từ 32 ký tự; nên đổi khi chạy thật |
 | `app.jwt.expiration-minutes` | `480` | Thời hạn token |
 | `app.upload.dir` | `uploads` | Thư mục lưu file upload |
 | `app.jobs.enabled` | `false` | Bật các job tự động |

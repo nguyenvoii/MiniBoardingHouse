@@ -1,6 +1,6 @@
 import { busy, h } from '../lib/dom';
 import { icon } from '../lib/icons';
-import { api, errText, login, loginWithQr, logout, renewSession, viaQrSession } from '../lib/api';
+import { api, clearMustChangePassword, errText, login, loginWithQr, logout, viaQrSession } from '../lib/api';
 import { field, formError, input, openDialog, toast } from '../ui/kit';
 import { logo } from '../ui/shell';
 
@@ -44,70 +44,42 @@ export function renderLogin(root: HTMLElement, onDone: () => void): void {
   });
 
   function forgot(): void {
-    // Hai bước: 1) gửi và nhập mã, mã đúng mới sang 2) đặt mật khẩu mới.
     const dialog = openDialog('Đặt lại mật khẩu');
     const identifier = input({ value: id.value.trim(), autocomplete: 'username', required: true });
     const code = input({ autocomplete: 'one-time-code', inputmode: 'numeric', required: true });
+    const password = input({ type: 'password', autocomplete: 'new-password', required: true });
+    const confirmation = input({ type: 'password', autocomplete: 'new-password', required: true });
     const message = h('div', { role: 'status' });
-    const cancel = h('button', { class: 'btn secondary', onclick: dialog.close }, 'Hủy');
-    let verified = '';
-
-    function stepCode(): void {
-      const send = h('button', { class: 'btn secondary' }, 'Gửi mã xác nhận');
-      const next = h('button', { class: 'btn' }, 'Tiếp tục');
-      message.replaceChildren();
-      dialog.body.replaceChildren(message, field('Email hoặc số điện thoại', identifier), send,
-        field('Mã xác nhận', code, 'Mã 6 số, có hiệu lực 10 phút. Nhập sai tối đa 5 lần.'));
-      dialog.foot.replaceChildren(cancel, next);
-      send.addEventListener('click', () => busy(send, async () => {
-        if (!identifier.value.trim()) {
-          message.replaceChildren(formError('Nhập email hoặc số điện thoại.'));
-          return;
-        }
-        try {
-          await api.post('/api/auth/forgot-password', { identifier: identifier.value.trim() });
-          message.textContent = 'Nếu tài khoản tồn tại, mã xác nhận đã được gửi.';
-          code.focus();
-        } catch (e) { message.replaceChildren(formError(errText(e))); }
-      }));
-      next.addEventListener('click', () => busy(next, async () => {
-        if (!identifier.value.trim() || !code.value.trim()) {
-          message.replaceChildren(formError('Nhập tài khoản và mã xác nhận.'));
-          return;
-        }
-        try {
-          await api.post('/api/auth/verify-reset-code', { identifier: identifier.value.trim(), code: code.value.trim() });
-          verified = code.value.trim();
-          stepPassword();
-        } catch (e) { message.replaceChildren(formError(errText(e))); }
-      }));
-    }
-
-    function stepPassword(): void {
-      const password = input({ type: 'password', autocomplete: 'new-password', required: true });
-      const confirmation = input({ type: 'password', autocomplete: 'new-password', required: true });
-      const save = h('button', { class: 'btn' }, 'Đặt lại mật khẩu');
-      message.replaceChildren(h('p', { class: 'muted' }, 'Mã đúng. Đặt mật khẩu mới cho tài khoản của bạn.'));
-      dialog.body.replaceChildren(message, field('Mật khẩu mới', password, 'Từ 8 ký tự, có cả chữ và số'),
-        field('Nhập lại mật khẩu mới', confirmation));
-      dialog.foot.replaceChildren(cancel, save);
-      password.focus();
-      save.addEventListener('click', () => busy(save, async () => {
-        if (!password.value || password.value !== confirmation.value) {
-          message.replaceChildren(formError('Nhập hai mật khẩu mới giống nhau.'));
-          return;
-        }
-        try {
-          await api.post('/api/auth/reset-password', { identifier: identifier.value.trim(), code: verified, newPassword: password.value });
-          id.value = identifier.value.trim();
-          pw.value = '';
-          dialog.close();
-          toast('Đã đặt lại mật khẩu. Hãy đăng nhập bằng mật khẩu mới.');
-        } catch (e) { message.replaceChildren(formError(errText(e))); }
-      }));
-    }
-
-    stepCode();
+    const send = h('button', { class: 'btn secondary' }, 'Gửi mã xác nhận');
+    const save = h('button', { class: 'btn' }, 'Đặt lại mật khẩu');
+    dialog.body.append(message, field('Email hoặc số điện thoại', identifier), send,
+      field('Mã xác nhận', code), field('Mật khẩu mới', password, 'Từ 8 ký tự, có cả chữ và số'),
+      field('Nhập lại mật khẩu mới', confirmation));
+    dialog.foot.append(h('button', { class: 'btn secondary', onclick: dialog.close }, 'Hủy'), save);
+    send.addEventListener('click', () => busy(send, async () => {
+      if (!identifier.value.trim()) {
+        message.replaceChildren(formError('Nhập email hoặc số điện thoại.'));
+        return;
+      }
+      try {
+        await api.post('/api/auth/forgot-password', { identifier: identifier.value.trim() });
+        message.textContent = 'Nếu tài khoản tồn tại, mã xác nhận đã được gửi.';
+        code.focus();
+      } catch (e) { message.replaceChildren(formError(errText(e))); }
+    }));
+    save.addEventListener('click', () => busy(save, async () => {
+      if (!identifier.value.trim() || !code.value.trim() || !password.value || password.value !== confirmation.value) {
+        message.replaceChildren(formError('Nhập tài khoản, mã xác nhận và hai mật khẩu mới giống nhau.'));
+        return;
+      }
+      try {
+        await api.post('/api/auth/reset-password', { identifier: identifier.value.trim(), code: code.value.trim(), newPassword: password.value });
+        id.value = identifier.value.trim();
+        pw.value = '';
+        dialog.close();
+        toast('Đã đặt lại mật khẩu. Hãy đăng nhập bằng mật khẩu mới.');
+      } catch (e) { message.replaceChildren(formError(errText(e))); }
+    }));
   }
 
   root.replaceChildren(
@@ -136,7 +108,7 @@ export function renderLogin(root: HTMLElement, onDone: () => void): void {
 
 let forceOpen = false;
 /** Tài khoản đang dùng mật khẩu tạm: hộp thoại không đóng được cho tới khi đổi mật khẩu (hoặc đăng xuất). */
-export function forcePasswordChange(onChanged: () => void): void {
+export function forcePasswordChange(): void {
   if (forceOpen) return;
   forceOpen = true;
   const qr = viaQrSession(); // vào bằng mã QR: chưa biết mật khẩu tạm, đặt thẳng mật khẩu mới
@@ -151,13 +123,7 @@ export function forcePasswordChange(onChanged: () => void): void {
     ...(qr ? [field('Nhập lại mật khẩu mới', again)] : []));
   const ok = h('button', { class: 'btn' }, 'Đổi mật khẩu');
   const out = h('button', { class: 'btn secondary' }, 'Đăng xuất');
-  out.addEventListener('click', async () => {
-    try { await logout(); d.close(); forceOpen = false; }
-    catch (e) {
-      if (location.hash === '#/login') { d.close(); forceOpen = false; }
-      else err.replaceChildren(formError(errText(e)));
-    }
-  });
+  out.addEventListener('click', () => { d.close(); forceOpen = false; logout(); });
   d.foot.append(out, ok);
   ok.addEventListener('click', async () => {
     err.replaceChildren();
@@ -165,14 +131,12 @@ export function forcePasswordChange(onChanged: () => void): void {
     if (qr && nw.value !== again.value) { err.append(formError('Hai lần nhập mật khẩu mới chưa giống nhau.')); return; }
     ok.setAttribute('disabled', '');
     try {
-      const { accessToken } = qr
-        ? await api.post<{ accessToken: string }>('/api/auth/qr-set-password', { newPassword: nw.value })
-        : await api.post<{ accessToken: string }>('/api/auth/password', { currentPassword: cur.value, newPassword: nw.value });
-      renewSession(accessToken);
+      if (qr) await api.post('/api/auth/qr-set-password', { newPassword: nw.value });
+      else await api.post('/api/auth/password', { currentPassword: cur.value, newPassword: nw.value });
+      clearMustChangePassword();
       d.close();
       forceOpen = false;
       toast(qr ? 'Đã đặt mật khẩu mới' : 'Đã đổi mật khẩu');
-      onChanged();
     } catch (e) {
       err.append(formError(errText(e)));
     } finally {

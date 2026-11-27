@@ -20,17 +20,14 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
-import org.springframework.boot.jackson2.autoconfigure.Jackson2AutoConfiguration;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 /** Phan quyen that cua /api/staff khi bat bao mat: chi LANDLORD ghi, LANDLORD + MANAGER doc, con lai 403. */
-@ImportAutoConfiguration(Jackson2AutoConfiguration.class)
 @WebMvcTest(controllers = StaffController.class)
 @Import({SecurityConfig.class, MethodSecurityConfig.class, JwtService.class, GlobalExceptionHandler.class})
 @TestPropertySource(properties = {
@@ -40,20 +37,20 @@ class StaffControllerSecurityTest {
 
     @Autowired MockMvc mvc;
     @Autowired JwtService jwt;
-    @MockitoBean StaffService service;
-    @MockitoBean UserStatusChecker statusChecker;
+    @MockBean StaffService service;
+    @MockBean UserStatusChecker statusChecker;
 
     String dbRole = "MANAGER";
 
     @BeforeEach
     void databaseKnowsTheUser() {
-        when(statusChecker.state(any(), any())).thenAnswer(inv -> Optional.of(new UserStatusChecker.State(List.of(dbRole), false, "test-hash")));
+        when(statusChecker.activeRoles(any())).thenAnswer(inv -> Optional.of(List.of(dbRole)));
     }
 
     private String bearer(String role) {
         dbRole = role;
         Integer tenantId = "TENANT".equals(role) ? 1 : null;
-        return "Bearer " + jwt.generate(new AuthUser(1, "a@b.c", "A", List.of(role), tenantId), "test-hash");
+        return "Bearer " + jwt.generate(new AuthUser(1, "a@b.c", "A", List.of(role), tenantId));
     }
 
     private static final String BODY = "{\"fullName\":\"A\",\"email\":\"a@x.vn\",\"roles\":[\"MANAGER\"]}";
