@@ -44,6 +44,12 @@ public class RoomResident {
     @Column(name = "temp_residence_registered_on")
     private LocalDate tempResidenceRegisteredOn;
 
+    @Column(name = "id_front_image_url", length = 500)
+    private String idFrontImageUrl;
+
+    @Column(name = "id_back_image_url", length = 500)
+    private String idBackImageUrl;
+
     @Column(name = "start_date", nullable = false)
     private LocalDate startDate;
 
@@ -54,6 +60,12 @@ public class RoomResident {
     private Boolean isActive;
 
     public RoomResident() {}
+
+    public String getIdFrontImageUrl() { return idFrontImageUrl; }
+    public void setIdFrontImageUrl(String idFrontImageUrl) { this.idFrontImageUrl = idFrontImageUrl; }
+
+    public String getIdBackImageUrl() { return idBackImageUrl; }
+    public void setIdBackImageUrl(String idBackImageUrl) { this.idBackImageUrl = idBackImageUrl; }
 
     public LocalDate getDateOfBirth() { return dateOfBirth; }
     public void setDateOfBirth(LocalDate dateOfBirth) { this.dateOfBirth = dateOfBirth; }

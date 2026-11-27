@@ -25,5 +25,6 @@ public final class OccupancyDtos {
     /** Nguoi o cung (khong tinh nguoi dung ten hop dong: nguoi do luon duoc tinh la 1 nguoi). */
     public record ResidentResponse(Integer residentId, Integer roomId, String fullName, String phoneNumber,
                                    String identityNumber, String relationship, LocalDate startDate,
-                                   LocalDate dateOfBirth, String permanentAddress, LocalDate tempResidenceRegisteredOn) {}
+                                   LocalDate dateOfBirth, String permanentAddress, LocalDate tempResidenceRegisteredOn,
+                                   String idFrontImageUrl, String idBackImageUrl, LocalDate tempResidenceDueDate) {}
 }

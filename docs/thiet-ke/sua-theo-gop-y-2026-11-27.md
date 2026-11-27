@@ -15,7 +15,10 @@ Từ khóa khớp tên, SĐT, CCCD hoặc mã phòng đang thuê. Giao diện d�
 
 Một người đứng tên hợp đồng, người còn lại khai ở "Người ở cùng". Thêm 3 cột vào `room_residents` (db/patch_17): ngày sinh, địa chỉ thường trú, ngày đăng ký tạm trú.
 Hộp thoại khai thêm ngày vào ở. Chi tiết hợp đồng có mục "Người ở cùng"; màn Nhận khách bước 4 vẫn khai được như cũ.
-Chưa làm: ảnh CCCD của người ở cùng, nhắc hạn tạm trú.
+Ảnh CCCD hai mặt (db/patch_18, `POST /api/residents/{id}/id-card`, chỉ chủ trọ/quản lý xem được): chọn mặt nào thì thay mặt đó, ảnh cũ bị xóa khỏi ổ đĩa.
+Nhắc khai báo tạm trú: hạn 30 ngày kể từ ngày vào ở (hằng số `OccupancyService.TEMP_RESIDENCE_DAYS`, theo Luật Cư trú 2020, cần Phi kiểm lại nếu quy định đổi).
+Trong danh sách người ở cùng hiện nhãn vàng khi còn tối đa 7 ngày, đỏ khi quá hạn; Tổng quan có dòng "Người ở cùng cần khai tạm trú" (`GET /api/residents/temp-residence-due`).
+Chưa làm: gửi nhắc qua chuông thông báo hay email, nhắc cho chính người đứng tên.
 
 ## 3. Tình trạng phòng lúc bàn giao
 

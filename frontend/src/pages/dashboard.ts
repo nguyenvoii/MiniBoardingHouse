@@ -162,13 +162,14 @@ function expiringPanel(list: Contract[], _dash: Dashboard | null): HTMLElement {
 interface Lifecycle {
   prospects: number; vacant: number; unsigned: number; renting: number; totalRooms: number;
   openTickets: number; awaitingClose: number; checkoutOpen: number; endingSoon: number;
-  unhanded: number; firstUnhanded: number | null;
+  unhanded: number; firstUnhanded: number | null; tempDue: number;
 }
 
 async function loadLifecycle(): Promise<Lifecycle> {
-  const [live, prospectList, inspections, tickets, checkouts] = await Promise.all([
+  const [live, prospectList, tempDue, inspections, tickets, checkouts] = await Promise.all([
     loadLive().catch(() => null),
     api.get<unknown[]>('/api/chi/tenants?available=true&limit=50').catch(() => null), // chỉ cần đếm, tối đa 50
+    api.get<unknown[]>(`/api/residents/temp-residence-due?propertyId=${PROPERTY_ID}`).catch(() => null), // người ở cùng sắp/đã quá hạn khai tạm trú
     // biên bản nhận phòng: hợp đồng mới (30 ngày) chưa có biên bản là việc còn dang dở
     api.get<Array<{ contractId: number | null }>>('/api/chi/checkin-inspections').catch(() => null),
     api.get<Page<{ status: string }>>('/api/maintenance-requests?size=200').catch(() => null),
@@ -183,6 +184,7 @@ async function loadLifecycle(): Promise<Lifecycle> {
   return {
     unhanded: unhandedList.length, firstUnhanded: unhandedList[0]?.contractId ?? null,
     prospects: prospectList?.length ?? 0,
+    tempDue: tempDue?.length ?? 0,
     vacant: rooms.filter((r) => r.status === 'VACANT').length,
     unsigned: contracts.filter((c) => !c.digitalSignatureUrl).length,
     renting: rooms.filter((r) => r.status === 'RENTED').length,
@@ -207,7 +209,8 @@ function lifecyclePanel(l: Lifecycle, overdue: number): HTMLElement {
     { name: 'Đang ở', sub: `${l.renting}/${l.totalRooms} phòng có khách`, action: { label: 'Xem công nợ', href: '#/debts' },
       rows: [{ label: 'Hóa đơn quá hạn', n: overdue, href: '#/invoices?status=OVERDUE', hot: overdue > 0 },
         { label: 'Sự cố đang xử lý', n: l.openTickets, href: '#/maintenance', hot: l.openTickets > 0 },
-        { label: 'Sự cố chờ xác nhận xong', n: l.awaitingClose, href: '#/maintenance' }] },
+        { label: 'Sự cố chờ xác nhận xong', n: l.awaitingClose, href: '#/maintenance' },
+        { label: 'Người ở cùng cần khai tạm trú', n: l.tempDue, href: '#/rooms', hot: l.tempDue > 0 }] },
     { name: 'Trả phòng', sub: l.checkoutOpen ? `${l.checkoutOpen} đang làm thủ tục` : 'Không có yêu cầu', action: { label: 'Mở Trả phòng', href: '#/checkout' },
       rows: [{ label: 'Yêu cầu trả phòng đang làm', n: l.checkoutOpen, href: '#/checkout', hot: l.checkoutOpen > 0 },
         { label: 'Hợp đồng hết hạn trong 30 ngày', n: l.endingSoon, href: '#/contracts', hot: l.endingSoon > 0 }] },

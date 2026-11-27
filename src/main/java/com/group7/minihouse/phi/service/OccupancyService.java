@@ -27,6 +27,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class OccupancyService {
 
+    /** Han khai bao tam tru ke tu ngay vao o (Luat Cu tru 2020: 30 ngay). Doi mot cho nay neu quy dinh doi. */
+    public static final int TEMP_RESIDENCE_DAYS = 30;
+
     static final Set<String> VEHICLE_TYPES = Set.of("MOTORBIKE", "BICYCLE", "ELECTRIC_BIKE", "CAR", "OTHER");
 
     private final EntityManager em;
@@ -256,6 +259,7 @@ public class OccupancyService {
     private static ResidentResponse toResponse(RoomResident r) {
         return new ResidentResponse(r.getResidentId(), r.getRoom().getRoomId(), r.getFullName(), r.getPhoneNumber(),
                 r.getIdentityNumber(), r.getRelationshipWithPrimary(), r.getStartDate(), r.getDateOfBirth(),
-                r.getPermanentAddress(), r.getTempResidenceRegisteredOn());
+                r.getPermanentAddress(), r.getTempResidenceRegisteredOn(), r.getIdFrontImageUrl(), r.getIdBackImageUrl(),
+                r.getStartDate() == null ? null : r.getStartDate().plusDays(TEMP_RESIDENCE_DAYS));
     }
 }

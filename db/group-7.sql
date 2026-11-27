@@ -186,6 +186,8 @@ CREATE TABLE [room_residents] (
     [date_of_birth] DATE NULL,
     [permanent_address] NVARCHAR(255) NULL,
     [temp_residence_registered_on] DATE NULL, -- Ngày đăng ký tạm trú với công an khu vực
+    [id_front_image_url] NVARCHAR(500) NULL, -- Ảnh CCCD mặt trước
+    [id_back_image_url] NVARCHAR(500) NULL, -- Ảnh CCCD mặt sau
     [start_date] DATE NOT NULL,
     [end_date] DATE NULL,
     [is_active] BIT DEFAULT 1

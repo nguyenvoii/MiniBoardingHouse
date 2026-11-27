@@ -6,7 +6,8 @@ import { confirmDialog, field, formError, input, openDialog, select, toast } fro
 
 export interface Vehicle { vehicleId: number; tenantId: number; licensePlate: string; vehicleType: string; brand: string | null; color: string | null }
 export interface Resident { residentId: number; roomId: number; fullName: string; phoneNumber: string | null; identityNumber: string | null; relationship: string | null; startDate: string;
-  dateOfBirth: string | null; permanentAddress: string | null; tempResidenceRegisteredOn: string | null }
+  dateOfBirth: string | null; permanentAddress: string | null; tempResidenceRegisteredOn: string | null;
+  idFrontImageUrl: string | null; idBackImageUrl: string | null; tempResidenceDueDate: string | null }
 
 const VEHICLE_TYPES: Array<[string, string]> = [['MOTORBIKE', 'Xe máy'], ['ELECTRIC_BIKE', 'Xe đạp điện'], ['BICYCLE', 'Xe đạp'], ['CAR', 'Ô tô'], ['OTHER', 'Khác']];
 const typeLabel = (t: string) => VEHICLE_TYPES.find((x) => x[0] === t)?.[1] ?? t;
@@ -68,8 +69,9 @@ export function residentsBox(roomId: number, maxOccupants: number): HTMLElement 
       mount(box,
         list.length
           ? h('ul', null, ...list.map((r) => h('li', { class: 'list-row' },
-              h('div', { class: 'grow' }, h('b', null, r.fullName), h('span', null, [r.relationship, r.phoneNumber, `ở từ ${date(r.startDate)}`, r.tempResidenceRegisteredOn ? `tạm trú ${date(r.tempResidenceRegisteredOn)}` : 'chưa khai tạm trú'].filter(Boolean).join(' · '))),
+              h('div', { class: 'grow' }, h('b', null, r.fullName), h('span', null, [r.relationship, r.phoneNumber, `ở từ ${date(r.startDate)}`, r.tempResidenceRegisteredOn ? `tạm trú ${date(r.tempResidenceRegisteredOn)}` : null].filter(Boolean).join(' · '), tempBadge(r))),
               canEdit ? h('div', { class: 'row-actions' },
+                h('button', { class: 'btn secondary sm', onclick: () => idCardDialog(r, load) }, icon('shield', 14), r.idFrontImageUrl || r.idBackImageUrl ? 'Ảnh CCCD' : 'Thêm ảnh CCCD'),
                 h('button', { class: 'btn secondary sm', onclick: () => residentDialog(roomId, r, load) }, icon('edit', 14), 'Sửa'),
                 h('button', { class: 'btn secondary sm', onclick: async () => {
                   if (!(await confirmDialog('Bỏ người ở cùng', `${r.fullName} rời phòng? Tiền dịch vụ theo đầu người các kỳ sau sẽ giảm.`, 'Xác nhận', true))) return;
@@ -85,6 +87,43 @@ export function residentsBox(roomId: number, maxOccupants: number): HTMLElement 
   };
   void load();
   return box;
+}
+
+/** Nhắc khai báo tạm trú: quá hạn (đỏ), còn tối đa 7 ngày (vàng), đã khai thì không hiện. */
+function tempBadge(r: Resident): HTMLElement | string {
+  if (r.tempResidenceRegisteredOn || !r.tempResidenceDueDate) return '';
+  const left = Math.round((Date.parse(r.tempResidenceDueDate) - Date.parse(isoDay())) / 86400000);
+  if (left < 0) return h('span', { class: 'st danger', style: 'margin-left:6px' }, `Quá hạn khai tạm trú ${-left} ngày`);
+  if (left <= 7) return h('span', { class: 'st warn', style: 'margin-left:6px' }, `Cần khai tạm trú trước ${date(r.tempResidenceDueDate)}`);
+  return h('span', { class: 'muted', style: 'margin-left:6px' }, `Chưa khai tạm trú (hạn ${date(r.tempResidenceDueDate)})`);
+}
+
+/** Ảnh CCCD hai mặt của người ở cùng: xem ảnh đã có, chọn tệp mới cho mặt nào thì thay mặt đó. */
+function idCardDialog(r: Resident, done: () => void): void {
+  const d = openDialog(`Ảnh CCCD: ${r.fullName}`, { width: 520 });
+  const err = h('div');
+  const front = input({ type: 'file', accept: 'image/*', 'aria-label': 'Ảnh CCCD mặt trước' });
+  const back = input({ type: 'file', accept: 'image/*', 'aria-label': 'Ảnh CCCD mặt sau' });
+  const preview = async (url: string | null) => {
+    const src = url ? await api.blobUrl(url) : null;
+    return src ? h('img', { src, alt: '', style: 'max-width:100%;max-height:170px;border:1px solid var(--line);border-radius:8px' }) : h('span', { class: 'muted' }, 'Chưa có ảnh');
+  };
+  const fPrev = h('div'); const bPrev = h('div');
+  void preview(r.idFrontImageUrl).then((n) => fPrev.replaceChildren(n));
+  void preview(r.idBackImageUrl).then((n) => bPrev.replaceChildren(n));
+  d.body.append(err, h('div', { class: 'form-grid' }, h('div', { class: 'stack' }, fPrev, field('Mặt trước', front)), h('div', { class: 'stack' }, bPrev, field('Mặt sau', back))),
+    h('p', { class: 'muted' }, 'Ảnh PNG, JPEG hoặc WebP, tối đa 2 MB mỗi ảnh. Chỉ chọn mặt nào muốn thêm hoặc thay.'));
+  const ok = h('button', { class: 'btn' }, 'Lưu ảnh');
+  d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Đóng'), ok);
+  ok.addEventListener('click', () => busy(ok, async () => {
+    err.replaceChildren();
+    if (!front.files?.[0] && !back.files?.[0]) { err.replaceChildren(formError('Chọn ít nhất một ảnh.')); return; }
+    const form = new FormData();
+    if (front.files?.[0]) form.append('front', front.files[0]);
+    if (back.files?.[0]) form.append('back', back.files[0]);
+    try { await api.uploadForm(`/api/residents/${r.residentId}/id-card`, form); d.close(); toast('Đã lưu ảnh CCCD'); done(); }
+    catch (e) { err.replaceChildren(formError(errText(e))); }
+  }));
 }
 
 function residentDialog(roomId: number, r: Resident | null, done: () => void): void {

@@ -25,6 +25,7 @@ GO
 :r patch_15_segmented_meter_readings.sql
 :r patch_16_job_settings.sql
 :r patch_17_resident_stay_info.sql
+:r patch_18_resident_id_card.sql
 GO
 USE [MiniBoardingHouseDB];
 GO
@@ -50,7 +51,9 @@ FROM (VALUES
     ('16', 'job_settings', NULL),
     ('17', 'room_residents', 'date_of_birth'),
     ('17', 'room_residents', 'permanent_address'),
-    ('17', 'room_residents', 'temp_residence_registered_on')
+    ('17', 'room_residents', 'temp_residence_registered_on'),
+    ('18', 'room_residents', 'id_front_image_url'),
+    ('18', 'room_residents', 'id_back_image_url')
 ) AS x(patch, tbl, col)
 WHERE (x.col IS NULL AND OBJECT_ID('dbo.' + x.tbl, 'U') IS NULL)
    OR (x.col IS NOT NULL AND COL_LENGTH('dbo.' + x.tbl, x.col) IS NULL)
@@ -64,6 +67,6 @@ UNION ALL
 SELECT '15', 'meter_readings', 'thieu UQ_period_room_contract_reading'
 WHERE NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UQ_period_room_contract_reading');
 
-IF @@ROWCOUNT = 0 PRINT N'DU: DB da co day du doi tuong cua patch 01-17.';
+IF @@ROWCOUNT = 0 PRINT N'DU: DB da co day du doi tuong cua patch 01-18.';
 ELSE PRINT N'THIEU: xem cac dong o tren, roi bao Phi.';
 GO
