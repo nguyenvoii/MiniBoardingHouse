@@ -1,5 +1,5 @@
 # ---- Tầng 1: build giao diện (Vite ghi vào ../src/main/resources/static) ----
-FROM node:24-alpine AS fe
+FROM node:26-alpine AS fe
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
 RUN npm ci
