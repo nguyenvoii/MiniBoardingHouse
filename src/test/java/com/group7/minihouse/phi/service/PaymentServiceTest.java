@@ -298,4 +298,147 @@ class PaymentServiceTest {
         assertThrows(BusinessException.class,
                 () -> service.createQrForTenant(new QrRequest(50, null, null), 999, 30, "ip"));
     }
+
+    // ---------- SePay: tien chuyen khoan ve tu dong ----------
+
+    @SuppressWarnings("unchecked")
+    private void landlordExists() {
+        jakarta.persistence.TypedQuery<Integer> q = org.mockito.Mockito.mock(jakarta.persistence.TypedQuery.class);
+        when(em.createQuery(anyString(), eq(Integer.class))).thenReturn(q);
+        when(q.setMaxResults(1)).thenReturn(q);
+        when(q.getResultList()).thenReturn(List.of(5));
+    }
+
+    private Invoice otherInvoice(int id, String code) {
+        Invoice other = new Invoice();
+        other.setInvoiceId(id);
+        other.setInvoiceCode(code);
+        other.setTenant(invoice.getTenant());
+        other.setTotalAmount(BigDecimal.TEN);
+        other.setPaidAmount(BigDecimal.ZERO);
+        other.setPaymentStatus("UNPAID");
+        return other;
+    }
+
+    @Test
+    void sepayConfirmsPendingTransferOfSameAmountAndKeepsSepayCode() {
+        landlordExists();
+        PaymentTransaction t = pending("QR_CODE", "3000000");
+        when(repo.findPayableMentionedInFlat("ckhd202611p101thang11")).thenReturn(List.of(invoice));
+        when(repo.findPendingOfInvoice(50)).thenReturn(List.of(t));
+
+        service.confirmSepayTransfer(777, "CK HD202611P101 thang 11", new BigDecimal("3000000"), "ip");
+
+        assertEquals("SUCCESS", t.getStatus());
+        assertEquals("SEPAY-777", t.getTransactionCode());
+        assertEquals("PAID", invoice.getPaymentStatus());
+        assertEquals(0, new BigDecimal("3000000").compareTo(invoice.getPaidAmount()));
+    }
+
+    @Test
+    void sepayCreditsInvoiceWhenAmountEqualsRemainingAndNoPendingTransaction() {
+        landlordExists();
+        when(repo.findPayableMentionedInFlat("hd202611p101")).thenReturn(List.of(invoice));
+
+        String r = service.confirmSepayTransfer(778, "HD202611-P101", new BigDecimal("3000000"), "ip");
+
+        org.mockito.ArgumentCaptor<PaymentTransaction> cap = org.mockito.ArgumentCaptor.forClass(PaymentTransaction.class);
+        verify(repo).save(cap.capture());
+        assertEquals("SEPAY-778", cap.getValue().getTransactionCode());
+        assertEquals("SUCCESS", cap.getValue().getStatus());
+        assertEquals("BANK_TRANSFER", cap.getValue().getPaymentMethod());
+        assertEquals("PAID", invoice.getPaymentStatus());
+        assertTrue(r.contains("HD202611-P101"));
+    }
+
+    @Test
+    void sepayDoesNotAutoCreditWrongAmountButLeavesAuditTrail() {
+        landlordExists();
+        when(repo.findPayableMentionedInFlat("hd202611p101")).thenReturn(List.of(invoice));
+
+        service.confirmSepayTransfer(779, "HD202611-P101", new BigDecimal("1000000"), "ip");
+
+        verify(repo, never()).save(any());
+        assertEquals("UNPAID", invoice.getPaymentStatus());
+        verify(activityLogService).log(eq(5), eq("SEPAY_UNMATCHED"), anyString(), eq("ip"));
+    }
+
+    @Test
+    void sepayIgnoresSameTransactionIdSentTwice() {
+        landlordExists();
+        when(repo.findPayableMentionedInFlat("hd202611p101")).thenReturn(List.of(invoice));
+        when(repo.existsByTransactionCode("SEPAY-780")).thenReturn(true);
+
+        String r = service.confirmSepayTransfer(780, "HD202611-P101", new BigDecimal("3000000"), "ip");
+
+        assertEquals("Da xu ly truoc do", r);
+        verify(repo, never()).save(any());
+        assertEquals("UNPAID", invoice.getPaymentStatus());
+    }
+
+    @Test
+    void sepayRetryAfterInvoiceIsAlreadyPaidIsRecognisedWithoutNoise() {
+        // hoa don da PAID thi khong con trong danh sach khop; phai nhan ra bang ma SEPAY-id truoc khi khop
+        when(repo.existsByTransactionCode("SEPAY-784")).thenReturn(true);
+
+        assertEquals("Da xu ly truoc do", service.confirmSepayTransfer(784, "HD202611-P101", new BigDecimal("3000000"), "ip"));
+
+        verify(repo, never()).findPayableMentionedInFlat(anyString());
+        verify(activityLogService, never()).log(any(), anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void sepayWithoutInvoiceCodeOnlyLogs() {
+        landlordExists();
+        when(repo.findPayableMentionedInFlat(anyString())).thenReturn(List.of());
+
+        assertEquals("Khong khop hoa don", service.confirmSepayTransfer(781, "tien nha thang nay", new BigDecimal("3000000"), "ip"));
+
+        verify(repo, never()).save(any());
+        verify(activityLogService).log(eq(5), eq("SEPAY_UNMATCHED"), anyString(), eq("ip"));
+    }
+
+    @Test
+    void sepayPicksTheLongestInvoiceCodeSoRoom10DoesNotStealRoom101() {
+        landlordExists();
+        Invoice shorter = otherInvoice(51, "HD202611-P10");
+        when(repo.findPayableMentionedInFlat("hd202611p101")).thenReturn(List.of(shorter, invoice));
+
+        service.confirmSepayTransfer(782, "HD202611P101", new BigDecimal("3000000"), "ip");
+
+        assertEquals("PAID", invoice.getPaymentStatus());
+        assertEquals("UNPAID", shorter.getPaymentStatus());
+    }
+
+    @Test
+    void sepayTwoEquallyLongMatchesAreAmbiguousAndNotCredited() {
+        landlordExists();
+        Invoice twin = otherInvoice(52, "HD202611-P101");
+        when(repo.findPayableMentionedInFlat("hd202611p101")).thenReturn(List.of(invoice, twin));
+
+        assertEquals("Khong khop hoa don", service.confirmSepayTransfer(783, "HD202611P101", new BigDecimal("3000000"), "ip"));
+
+        verify(repo, never()).save(any());
+    }
+
+    @Test
+    void qrIsDynamicSepayUrlWithAmountAndContentWhenEnabled() {
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "sepayEnabled", true);
+        when(bankAccountService.list(1)).thenReturn(List.of(
+                new BankAccountResponse(1, 1, "MB Bank", "0071000888888", "CHU TRO", "/qr/x.png", true, true)));
+
+        var info = service.createQr(new QrRequest(50, null, null), 5, 30, "ip");
+
+        assertEquals("https://qr.sepay.vn/img?acc=0071000888888&bank=MBBank&amount=3000000&des=HD202611-P101",
+                info.qrImageUrl());
+        assertEquals("HD202611-P101", info.transferContent());
+    }
+
+    @Test
+    void qrKeepsUploadedImageWhenSepayIsOff() {
+        when(bankAccountService.list(1)).thenReturn(List.of(
+                new BankAccountResponse(1, 1, "MB Bank", "0071000888888", "CHU TRO", "/qr/x.png", true, true)));
+
+        assertEquals("/qr/x.png", service.createQr(new QrRequest(50, null, null), 5, 30, "ip").qrImageUrl());
+    }
 }

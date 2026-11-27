@@ -21,6 +21,12 @@ public final class PaymentDtos {
     /** UC86: cong thanh toan goi ve. */
     public record CallbackRequest(String transactionCode, BigDecimal amount) {}
 
+    /** SePay bao co giao dich ngan hang (webhook). Chi lay cac truong can dung, bo qua truong la SePay them sau. */
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
+    public record SepayWebhook(Long id, String gateway, String transactionDate, String accountNumber, String code,
+                               String content, String transferType, BigDecimal transferAmount,
+                               String referenceCode, String description) {}
+
     /** UC88: noi dung chuyen khoan can doi chieu voi ma hoa don. */
     public record MatchRequest(String content) {}
 

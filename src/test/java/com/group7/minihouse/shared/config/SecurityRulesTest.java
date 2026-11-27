@@ -49,6 +49,7 @@ class SecurityRulesTest {
         @org.springframework.web.bind.annotation.PostMapping("/api/auth/reset-password") String reset() { return "ok"; }
         @org.springframework.web.bind.annotation.PostMapping("/api/auth/verify-reset-code") String verifyReset() { return "ok"; }
         @org.springframework.web.bind.annotation.PostMapping("/api/auth/qr-login") String qr() { return "ok"; }
+        @org.springframework.web.bind.annotation.PostMapping("/api/payments/sepay-webhook") String sepay() { return "ok"; }
         @org.springframework.web.bind.annotation.PostMapping("/api/auth/register") String register() { return "ok"; }
         @org.springframework.web.bind.annotation.PostMapping("/api/auth/verify-email") String verify() { return "ok"; }
         @org.springframework.web.bind.annotation.PostMapping("/api/auth/resend-verification") String resend() { return "ok"; }
@@ -79,6 +80,14 @@ class SecurityRulesTest {
     @Test
     void qrLoginIsPublic() throws Exception {
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/auth/qr-login"))
+                .andExpect(status().isOk());
+    }
+
+    /** SePay goi webhook khong co token dang nhap (khoa Apikey duoc controller kiem), nen URL nay phai cong khai. */
+    @Test
+    void sepayWebhookIsPublicWithoutLogin() throws Exception {
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                .post("/api/payments/sepay-webhook").header("Authorization", "Apikey abc"))
                 .andExpect(status().isOk());
     }
 
