@@ -429,12 +429,29 @@ class ChiServicesTest {
         when(rooms.countByProperty_PropertyId(7)).thenReturn(12L);
         when(floors.findByProperty_PropertyIdOrderByFloorNumberAsc(7)).thenReturn(List.of(f));
 
-        var list = new PropertyService(props, rooms, floors).getAll();
+        var list = new PropertyService(props, rooms, floors, mock(EntityManager.class)).getAll();
 
         assertEquals(1, list.size());
         assertEquals(12L, list.get(0).getRoomCount());
         assertEquals(1, list.get(0).getFloors().size());
         assertEquals("Tầng 1", list.get(0).getFloors().get(0).getFloorName());
+    }
+
+    @Test
+    void createPropertyRequiresNameAndAddressThenSavesWithLandlord() {
+        var props = mock(com.group7.minihouse.chi.repository.PropertyRepository.class);
+        EntityManager em = mock(EntityManager.class);
+        when(props.save(any(com.group7.minihouse.shared.entity.Property.class))).thenAnswer(i -> i.getArgument(0));
+        var service = new PropertyService(props, mock(RoomRepository.class), mock(PropertyFloorRepository.class), em);
+        var bad = new com.group7.minihouse.chi.dto.PropertyDTO();
+        bad.setPropertyName("  ");
+        assertThrows(BusinessException.class, () -> service.create(bad, 1));
+
+        var ok = new com.group7.minihouse.chi.dto.PropertyDTO();
+        ok.setPropertyName(" Khu B ");
+        ok.setAddress(" 5 Lê Lợi ");
+        assertEquals("Khu B", service.create(ok, 1).getPropertyName());
+        verify(em).getReference(com.group7.minihouse.shared.entity.User.class, 1);
     }
 
     @Test

@@ -1,6 +1,6 @@
 import { h } from '../lib/dom';
 import { icon, IconName } from '../lib/icons';
-import { Role, Session, can, logout } from '../lib/api';
+import { Role, Session, can, logout, loadSession, myAvatarUrl, onMyProfile } from '../lib/api';
 import { getMonth, setMonth, onMonth } from '../lib/ctx';
 import { PROPERTY_ID, setProperty } from '../lib/api';
 import { loadProperties } from '../data/live';
@@ -64,6 +64,13 @@ export const ROLE_NAMES: Record<string, string> = {
   LANDLORD: 'Chủ trọ', MANAGER: 'Quản lý', CASHIER: 'Thu ngân', METER_READER: 'Ghi chỉ số', TENANT: 'Người thuê',
 };
 
+/** Ảnh đại diện nếu có, không thì chữ cái đầu của tên. */
+function paintAvatar(el: HTMLElement, name: string): void {
+  const url = myAvatarUrl();
+  if (url) el.replaceChildren(h('img', { src: url, alt: '' }));
+  else el.textContent = initials(name);
+}
+
 export interface StaffShell { root: HTMLElement; view: HTMLElement; setActive(path: string): void }
 
 export function buildStaffShell(s: Session): StaffShell {
@@ -88,8 +95,13 @@ export function buildStaffShell(s: Session): StaffShell {
     nav.appendChild(sec);
   }
   rail.appendChild(nav);
+  const avatarEl = h('span', { class: 'avatar' });
+  const whoName = h('b', null, s.name);
+  const paintWho = () => { const n = loadSession()?.name ?? s.name; whoName.textContent = n; paintAvatar(avatarEl, n); };
+  paintWho();
+  const offProfile = onMyProfile(() => (rail.isConnected ? paintWho() : offProfile()));
   rail.appendChild(h('div', { class: 'rail-foot' },
-    h('div', { class: 'rail-user' }, h('span', { class: 'avatar' }, initials(s.name)), h('div', null, h('b', null, s.name), h('span', null, s.roles.map((r) => ROLE_NAMES[r] ?? r).join(', ')))),
+    h('div', { class: 'rail-user' }, avatarEl, h('div', null, whoName, h('span', null, s.roles.map((r) => ROLE_NAMES[r] ?? r).join(', ')))),
     h('button', { class: 'nav-link', style: 'border:0;background:none;width:100%;text-align:left;font:inherit', onclick: logout }, icon('logout'), h('span', null, 'Đăng xuất')),
   ));
 
@@ -151,9 +163,11 @@ export function buildTenantShell(s: Session): TenantShell {
     ['#/me/notifications', 'Thông báo', 'bell'],
   ];
   const links = tabs.map(([href, label, ic]) => h('a', { href }, icon(ic, 22), label) as HTMLAnchorElement);
+  const who = h('span', { class: 'm-who' }, s.name);
+  const offProfile = onMyProfile(() => (root.isConnected ? (who.textContent = loadSession()?.name ?? s.name) : offProfile()));
   const root = h('div', { class: 'm-app' },
     h('header', { class: 'm-top' }, logo(28), h('b', { class: 'm-brand' }, 'Stayly'), title,
-      h('span', { class: 'm-who' }, s.name),
+      who,
       h('button', { class: 'icon-btn', 'aria-label': `Đăng xuất ${s.name}`, onclick: logout }, icon('logout'))),
     view,
     h('nav', { class: 'm-tabs', 'aria-label': 'Điều hướng' }, ...links),

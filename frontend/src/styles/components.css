@@ -310,3 +310,19 @@ a.list-row:hover { background: var(--primary-faint); color: inherit; }
 
 /* Khu người thuê: chữ phụ và nhãn trạng thái lớn hơn một chút cho khách lớn tuổi (audit #11) */
 .m-app .hint, .m-app .muted, .m-app .st, .m-app .btn.sm, .m-app .dl dt { font-size: 14px; }
+
+/* Cài đặt: danh mục bên trái, nội dung rộng bên phải */
+.settings { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 24px; align-items: start; }
+.settings-nav { position: sticky; top: 76px; display: grid; gap: 18px; }
+.settings-group h2 { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); padding: 0 12px 6px; }
+.settings-group button { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 9px 12px; border-radius: var(--r); font-weight: 600; color: var(--ink-2); }
+.settings-group button:hover { background: var(--panel-2); color: var(--ink); }
+.settings-group button[aria-current='page'] { background: #fff; color: var(--primary); box-shadow: inset 3px 0 0 var(--plate), var(--shadow-1); }
+.toolbar h3 { font-size: 15px; }
+@media (max-width: 900px) {
+  .settings { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .settings-nav { position: static; display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
+  .settings-group { display: flex; gap: 6px; align-items: center; }
+  .settings-group h2 { display: none; }
+  .settings-group button { white-space: nowrap; width: auto; min-height: 44px; border: 1px solid var(--line); background: #fff; }
+}

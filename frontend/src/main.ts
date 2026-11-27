@@ -5,7 +5,7 @@ import './styles/components.css';
 import './styles/motion.css';
 
 import { h } from './lib/dom';
-import { loadSession, isTenant, isMeterReaderOnly, mustChangePassword, can, errText } from './lib/api';
+import { loadSession, isTenant, isMeterReaderOnly, mustChangePassword, can, errText, refreshMyProfile } from './lib/api';
 import { route, match, current, navigate } from './lib/router';
 import { onMonth, getMonth } from './lib/ctx';
 import { api, PROPERTY_ID } from './lib/api';
@@ -137,6 +137,7 @@ async function render(): Promise<void> {
     shell = tenant ? buildTenantShell(s) : buildStaffShell(s);
     shellKind = kind;
     app.replaceChildren(shell.root);
+    void refreshMyProfile();
   }
   if (mustChangePassword()) forcePasswordChange();
   const m = match(path);

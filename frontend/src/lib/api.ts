@@ -79,8 +79,30 @@ export function loadSession(): Session | null {
   return session;
 }
 
+// Hồ sơ đang đăng nhập: tên và ảnh nằm ngoài token nên phải tự giữ; đổi ở đâu thì thanh bên đổi ngay, không chờ đăng nhập lại.
+let myAvatar: string | null = null;
+const profileListeners = new Set<() => void>();
+export const myAvatarUrl = (): string | null => myAvatar;
+export function onMyProfile(fn: () => void): () => void {
+  profileListeners.add(fn);
+  return () => void profileListeners.delete(fn);
+}
+export function setMyProfile(p: { fullName?: string; avatarUrl?: string | null }): void {
+  if (p.fullName && session) session.name = p.fullName;
+  if (p.avatarUrl !== undefined) myAvatar = p.avatarUrl;
+  profileListeners.forEach((fn) => fn());
+}
+/** Token chỉ mang tên lúc đăng nhập: nạp lại hồ sơ thật để tên/ảnh đúng cả sau khi tải lại trang. */
+export async function refreshMyProfile(): Promise<void> {
+  try {
+    const p = await api.get<{ fullName: string; avatarUrl: string | null }>('/api/auth/profile');
+    setMyProfile({ fullName: p.fullName, avatarUrl: p.avatarUrl });
+  } catch { /* không nạp được thì giữ tên trong token */ }
+}
+
 export function logout(): void {
   session = null;
+  myAvatar = null;
   try {
     sessionStorage.removeItem(KEY);
     sessionStorage.removeItem(MUST_KEY);

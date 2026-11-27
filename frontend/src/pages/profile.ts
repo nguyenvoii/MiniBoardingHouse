@@ -1,5 +1,5 @@
 import { h, busy } from '../lib/dom';
-import { api, clearMustChangePassword, errText, loadSession } from '../lib/api';
+import { api, clearMustChangePassword, errText, loadSession, setMyProfile } from '../lib/api';
 import { dl, field, formError, input, pageHead, panel, toast } from '../ui/kit';
 import { ROLE_NAMES } from '../ui/shell';
 
@@ -13,7 +13,7 @@ export async function profilePage(view: HTMLElement): Promise<void> {
   const err1 = h('div');
   const save = h('button', { class: 'btn' }, 'Lưu hồ sơ');
   save.addEventListener('click', () => busy(save, async () => {
-    try { await api.put('/api/auth/profile', { fullName: name.value.trim(), phoneNumber: phone.value.trim() || null }); err1.replaceChildren(); toast('Đã lưu hồ sơ'); }
+    try { const r = await api.put<Profile>('/api/auth/profile', { fullName: name.value.trim(), phoneNumber: phone.value.trim() || null }); setMyProfile({ fullName: r?.fullName ?? name.value.trim() }); err1.replaceChildren(); toast('Đã lưu hồ sơ'); }
     catch (e) { err1.replaceChildren(formError(errText(e))); }
   }));
 
@@ -23,7 +23,8 @@ export async function profilePage(view: HTMLElement): Promise<void> {
     const file = avatar.files?.[0];
     if (!file) { err1.replaceChildren(formError('Chọn ảnh trước khi lưu.')); return; }
     try {
-      await api.upload('/api/auth/avatar', file, 'PUT');
+      const r = await api.upload<Profile>('/api/auth/avatar', file, 'PUT');
+      setMyProfile({ avatarUrl: r.avatarUrl });
       toast('Đã lưu ảnh đại diện');
       await profilePage(view);
     } catch (e) { err1.replaceChildren(formError(errText(e))); }

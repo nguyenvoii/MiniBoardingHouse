@@ -4,9 +4,13 @@ import com.group7.minihouse.chi.dto.PropertyDTO;
 import com.group7.minihouse.chi.service.PropertyService;
 import com.group7.minihouse.shared.dto.ApiResponse;
 import java.util.List;
+import com.group7.minihouse.shared.security.AuthUser;
+import com.group7.minihouse.shared.security.CurrentUser;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -31,6 +35,12 @@ public class PropertyController {
     @GetMapping("/default")
     public ApiResponse<PropertyDTO> getDefault() {
         return ApiResponse.ok(propertyService.getDefault());
+    }
+
+    @PreAuthorize("hasRole('LANDLORD')")
+    @PostMapping
+    public ApiResponse<PropertyDTO> create(@RequestBody PropertyDTO dto, @AuthenticationPrincipal AuthUser user) {
+        return ApiResponse.ok("Đã thêm khu trọ", propertyService.create(dto, CurrentUser.requireUserId(user)));
     }
 
     @PreAuthorize("hasAnyRole('LANDLORD','MANAGER')")

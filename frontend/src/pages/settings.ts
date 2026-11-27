@@ -1,7 +1,7 @@
 import { roomFurnishings } from './roomFurnishings';
 import { h, busy } from '../lib/dom';
 import { icon } from '../lib/icons';
-import { api, can, errText, loadSession, PROPERTY_ID } from '../lib/api';
+import { api, can, errText, loadSession, PROPERTY_ID, setProperty } from '../lib/api';
 import { backupTab, categoriesTab, equipmentTab, jobsTab, templatesTab } from './systemTabs';
 import { date, money, isoDay } from '../lib/format';
 import { loadLive, loadProperties, loadRoomTypes, type PropertyInfo, type RoomType } from '../data/live';
@@ -15,21 +15,48 @@ interface Bank { bankAccountId: number; propertyId: number; bankName: string; ac
 const CHARGE: Record<string, string> = {
   FIXED_ROOM: 'Cố định mỗi phòng', PER_PERSON: 'Theo đầu người', PER_VEHICLE: 'Theo số xe', PER_METER_UNIT: 'Theo đơn vị công tơ (chưa tự tính)',
 };
-const TABS = [['rates', 'Đơn giá điện nước'], ['services', 'Dịch vụ hàng tháng'], ['custom', 'Phụ thu và giảm trừ'], ['property', 'Khu trọ và tầng'], ['room-types', 'Loại phòng'], ['furnishings', 'Thiết bị chuẩn'], ['bank', 'Ngân hàng và mã QR'], ['equipment', 'Thiết bị và phụ phí'], ['categories', 'Nhóm sự cố, thiết bị'], ['templates', 'Mẫu thông báo'], ['jobs', 'Lịch tự động'], ['backup', 'Sao lưu']] as const;
+// Mỗi mục: [khóa, tên, mô tả hiện ở đầu khung nội dung]
+const GROUPS: Array<[string, Array<[string, string, string]>]> = [
+  ['Tính tiền', [
+    ['rates', 'Đơn giá điện nước', 'Giá điện, nước đang áp dụng. Tính tiền hàng tháng đọc trực tiếp bảng giá này.'],
+    ['services', 'Dịch vụ hàng tháng', 'Internet, vệ sinh, gửi xe... cộng vào tiền hàng tháng của từng phòng.'],
+    ['custom', 'Phụ thu và giảm trừ', 'Khoản riêng của từng phòng: dương là phụ thu, âm là giảm trừ.'],
+  ]],
+  ['Khu trọ và phòng', [
+    ['property', 'Khu trọ và tầng', 'Thông tin các khu trọ bạn quản lý và các tầng của khu đang chọn.'],
+    ['room-types', 'Loại phòng', 'Giá thuê và tiền cọc mặc định khi lập phòng hoặc hợp đồng mới.'],
+    ['furnishings', 'Thiết bị chuẩn', 'Danh mục thiết bị có sẵn để gắn vào phòng.'],
+    ['equipment', 'Thiết bị và phụ phí', 'Yêu cầu lắp thêm thiết bị của người thuê và phụ phí đi kèm.'],
+  ]],
+  ['Thanh toán', [
+    ['bank', 'Ngân hàng và mã QR', 'Tài khoản mặc định được dùng khi tạo mã QR cho người thuê.'],
+  ]],
+  ['Vận hành', [
+    ['categories', 'Nhóm sự cố, thiết bị', 'Phân loại dùng khi người thuê báo sự cố.'],
+    ['templates', 'Mẫu thông báo', 'Nội dung thông báo gửi tới người thuê.'],
+    ['jobs', 'Lịch tự động', 'Các tác vụ chạy theo giờ (chỉ chủ trọ).'],
+    ['backup', 'Sao lưu', 'Sao lưu và khôi phục dữ liệu (chỉ chủ trọ).'],
+  ]],
+];
 const OWNER_ONLY = ['jobs', 'backup']; // chỉ chủ trọ
 
 export async function settingsPage(view: HTMLElement, _p: Record<string, string>, query: URLSearchParams): Promise<void> {
   let tab = query.get('tab') ?? 'rates';
   const body = h('div');
-  const tabs = h('div', { class: 'tabs', role: 'tablist' });
+  const nav = h('nav', { class: 'settings-nav', 'aria-label': 'Nhóm cài đặt' });
+  const head = h('div', { class: 'panel-head' });
+  const items = GROUPS.map(([g, list]) => [g, list.filter(([k]) => !OWNER_ONLY.includes(k) || can('LANDLORD'))] as const).filter(([, list]) => list.length);
   const paint = async () => {
-    tabs.replaceChildren(...TABS.filter(([k]) => !OWNER_ONLY.includes(k) || can('LANDLORD')).map(([k, l]) => h('button', { role: 'tab', 'aria-selected': String(k === tab), onclick: () => { tab = k; void paint(); } }, l)));
+    nav.replaceChildren(...items.map(([g, list]) => h('div', { class: 'settings-group' }, h('h2', null, g),
+      ...list.map(([k, l]) => h('button', { 'aria-current': k === tab ? 'page' : 'false', onclick: () => { tab = k; void paint(); } }, l)))));
+    const cur = items.flatMap(([, list]) => list).find(([k]) => k === tab) ?? items[0][1][0];
+    head.replaceChildren(h('div', null, h('h2', null, cur[1]), h('p', null, cur[2])));
     body.replaceChildren(h('div', { class: 'panel-body' }, h('div', { class: 'skel', style: 'height:80px' })));
     try {
       body.replaceChildren(tab === 'furnishings' ? h('div', { class: 'panel-body' }, roomFurnishings()) : tab === 'property' ? await propertyTab(paint) : tab === 'rates' ? await ratesTab(paint) : tab === 'services' ? await servicesTab(paint) : tab === 'custom' ? await customTab() : tab === 'room-types' ? await roomTypesTab(paint) : tab === 'equipment' ? await equipmentTab(paint) : tab === 'categories' ? await categoriesTab(paint) : tab === 'templates' ? await templatesTab(paint) : tab === 'jobs' && can('LANDLORD') ? await jobsTab(paint) : tab === 'backup' && can('LANDLORD') ? await backupTab(paint) : await bankTab(paint));
     } catch (e) { body.replaceChildren(emptyState('Chưa tải được', errText(e))); }
   };
-  view.replaceChildren(pageHead('Cài đặt', 'Đơn giá, dịch vụ và tài khoản nhận tiền. Tính tiền hàng tháng đọc trực tiếp các mục này.'), h('section', { class: 'panel panel-flush' }, tabs, body));
+  view.replaceChildren(pageHead('Cài đặt'), h('div', { class: 'settings' }, nav, h('section', { class: 'panel panel-flush' }, head, body)));
   await paint();
 }
 
@@ -169,37 +196,46 @@ function customDialog(roomId: number, c: Custom | null, done: () => void): void 
 type Floor = PropertyInfo['floors'][number];
 
 async function propertyTab(reload: () => void): Promise<HTMLElement> {
-  const property = (await loadProperties()).find((p) => p.propertyId === PROPERTY_ID);
-  if (!property) return emptyState('Chưa có thông tin khu trọ', 'Chọn khu trọ trên thanh điều hướng.');
+  const all = await loadProperties();
+  const property = all.find((p) => p.propertyId === PROPERTY_ID);
   return h('div', null,
-    h('div', { class: 'toolbar' }, h('div', { class: 'grow' },
-      h('b', null, property.propertyName), h('p', null, property.address),
-      h('p', null, property.supportPhone ?? 'Chưa có số hỗ trợ')),
-      h('button', { class: 'btn secondary', onclick: () => propertyDialog(property, reload) }, 'Sửa khu trọ')),
-    h('div', { class: 'toolbar' }, h('h2', { class: 'grow' }, 'Các tầng'),
-      h('button', { class: 'btn', onclick: () => floorDialog(undefined, reload) }, 'Thêm tầng')),
-    table<Floor>([
-      { key: 'number', label: 'Số tầng', render: (f) => String(f.floorNumber) },
-      { key: 'name', label: 'Tên tầng', render: (f) => f.floorName },
-      { key: 'actions', label: '', render: (f) => h('div', { class: 'row-actions' },
-        h('button', { class: 'btn secondary sm', onclick: () => floorDialog(f, reload) }, 'Sửa'),
-        h('button', { class: 'btn secondary sm', onclick: async () => {
-          if (!(await confirmDialog('Xóa tầng', 'Xóa ' + f.floorName + '?', 'Xóa tầng', true))) return;
-          try {
-            await api.del('/api/chi/floors/' + f.floorId);
-            toast('Đã xóa tầng'); reload();
-          } catch (e) { toast(errText(e), 'err'); }
-        } }, 'Xóa')) },
-    ], property.floors));
+    h('div', { class: 'toolbar' }, h('h3', { class: 'grow' }, `Các khu trọ (${all.length})`),
+      can('LANDLORD') ? h('button', { class: 'btn', onclick: () => propertyDialog(null) }, icon('plus', 16), 'Thêm khu trọ') : null),
+    table<PropertyInfo>([
+      { key: 'n', label: 'Khu trọ', render: (p) => h('span', null, h('b', null, p.propertyName), p.propertyId === PROPERTY_ID ? h('span', { class: 'st ok', style: 'margin-left:8px' }, 'Đang chọn') : null) },
+      { key: 'a', label: 'Địa chỉ', render: (p) => p.address },
+      { key: 'p', label: 'Hỗ trợ', render: (p) => p.supportPhone ?? '–' },
+      { key: 'r', label: 'Số phòng', num: true, render: (p) => String(p.roomCount) },
+      { key: 'x', label: '', render: (p) => h('div', { class: 'row-actions' },
+        p.propertyId === PROPERTY_ID ? null : h('button', { class: 'btn secondary sm', onclick: () => { setProperty(p.propertyId); location.reload(); } }, 'Chuyển sang khu này'),
+        h('button', { class: 'btn secondary sm', onclick: () => propertyDialog(p) }, icon('edit', 14), 'Sửa')) },
+    ], all, { empty: emptyState('Chưa có khu trọ', 'Thêm khu trọ đầu tiên để bắt đầu.') }),
+    property ? h('div', null,
+      h('div', { class: 'toolbar' }, h('h3', { class: 'grow' }, `Các tầng của ${property.propertyName}`),
+        h('button', { class: 'btn', onclick: () => floorDialog(undefined, reload) }, icon('plus', 16), 'Thêm tầng')),
+      table<Floor>([
+        { key: 'number', label: 'Số tầng', render: (f) => String(f.floorNumber) },
+        { key: 'name', label: 'Tên tầng', render: (f) => f.floorName },
+        { key: 'actions', label: '', render: (f) => h('div', { class: 'row-actions' },
+          h('button', { class: 'btn secondary sm', onclick: () => floorDialog(f, reload) }, 'Sửa'),
+          h('button', { class: 'btn secondary sm', onclick: async () => {
+            if (!(await confirmDialog('Xóa tầng', 'Xóa ' + f.floorName + '?', 'Xóa tầng', true))) return;
+            try {
+              await api.del('/api/chi/floors/' + f.floorId);
+              toast('Đã xóa tầng'); reload();
+            } catch (e) { toast(errText(e), 'err'); }
+          } }, 'Xóa')) },
+      ], property.floors, { empty: emptyState('Chưa có tầng', 'Thêm tầng để xếp phòng theo tầng.') })) : null);
 }
 
-function propertyDialog(property: PropertyInfo, done: () => void): void {
-  const d = openDialog('Sửa khu trọ');
+/** property = null: thêm khu mới (chỉ chủ trọ). Xong thì tải lại trang để ô chọn khu ở thanh trên cập nhật. */
+function propertyDialog(property: PropertyInfo | null): void {
+  const d = openDialog(property ? 'Sửa khu trọ' : 'Thêm khu trọ');
   const error = h('div', { role: 'alert' });
-  const name = input({ value: property.propertyName, required: true });
-  const address = input({ value: property.address, required: true });
-  const phone = input({ type: 'tel', value: property.supportPhone ?? '' });
-  const save = h('button', { class: 'btn' }, 'Lưu thông tin');
+  const name = input({ value: property?.propertyName ?? '', required: true, placeholder: 'Ví dụ: Khu trọ Bình An' });
+  const address = input({ value: property?.address ?? '', required: true });
+  const phone = input({ type: 'tel', value: property?.supportPhone ?? '' });
+  const save = h('button', { class: 'btn' }, property ? 'Lưu thông tin' : 'Thêm khu trọ');
   d.body.append(error, field('Tên khu trọ', name), field('Địa chỉ', address), field('Số điện thoại hỗ trợ', phone));
   d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Hủy'), save);
   save.addEventListener('click', () => busy(save, async () => {
@@ -207,11 +243,11 @@ function propertyDialog(property: PropertyInfo, done: () => void): void {
       error.replaceChildren(formError('Nhập tên và địa chỉ khu trọ.'));
       return;
     }
+    const body = { propertyName: name.value.trim(), address: address.value.trim(), supportPhone: phone.value.trim() };
     try {
-      await api.put('/api/chi/properties/' + property.propertyId, {
-        propertyName: name.value.trim(), address: address.value.trim(), supportPhone: phone.value.trim(),
-      });
-      d.close(); toast('Đã lưu thông tin khu trọ'); done();
+      if (property) await api.put('/api/chi/properties/' + property.propertyId, body);
+      else setProperty((await api.post<PropertyInfo>('/api/chi/properties', body)).propertyId); // chuyển sang khu vừa thêm
+      location.reload();
     } catch (e) { error.replaceChildren(formError(errText(e))); }
   }));
 }
