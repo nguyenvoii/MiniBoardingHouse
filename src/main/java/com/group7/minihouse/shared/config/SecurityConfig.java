@@ -50,7 +50,7 @@ public class SecurityConfig {
                         "/api/auth/resend-verification").denyAll();
                 if (enabled) {
                     auth.requestMatchers("/api/auth/login", "/api/auth/forgot-password",
-                            "/api/auth/reset-password", "/api/auth/qr-login", "/api/ping",
+                            "/api/auth/verify-reset-code", "/api/auth/reset-password", "/api/auth/qr-login", "/api/ping",
                             "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html",
                             "/ui/**", "/", "/index.html", "/assets/**", "/favicon.ico", "/og-image.png").permitAll()
                         .requestMatchers(HttpMethod.GET, "/uploads/rooms/**").permitAll()

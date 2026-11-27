@@ -10,6 +10,7 @@ import com.group7.minihouse.shared.entity.UserRole;
 import com.group7.minihouse.shared.entity.UserRoleId;
 import com.group7.minihouse.shared.exception.BusinessException;
 import com.group7.minihouse.shared.notification.NotificationSender;
+import com.group7.minihouse.shared.notification.OtpMail;
 import java.util.regex.Pattern;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -162,8 +163,8 @@ public class RegistrationService {
             }
             throw e;
         }
-        sender.send(user.getEmail(), "Mã xác thực email MiniBoardingHouse",
-                "Mã xác thực của bạn là " + code + ". Mã có hiệu lực 10 phút, không chia sẻ mã này cho ai.");
+        OtpMail mail = OtpMail.emailVerification(code);
+        sender.sendHtml(user.getEmail(), mail.subject(), mail.text(), mail.html());
     }
 
     private Role landlordRole() {

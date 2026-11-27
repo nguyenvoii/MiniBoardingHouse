@@ -4,6 +4,7 @@ import com.group7.minihouse.phi.repository.UserRepository;
 import com.group7.minihouse.shared.entity.User;
 import com.group7.minihouse.shared.exception.BusinessException;
 import com.group7.minihouse.shared.notification.NotificationSender;
+import com.group7.minihouse.shared.notification.OtpMail;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -53,8 +54,20 @@ public class PasswordRecoveryService {
             throw e;
         }
         String to = user.getEmail() != null && !user.getEmail().isBlank() ? user.getEmail() : user.getPhoneNumber();
-        sender.send(to, "Ma dat lai mat khau MiniBoardingHouse",
-                "Ma xac thuc cua ban la " + code + ". Ma co hieu luc 10 phut, khong chia se ma nay cho ai.");
+        OtpMail mail = OtpMail.recovery(code);
+        sender.sendHtml(to, mail.subject(), mail.text(), mail.html());
+    }
+
+    /** Buoc 2: kiem tra ma (chua dung het ma) de giao dien biet cho phep sang buoc nhap mat khau moi. */
+    @Transactional
+    public void verifyCode(String identifier, String code) {
+        String id = identifier.trim();
+        User user = userRepository.findByEmailOrPhoneNumber(id, id)
+                .filter(u -> "ACTIVE".equals(u.getStatus()))
+                .orElseThrow(() -> new BusinessException(HttpStatus.BAD_REQUEST, BAD_CODE));
+        if (!otpService.check(user, TYPE, code)) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, BAD_CODE);
+        }
     }
 
     @Transactional
