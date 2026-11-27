@@ -7,6 +7,7 @@ import com.group7.minihouse.phi.dto.RegisterRequest;
 import com.group7.minihouse.phi.dto.ResetPasswordRequest;
 import com.group7.minihouse.phi.dto.VerifyEmailRequest;
 import com.group7.minihouse.phi.dto.VerifyPhoneRequest;
+import com.group7.minihouse.phi.dto.VerifyResetCodeRequest;
 import com.group7.minihouse.phi.service.RegistrationService;
 import com.group7.minihouse.phi.service.ActivityLogService;
 import com.group7.minihouse.phi.service.AuthService;
@@ -99,7 +100,14 @@ public class AuthController {
         return ApiResponse.ok("Neu tai khoan ton tai, ma xac thuc da duoc gui", null);
     }
 
-    /** UC4 buoc 2: nhap ma OTP + mat khau moi. */
+    /** UC4 buoc 2: nhap ma OTP, dung thi giao dien moi cho nhap mat khau moi. */
+    @PostMapping("/verify-reset-code")
+    public ApiResponse<Void> verifyResetCode(@Valid @RequestBody VerifyResetCodeRequest req) {
+        recoveryService.verifyCode(req.identifier(), req.code());
+        return ApiResponse.ok("Ma xac thuc dung", null);
+    }
+
+    /** UC4 buoc 3: gui lai ma OTP + mat khau moi (ma van duoc kiem tra lai o day). */
     @PostMapping("/reset-password")
     public ApiResponse<Void> resetPassword(@Valid @RequestBody ResetPasswordRequest req, HttpServletRequest http) {
         recoveryService.resetPassword(req.identifier(), req.code(), req.newPassword(), http.getRemoteAddr());

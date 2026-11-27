@@ -47,6 +47,7 @@ class SecurityRulesTest {
         @GetMapping("/api/invoices/5") String invoice() { return "ok"; }
         @org.springframework.web.bind.annotation.PostMapping("/api/auth/forgot-password") String forgot() { return "ok"; }
         @org.springframework.web.bind.annotation.PostMapping("/api/auth/reset-password") String reset() { return "ok"; }
+        @org.springframework.web.bind.annotation.PostMapping("/api/auth/verify-reset-code") String verifyReset() { return "ok"; }
         @org.springframework.web.bind.annotation.PostMapping("/api/auth/qr-login") String qr() { return "ok"; }
         @org.springframework.web.bind.annotation.PostMapping("/api/auth/register") String register() { return "ok"; }
         @org.springframework.web.bind.annotation.PostMapping("/api/auth/verify-email") String verify() { return "ok"; }
@@ -66,6 +67,8 @@ class SecurityRulesTest {
     @Test
     void forgotAndResetPasswordArePublic() throws Exception {
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/auth/forgot-password"))
+                .andExpect(status().isOk());
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/auth/verify-reset-code"))
                 .andExpect(status().isOk());
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/auth/reset-password"))
                 .andExpect(status().isOk());
