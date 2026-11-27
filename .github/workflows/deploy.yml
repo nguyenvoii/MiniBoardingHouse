@@ -13,6 +13,21 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     steps:
+      # Thiếu secret thì action CapRover vẫn báo "xanh" dù không deploy được gì (nó hỏi mật khẩu rồi thoát): chặn sớm, báo rõ
+      - name: Kiểm tra 3 secret CapRover
+        env:
+          CAPROVER_SERVER: ${{ secrets.CAPROVER_SERVER }}
+          APP_NAME: ${{ secrets.APP_NAME }}
+          APP_TOKEN: ${{ secrets.APP_TOKEN }}
+        run: |
+          for name in CAPROVER_SERVER APP_NAME APP_TOKEN; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Thiếu GitHub Secret $name (repo > Settings > Secrets and variables > Actions)"
+              missing=1
+            fi
+          done
+          [ -z "$missing" ] || exit 1
+
       - uses: actions/checkout@v4
 
       # GHCR yêu cầu tên image viết thường
