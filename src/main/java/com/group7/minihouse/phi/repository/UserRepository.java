@@ -4,11 +4,9 @@ import com.group7.minihouse.shared.entity.User;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
-import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -23,16 +21,10 @@ public interface UserRepository extends JpaRepository<User, Integer> {
 
     boolean existsByPhoneNumber(String phoneNumber);
 
-    boolean existsByUserIdAndAvatarUrl(Integer userId, String avatarUrl);
-
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select u from User u where u.userId = :id")
-    Optional<User> findByIdForUpdate(@Param("id") Integer id);
-
-    @Query("select u.status, r.roleCode, u.mustChangePassword, u.passwordHash "
-            + "from User u left join UserRole ur on ur.user = u left join ur.role r where u.userId = :id "
-            + "and not exists (select 1 from RevokedSession s where s.id = :sessionId)")
-    List<Object[]> findSessionState(@Param("id") Integer id, @Param("sessionId") String sessionId);
+    /** Moi dong la [status, roleCode] (roleCode null neu chua co vai tro); rong neu khong co nguoi dung nay. */
+    @Query("select u.status, r.roleCode from User u left join UserRole ur on ur.user = u "
+            + "left join ur.role r where u.userId = :id")
+    List<Object[]> findStatusAndRoleCodes(@Param("id") Integer id);
 
     boolean existsByEmailAndUserIdNot(String email, Integer userId);
 

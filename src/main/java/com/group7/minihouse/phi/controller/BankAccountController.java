@@ -9,6 +9,7 @@ import com.group7.minihouse.shared.security.CurrentUser;
 import com.group7.minihouse.shared.storage.FileStorage;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.List;
 import org.springframework.core.io.PathResource;
 import org.springframework.http.CacheControl;
@@ -87,14 +88,14 @@ public class BankAccountController {
         return ApiResponse.ok(service.setQr(id, file.getBytes(), actor(user), http.getRemoteAddr()));
     }
 
-    /** Ảnh QR dùng trong luồng thanh toán sau khi đăng nhập. */
+    /** Xem anh QR. Cong khai de nhung vao the img/hoa don; ten file la UUID ngau nhien. */
     @GetMapping("/api/bank-accounts/qr/{name}")
     public ResponseEntity<PathResource> qr(@PathVariable String name) {
         return fileStorage.find(BankAccountService.QR_FOLDER, name)
                 .map(p -> ResponseEntity.ok()
                         .contentType(MediaType.parseMediaType(FileStorage.contentTypeOf(name)))
                         .header("X-Content-Type-Options", "nosniff")
-                        .cacheControl(CacheControl.noStore())
+                        .cacheControl(CacheControl.maxAge(Duration.ofHours(1)).cachePublic())
                         .body(new PathResource(p)))
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }

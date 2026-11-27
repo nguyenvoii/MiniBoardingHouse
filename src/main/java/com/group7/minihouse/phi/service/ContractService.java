@@ -54,13 +54,6 @@ public class ContractService {
 
     public static final String SIGNATURE_FOLDER = "signatures";
     public static final String SIGNATURE_URL_PREFIX = "/api/contracts/signatures/";
-
-    @Transactional(readOnly = true)
-    public boolean mayReadSignature(String name, Integer tenantId) {
-        String url = SIGNATURE_URL_PREFIX + name;
-        return tenantId == null ? repo.existsByDigitalSignatureUrl(url)
-                : repo.existsByDigitalSignatureUrlAndTenantTenantId(url, tenantId);
-    }
     static final long SIGNATURE_MAX_BYTES = 1024 * 1024;
     private static final Set<String> LIVE = Set.of("ACTIVE", "EXPIRING_SOON");
     /** Khách còn chiếm phòng: hợp đồng hết hạn (EXPIRED) mà chưa trả phòng/chấm dứt vẫn phải kết thúc được. */

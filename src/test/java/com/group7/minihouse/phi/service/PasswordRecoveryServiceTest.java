@@ -64,7 +64,7 @@ class PasswordRecoveryServiceTest {
         service.forgotPassword("a@x.vn", "1.1.1.1");
 
         ArgumentCaptor<String> body = ArgumentCaptor.forClass(String.class);
-        verify(sender).sendHtml(eq("a@x.vn"), anyString(), body.capture(), anyString());
+        verify(sender).send(eq("a@x.vn"), anyString(), body.capture());
         assertTrue(body.getValue().contains("654321"));
     }
 
@@ -76,7 +76,7 @@ class PasswordRecoveryServiceTest {
 
         service.forgotPassword("0901234567", "1.1.1.1");
 
-        verify(sender).sendHtml(eq("a@x.vn"), anyString(), anyString(), anyString());
+        verify(sender).send(eq("a@x.vn"), anyString(), anyString());
     }
 
     @Test
@@ -88,7 +88,7 @@ class PasswordRecoveryServiceTest {
 
         service.forgotPassword("0901234567", "1.1.1.1");
 
-        verify(sender).sendHtml(eq("0901234567"), anyString(), anyString(), anyString());
+        verify(sender).send(eq("0901234567"), anyString(), anyString());
     }
 
     @Test
@@ -97,7 +97,7 @@ class PasswordRecoveryServiceTest {
 
         service.forgotPassword("no@x.vn", "1.1.1.1");
 
-        verify(sender, never()).sendHtml(anyString(), anyString(), anyString(), anyString());
+        verify(sender, never()).send(anyString(), anyString(), anyString());
     }
 
     @Test
@@ -107,7 +107,7 @@ class PasswordRecoveryServiceTest {
         service.forgotPassword("a@x.vn", "1.1.1.1");
 
         verify(otpService, never()).issue(any(), anyString());
-        verify(sender, never()).sendHtml(anyString(), anyString(), anyString(), anyString());
+        verify(sender, never()).send(anyString(), anyString(), anyString());
     }
 
     @Test
@@ -119,52 +119,7 @@ class PasswordRecoveryServiceTest {
 
         service.forgotPassword("a@x.vn", "1.1.1.1"); // khong nem loi
 
-        verify(sender, never()).sendHtml(anyString(), anyString(), anyString(), anyString());
-    }
-
-    // ---------- verify code (buoc nhap ma) ----------
-
-    @Test
-    void verifyCodeAcceptsCorrectCodeWithoutChangingPassword() {
-        User u = user("ACTIVE");
-        when(userRepository.findByEmailOrPhoneNumber("a@x.vn", "a@x.vn")).thenReturn(Optional.of(u));
-        when(otpService.check(u, "RECOVERY", "654321")).thenReturn(true);
-
-        service.verifyCode("a@x.vn", "654321");
-
-        assertTrue(encoder.matches("OldPass1x", u.getPasswordHash()));
-        verify(userRepository, never()).save(any());
-        verify(otpService, never()).verify(any(), anyString(), anyString()); // chua dung het ma
-    }
-
-    @Test
-    void verifyCodeWrongCodeOrUnknownAccountGiveTheSameError() {
-        User u = user("ACTIVE");
-        when(userRepository.findByEmailOrPhoneNumber("a@x.vn", "a@x.vn")).thenReturn(Optional.of(u));
-        when(otpService.check(u, "RECOVERY", "000000")).thenReturn(false);
-        when(userRepository.findByEmailOrPhoneNumber("no@x.vn", "no@x.vn")).thenReturn(Optional.empty());
-
-        BusinessException wrong = assertThrows(BusinessException.class, () -> service.verifyCode("a@x.vn", "000000"));
-        BusinessException unknown = assertThrows(BusinessException.class, () -> service.verifyCode("no@x.vn", "123456"));
-
-        assertEquals(HttpStatus.BAD_REQUEST, wrong.getStatus());
-        assertEquals(wrong.getMessage(), unknown.getMessage());
-    }
-
-    @Test
-    void forgotMailCarriesCodeInSubjectAndBothBodies() {
-        User u = user("ACTIVE");
-        when(userRepository.findByEmailOrPhoneNumber("a@x.vn", "a@x.vn")).thenReturn(Optional.of(u));
-        when(otpService.issue(u, "RECOVERY")).thenReturn("654321");
-
-        service.forgotPassword("a@x.vn", "1.1.1.1");
-
-        ArgumentCaptor<String> subject = ArgumentCaptor.forClass(String.class);
-        ArgumentCaptor<String> html = ArgumentCaptor.forClass(String.class);
-        verify(sender).sendHtml(eq("a@x.vn"), subject.capture(), anyString(), html.capture());
-        assertTrue(subject.getValue().contains("654321"));
-        assertTrue(html.getValue().contains("654321"));
-        assertTrue(!html.getValue().contains("{{"), "con sot cho trong mau thu");
+        verify(sender, never()).send(anyString(), anyString(), anyString());
     }
 
     // ---------- reset ----------

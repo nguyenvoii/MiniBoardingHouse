@@ -57,7 +57,6 @@ class QrLoginServiceTest {
         when(tenantRepository.findById(42)).thenReturn(Optional.of(t));
         when(userRepository.findByPhoneNumber("0901234567")).thenReturn(Optional.of(account));
         when(userRepository.findById(9)).thenReturn(Optional.of(account));
-        when(userRepository.findByIdForUpdate(9)).thenReturn(Optional.of(account));
         when(userRoleRepository.findRoleCodesByUserId(9)).thenReturn(List.of("TENANT"));
     }
 
@@ -102,7 +101,7 @@ class QrLoginServiceTest {
         assertTrue(jwt.isQrSession(r.accessToken()));          // phien nay mang dau "vao bang QR"
         String old = account.getPasswordHash();
 
-        service.setFirstPassword(jwt.parseSession(r.accessToken()), "MatKhauMoi123", "ip");
+        service.setFirstPassword(9, "MatKhauMoi123", "ip");
 
         assertFalse(account.isMustChangePassword());
         assertNotEquals(old, account.getPasswordHash());
@@ -112,11 +111,10 @@ class QrLoginServiceTest {
 
     @Test
     void firstPasswordRejectsWeakOnesAndAccountsThatAlreadyHaveOwn() {
-        var session = jwt.parseSession(service.login(service.issue(42).token(), "ip").accessToken());
-        assertEquals(HttpStatus.BAD_REQUEST, assertThrows(BusinessException.class, () -> service.setFirstPassword(session, "12345678", "ip")).getStatus());
-        assertEquals(HttpStatus.BAD_REQUEST, assertThrows(BusinessException.class, () -> service.setFirstPassword(session, "abc", "ip")).getStatus());
+        assertEquals(HttpStatus.BAD_REQUEST, assertThrows(BusinessException.class, () -> service.setFirstPassword(9, "12345678", "ip")).getStatus());
+        assertEquals(HttpStatus.BAD_REQUEST, assertThrows(BusinessException.class, () -> service.setFirstPassword(9, "abc", "ip")).getStatus());
         account.setMustChangePassword(false);
-        assertEquals(HttpStatus.CONFLICT, assertThrows(BusinessException.class, () -> service.setFirstPassword(session, "MatKhauMoi123", "ip")).getStatus());
+        assertEquals(HttpStatus.CONFLICT, assertThrows(BusinessException.class, () -> service.setFirstPassword(9, "MatKhauMoi123", "ip")).getStatus());
     }
 
     @Test

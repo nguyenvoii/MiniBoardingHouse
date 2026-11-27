@@ -12,10 +12,6 @@ public interface RentalContractRepository extends JpaRepository<RentalContract, 
 
     boolean existsByContractCode(String contractCode);
 
-    boolean existsByDigitalSignatureUrl(String url);
-
-    boolean existsByDigitalSignatureUrlAndTenantTenantId(String url, Integer tenantId);
-
     /** So hop dong con hieu luc cua phong (ACTIVE hoac EXPIRING_SOON), tru hop dong excludeId (truyen 0 neu khong tru). */
     @Query("select count(c) from RentalContract c where c.room.roomId = :roomId "
             + "and c.status in ('ACTIVE', 'EXPIRING_SOON') and c.contractId <> :excludeId")

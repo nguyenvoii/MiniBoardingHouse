@@ -80,7 +80,7 @@ class InvoiceServiceTest {
         Tenant tenant = new Tenant();
         tenant.setTenantId(20);
         invoice.setTenant(tenant);
-        when(invoiceRepo.findByIdForUpdate(10)).thenReturn(Optional.of(invoice));
+        when(invoiceRepo.findById(10)).thenReturn(Optional.of(invoice));
         when(notificationRepo.save(any())).thenAnswer(call -> call.getArgument(0));
 
         service.sendToApp(10);

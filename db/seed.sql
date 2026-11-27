@@ -1,7 +1,6 @@
 ﻿-- ============================================================================
 -- SEED DỮ LIỆU MẪU (chạy SAU db/group-7.sql). Chạy lại nhiều lần vẫn an toàn.
 -- Tài khoản mặc định (CHỈ DÙNG DEV/DEMO): admin@minihouse.local / Admin@123
--- Máy chủ đặt SESSION_CONTEXT(N'stayly_skip_demo_owner') = 1 trước khi chạy file này.
 -- ============================================================================
 USE [MiniBoardingHouseDB];
 GO
@@ -51,21 +50,19 @@ FROM (VALUES
 WHERE NOT EXISTS (SELECT 1 FROM [permissions] p WHERE p.[permission_code] = v.code);
 GO
 
--- Tài khoản chủ nhà dùng riêng cho dữ liệu mẫu.
-IF SESSION_CONTEXT(N'stayly_skip_demo_owner') IS NULL
-BEGIN
-    DECLARE @demo_hash NVARCHAR(60) = N'$2a$10$Pc6uubpMhGt6uuP/TqMCyulqTZc2GQVvfgNqWPYx7ciLqNtJzs3uy';
-    INSERT INTO [users] ([email], [password_hash], [full_name], [status])
-    SELECT 'admin@minihouse.local', @demo_hash, N'Chủ nhà (admin)', 'ACTIVE'
-    WHERE NOT EXISTS (SELECT 1 FROM [users] WHERE [email] = 'admin@minihouse.local');
+-- Tài khoản chủ nhà mặc định (mật khẩu Admin@123, băm BCrypt)
+INSERT INTO [users] ([email], [password_hash], [full_name], [status])
+SELECT 'admin@minihouse.local',
+       '$2a$10$Pc6uubpMhGt6uuP/TqMCyulqTZc2GQVvfgNqWPYx7ciLqNtJzs3uy',
+       N'Chủ nhà (admin)', 'ACTIVE'
+WHERE NOT EXISTS (SELECT 1 FROM [users] WHERE [email] = 'admin@minihouse.local');
+GO
 
-    INSERT INTO [user_roles] ([user_id], [role_id])
-    SELECT u.[user_id], r.[role_id]
-    FROM [users] u CROSS JOIN [roles] r
-    WHERE u.[email] = 'admin@minihouse.local' AND r.[role_code] = 'LANDLORD'
-      AND u.[password_hash] COLLATE Latin1_General_100_BIN2 = @demo_hash
-      AND NOT EXISTS (SELECT 1 FROM [user_roles] ur WHERE ur.[user_id] = u.[user_id] AND ur.[role_id] = r.[role_id]);
-END;
+INSERT INTO [user_roles] ([user_id], [role_id])
+SELECT u.[user_id], r.[role_id]
+FROM [users] u CROSS JOIN [roles] r
+WHERE u.[email] = 'admin@minihouse.local' AND r.[role_code] = 'LANDLORD'
+  AND NOT EXISTS (SELECT 1 FROM [user_roles] ur WHERE ur.[user_id] = u.[user_id] AND ur.[role_id] = r.[role_id]);
 GO
 
 -- Nhóm sự cố (7 mã khớp giao diện người thuê me.ts) và nhóm thiết bị; chạy lại an toàn. Xem thêm db/patch_05_incident_categories.sql

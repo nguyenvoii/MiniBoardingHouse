@@ -998,10 +998,6 @@ for c in CT:
 for cols in CO_INSP_ROWS:
     co_insp.add(**cols)
 
-with open(os.path.join(DB, "seed.sql"), encoding="utf-8-sig") as seed:
-    demo_hash = next(line.split("N'", 1)[1].split("'", 1)[0]
-                     for line in seed if "DECLARE @demo_hash " in line)
-
 header = f"""-- ============================================================================
 -- DỮ LIỆU GIẢ ĐỊNH DÀY ĐỂ TEST (tự sinh bằng db/tools/gen_sample_data.py, đừng sửa tay).
 -- Chạy SAU group-7.sql và seed.sql, trên DATABASE TRỐNG (chưa có khu trọ, khách, hợp đồng): nếu đã có dữ liệu thì tự bỏ qua.
@@ -1032,16 +1028,14 @@ header = f"""-- ================================================================
 SET QUOTED_IDENTIFIER ON;
 GO
 
-DECLARE @pwd NVARCHAR(60) = N'{demo_hash}';
-IF SESSION_CONTEXT(N'stayly_skip_demo_owner') IS NOT NULL OR (SELECT COUNT(*) FROM [users]) <> 1
-   OR NOT EXISTS (SELECT 1 FROM [users] WHERE [user_id] = 1 AND [email] = 'admin@minihouse.local'
-                  AND [password_hash] COLLATE Latin1_General_100_BIN2 = @pwd AND [status] = 'ACTIVE')
+IF (SELECT COUNT(*) FROM [users]) <> 1 OR NOT EXISTS (SELECT 1 FROM [users] WHERE [user_id] = 1 AND [email] = 'admin@minihouse.local')
    OR EXISTS (SELECT 1 FROM [properties]) OR EXISTS (SELECT 1 FROM [tenants]) OR EXISTS (SELECT 1 FROM [rental_contracts])
-    PRINT N'Dữ liệu mẫu chỉ dành cho database thử có tài khoản seed ban đầu. Đã bỏ qua.';
+    PRINT N'Database đã có dữ liệu (hoặc chưa chạy seed.sql): bỏ qua dữ liệu mẫu test.';
 ELSE
 BEGIN
     SET XACT_ABORT ON;
     BEGIN TRAN;
+    DECLARE @pwd NVARCHAR(255) = (SELECT [password_hash] FROM [users] WHERE [user_id] = 1);
 """
 body = []
 for tbl in ORDER:
@@ -1075,7 +1069,7 @@ SEP = "-- ======================================================================
 FULL_HEAD = (SEP + "-- MINIBOARDINGHOUSE - FILE SQL CHUẨN (GỘP): TẠO DATABASE + BẢNG + NÂNG CẤP + DỮ LIỆU\n"
              "-- Nhóm 7. Chạy MỘT file này là đủ (SSMS bấm F5, hoặc: sqlcmd -S localhost -E -C -f 65001 -I -i minihouse-full.sql).\n"
              "--   Phần 1:  tạo database MiniBoardingHouseDB và toàn bộ bảng (nội dung group-7.sql)\n"
-             "--   Phần 1B: nâng cấp database đã tạo từ bản cũ: patch 01 đến 21 (chạy lại an toàn)\n"
+             "--   Phần 1B: nâng cấp database đã tạo từ bản cũ: patch 01 đến 18 (chạy lại an toàn; database mới thì không làm gì)\n"
              "--   Phần 2:  dữ liệu nền: vai trò, quyền, tài khoản admin, nhóm sự cố (nội dung seed.sql)\n"
              "--   Phần 3:  bộ dữ liệu giả định dày để test (nội dung sample-data-test.sql), CHỈ nạp khi database còn trống\n"
              "-- Chạy lại nhiều lần vẫn an toàn: có bảng rồi thì bỏ qua phần tạo bảng, seed không nhân đôi, dữ liệu test không nạp lại.\n"

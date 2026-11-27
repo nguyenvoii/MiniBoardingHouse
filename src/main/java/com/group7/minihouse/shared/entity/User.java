@@ -3,11 +3,9 @@ package com.group7.minihouse.shared.entity;
 import java.time.LocalDateTime;
 import jakarta.persistence.*;
 import org.hibernate.annotations.DynamicInsert;
-import org.hibernate.annotations.DynamicUpdate;
 
 /** Bang `users`. */
 @DynamicInsert
-@DynamicUpdate
 @Entity
 @Table(name = "users")
 public class User {

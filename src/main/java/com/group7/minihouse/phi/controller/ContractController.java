@@ -19,6 +19,7 @@ import com.group7.minihouse.shared.security.CurrentUser;
 import com.group7.minihouse.shared.storage.FileStorage;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.List;
 import org.springframework.core.io.PathResource;
 import org.springframework.http.CacheControl;
@@ -153,19 +154,14 @@ public class ContractController {
         return ApiResponse.ok(service.terminate(id, req, actor(user), http.getRemoteAddr()));
     }
 
-    /** Chữ ký chỉ xuất hiện với nhân viên quản lý hợp đồng hoặc chính người thuê đứng tên. */
+    /** Anh chu ky: cong khai, ten file la UUID ngau nhien. */
     @GetMapping("/api/contracts/signatures/{name}")
-    @PreAuthorize("hasAnyRole('LANDLORD','MANAGER','TENANT')")
-    public ResponseEntity<PathResource> signature(@PathVariable String name, @AuthenticationPrincipal AuthUser user) {
-        Integer tenantId = user != null && user.isTenant() ? CurrentUser.requireTenantId(user) : null;
-        if (!service.mayReadSignature(name, tenantId)) {
-            return ResponseEntity.notFound().build();
-        }
+    public ResponseEntity<PathResource> signature(@PathVariable String name) {
         return fileStorage.find(ContractService.SIGNATURE_FOLDER, name)
                 .map(p -> ResponseEntity.ok()
                         .contentType(MediaType.parseMediaType(FileStorage.contentTypeOf(name)))
                         .header("X-Content-Type-Options", "nosniff")
-                        .cacheControl(CacheControl.noStore())
+                        .cacheControl(CacheControl.maxAge(Duration.ofHours(1)).cachePublic())
                         .body(new PathResource(p)))
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }

@@ -1,11 +1,9 @@
-import { adminCredentials, localBase } from './environment.mjs';
 // E2E thật: UI -> API -> SQL Server QA. Chuyển phòng chốt chỉ số -> khách mới ghi chỉ số cùng kỳ -> tính tiền.
 // Chạy: BASE_URL=http://127.0.0.1:5178 node meter-transfer-flow.mjs (backend QA 18091, jobs tắt).
 import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
 
-const base = localBase('http://127.0.0.1:5178');
-const credentials = adminCredentials();
+const base = process.env.BASE_URL ?? 'http://127.0.0.1:5178';
 const tag = String(Date.now()).slice(-6);
 const browser = await chromium.launch({ headless: true });
 const page = await (await browser.newContext({ viewport: { width: 1440, height: 1000 } })).newPage();
@@ -22,9 +20,8 @@ async function api(method, url, data) {
 }
 
 await page.goto(`${base}/#/login`, { waitUntil: 'networkidle' });
-if (new URL(page.url()).origin !== base) throw new Error('Wrong E2E login origin');
-await page.getByLabel(/email|số điện thoại|tài khoản/i).fill(credentials.identifier);
-await page.getByLabel(/mật khẩu/i).fill(credentials.password);
+await page.getByLabel(/email|số điện thoại|tài khoản/i).fill('admin@minihouse.local');
+await page.getByLabel(/mật khẩu/i).fill('Admin@123');
 await page.getByRole('button', { name: /đăng nhập/i }).click();
 await page.waitForFunction(() => !!sessionStorage.getItem('stayly.session'));
 

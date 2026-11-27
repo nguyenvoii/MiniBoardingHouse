@@ -41,8 +41,8 @@ public class AccountService {
     }
 
     @Transactional
-    public String changePassword(Integer userId, String currentPassword, String newPassword, String ip) {
-        User user = userRepository.findByIdForUpdate(userId).orElseThrow(() -> BusinessException.notFound("Nguoi dung"));
+    public void changePassword(Integer userId, String currentPassword, String newPassword, String ip) {
+        User user = load(userId);
         if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "Mat khau hien tai khong dung");
         }
@@ -57,18 +57,12 @@ public class AccountService {
         user.setMustChangePassword(false);
         userRepository.save(user);
         activityLogService.log(userId, "CHANGE_PASSWORD", "Doi mat khau", ip);
-        return user.getPasswordHash();
     }
 
     @Transactional(readOnly = true)
     public ProfileResponse getProfile(Integer userId) {
         User user = load(userId);
         return toProfile(user, userRoleRepository.findRoleCodesByUserId(userId));
-    }
-
-    @Transactional(readOnly = true)
-    public boolean ownsAvatar(Integer userId, String name) {
-        return userRepository.existsByUserIdAndAvatarUrl(userId, AVATAR_URL_PREFIX + name);
     }
 
     @Transactional

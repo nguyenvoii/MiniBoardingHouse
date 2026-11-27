@@ -18,7 +18,7 @@ class JwtServiceTest {
     void tokenRoundTrip() {
         JwtService jwt = new JwtService(SECRET, 60);
         AuthUser u = new AuthUser(7, "a@b.c", "An", List.of("MANAGER", "CASHIER"), null);
-        AuthUser back = jwt.parse(jwt.generate(u, "test-hash"));
+        AuthUser back = jwt.parse(jwt.generate(u));
         assertNotNull(back);
         assertEquals(7, back.userId());
         assertEquals("a@b.c", back.email());
@@ -29,7 +29,7 @@ class JwtServiceTest {
     void tenantIdRoundTrip() {
         JwtService jwt = new JwtService(SECRET, 60);
         AuthUser u = new AuthUser(7, "a@b.c", "An", List.of("TENANT"), 42);
-        AuthUser back = jwt.parse(jwt.generate(u, "test-hash"));
+        AuthUser back = jwt.parse(jwt.generate(u));
         assertNotNull(back);
         assertEquals(42, back.tenantId());
         assertTrue(back.isTenant());
@@ -39,7 +39,7 @@ class JwtServiceTest {
     void staffHasNullTenantId() {
         JwtService jwt = new JwtService(SECRET, 60);
         AuthUser u = new AuthUser(3, "m@b.c", "Manager", List.of("MANAGER"), null);
-        AuthUser back = jwt.parse(jwt.generate(u, "test-hash"));
+        AuthUser back = jwt.parse(jwt.generate(u));
         assertNotNull(back);
         assertNull(back.tenantId());
         assertFalse(back.isTenant());
@@ -49,7 +49,7 @@ class JwtServiceTest {
     void rejectsTamperedOrForeignToken() {
         JwtService jwt = new JwtService(SECRET, 60);
         JwtService other = new JwtService("another-secret-another-secret-1234567890!!", 60);
-        String token = other.generate(new AuthUser(1, "x@y.z", "X", List.of(), null), "test-hash");
+        String token = other.generate(new AuthUser(1, "x@y.z", "X", List.of(), null));
         assertNull(jwt.parse(token));
         assertNull(jwt.parse("khong.phai.token"));
     }
@@ -57,7 +57,7 @@ class JwtServiceTest {
     @Test
     void rejectsExpiredToken() {
         JwtService jwt = new JwtService(SECRET, -1);
-        String token = jwt.generate(new AuthUser(1, "x@y.z", "X", List.of(), null), "test-hash");
+        String token = jwt.generate(new AuthUser(1, "x@y.z", "X", List.of(), null));
         assertNull(jwt.parse(token));
     }
 
@@ -66,11 +66,11 @@ class JwtServiceTest {
     void onlyQrSessionsAreMarkedAsQr() {
         JwtService jwt = new JwtService(SECRET, 60);
         AuthUser u = new AuthUser(7, "a@b.c", "An", List.of("TENANT"), 42);
-        assertTrue(jwt.isQrSession(jwt.generate(u, "test-hash", true)));
-        assertFalse(jwt.isQrSession(jwt.generate(u, "test-hash")));
+        assertTrue(jwt.isQrSession(jwt.generate(u, true)));
+        assertFalse(jwt.isQrSession(jwt.generate(u)));
         assertFalse(jwt.isQrSession(jwt.generateQrLogin(7, 42, "abc", 60))); // token trong ma QR khong tinh
         assertFalse(jwt.isQrSession("rac"));
-        assertNotNull(jwt.parse(jwt.generate(u, "test-hash", true))); // van dung nhu phien binh thuong
+        assertNotNull(jwt.parse(jwt.generate(u, true))); // van dung nhu phien binh thuong
     }
 
     /** Token trong ma QR chi dung de doi lay phien: dua thang lam Bearer thi phai bi tu choi, va nguoc lai. */
@@ -83,7 +83,7 @@ class JwtServiceTest {
         assertEquals(7, c.userId());
         assertEquals(42, c.tenantId());
         assertEquals("abc", c.fingerprint());
-        assertNull(jwt.parseQrLogin(jwt.generate(new AuthUser(7, "a@b.c", "An", List.of("TENANT"), 42), "test-hash")));
+        assertNull(jwt.parseQrLogin(jwt.generate(new AuthUser(7, "a@b.c", "An", List.of("TENANT"), 42))));
         assertNull(jwt.parseQrLogin(new JwtService(SECRET, 60).generateQrLogin(7, 42, "abc", -1)));
     }
 }

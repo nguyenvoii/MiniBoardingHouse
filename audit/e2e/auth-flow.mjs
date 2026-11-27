@@ -1,7 +1,7 @@
 // E2E thật UC1-UC13: đăng ký + xác thực, đăng nhập/đăng xuất, quên/đổi mật khẩu, hồ sơ, ảnh, nhân viên, tài khoản khách, phân quyền, nhật ký.
 // Mã OTP lấy từ log của backend QA (LogNotificationSender in mã khi chưa cấu hình SMTP/SMS).
 import fs from 'node:fs';
-import { start, assert, tag, log, base, openAs } from './lib.mjs';
+import { start, assert, tag, log, base, tenantToken, openAs } from './lib.mjs';
 
 const LOG = process.env.QA_LOG ?? 'C:/VoiVoi/projava1/MiniBoardingHouse/target/qa-18091.log';
 const otpFor = async (recipient, since = 0) => {
@@ -24,30 +24,49 @@ const login = async (pg, identifier, password) => {
   await pg.locator('form button[type=submit]').click();
 };
 
-// C3: dùng tài khoản nhân viên riêng cho các kịch bản xác thực.
+// ---------- UC1/UC2 đăng ký chủ trọ + xác thực email
 const ctx1 = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
 const p1 = await ctx1.newPage();
-const email = `e2e.profile.${tag}@example.test`;
-const enrollment = await api('POST', '/api/staff', {
-  fullName: `E2E Hồ sơ ${tag}`, email, roles: ['MANAGER'],
-});
-const temporary = await s.loginApi(email, enrollment.temporaryPassword);
-const initialPassword = `Profile#${tag}pw1`;
-assert.equal(await status(temporary.accessToken, 'POST', '/api/auth/password', {
-  currentPassword: enrollment.temporaryPassword, newPassword: initialPassword,
-}), 200);
-await p1.goto(`${base}/#/login`);
-assert.equal(await p1.getByRole('button', { name: 'Đăng ký tài khoản chủ trọ' }).count(), 0);
-let dlg;
+const email = `e2e.reg.${tag}@example.test`;
+await p1.goto(`${base}/#/login`); await p1.waitForLoadState('networkidle');
+await p1.getByRole('button', { name: 'Đăng ký tài khoản chủ trọ' }).click();
+let dlg = p1.getByRole('dialog').last();
+await dlg.getByRole('button', { name: 'Đăng ký', exact: true }).click();
+await dlg.getByText('Nhập họ tên, email và mật khẩu.').waitFor();
+await dlg.getByLabel('Họ và tên').fill(`E2E Chủ trọ ${tag}`);
+await dlg.getByLabel('Email').fill(email);
+await dlg.getByLabel('Mật khẩu', { exact: true }).fill('abc'); // yếu
+await dlg.getByRole('button', { name: 'Đăng ký', exact: true }).click();
+await dlg.locator('.form-error, [role=alert]').first().waitFor();
+await dlg.getByLabel('Mật khẩu', { exact: true }).fill(`Reg#${tag}pw1`);
+await dlg.getByRole('button', { name: 'Đăng ký', exact: true }).click();
+await p1.getByText(/Mã xác thực đã gửi tới/).waitFor();
+// chưa kích hoạt thì không đăng nhập được
+assert.equal((await s.page.request.post(`${base}/api/auth/login`, { data: { identifier: email, password: `Reg#${tag}pw1` } })).ok(), false, 'chưa xác thực không đăng nhập được');
+dlg = p1.getByRole('dialog').last();
+await dlg.getByLabel('Mã xác thực').fill('000000');
+await dlg.getByRole('button', { name: 'Kích hoạt tài khoản' }).click();
+await dlg.locator('.form-error, [role=alert]').first().waitFor(); // sai mã
+// nhập sai làm mã cũ mất hiệu lực (chống dò mã) và gửi lại mã phải chờ 60 giây
+await new Promise((r) => setTimeout(r, 62000));
+await dlg.getByRole('button', { name: 'Gửi lại mã' }).click();
+const otp1 = await otpFor(email, 1);
+await dlg.getByLabel('Mã xác thực').fill(otp1.code);
+await dlg.getByRole('button', { name: 'Kích hoạt tài khoản' }).click();
+await p1.getByText('Đã kích hoạt tài khoản, hãy đăng nhập').first().waitFor({ timeout: 8000 }).catch(async (e) => { console.log('OTP', otp1, 'DIALOG:', await dlg.innerText().catch(() => '(đóng)')); throw e; });
+// đăng ký trùng email bị từ chối
+const dup = await s.page.request.post(`${base}/api/auth/register`, { data: { fullName: 'Trùng', email, password: `Reg#${tag}pw1` } });
+assert.ok(!dup.ok(), 'đăng ký trùng email bị từ chối');
+log('UC1/UC2 đăng ký + xác thực email OK');
 
 // ---------- UC3 đăng nhập / đăng xuất / giữ phiên theo vai trò
 await login(p1, email, 'sai-mat-khau-1');
 await p1.locator('.form-error, [role=alert]').first().waitFor();
-await login(p1, email, initialPassword);
+await login(p1, email, `Reg#${tag}pw1`);
 await p1.waitForFunction(() => !!sessionStorage.getItem('stayly.session'));
 await p1.reload(); await p1.waitForLoadState('networkidle');
 assert.ok(await p1.evaluate(() => !!sessionStorage.getItem('stayly.session')), 'phiên được giữ sau khi tải lại');
-await p1.getByText(`E2E Hồ sơ ${tag}`).first().waitFor();
+await p1.getByText(`E2E Chủ trọ ${tag}`).first().waitFor();
 await p1.getByRole('button', { name: 'Đăng xuất' }).click();
 await p1.waitForFunction(() => !sessionStorage.getItem('stayly.session'));
 log('UC3 đăng nhập / đăng xuất OK');
@@ -59,7 +78,7 @@ dlg = p1.getByRole('dialog').last();
 await dlg.getByLabel('Email hoặc số điện thoại').fill(email);
 await dlg.getByRole('button', { name: 'Gửi mã xác nhận' }).click();
 await dlg.getByText('Nếu tài khoản tồn tại, mã xác nhận đã được gửi.').waitFor();
-const firstReset = await otpFor(email);
+await otpFor(email, otp1.count);
 await dlg.getByLabel('Mã xác nhận').fill('111111');
 await dlg.getByLabel('Mật khẩu mới', { exact: true }).fill(`New#${tag}pw2`);
 await dlg.getByLabel('Nhập lại mật khẩu mới').fill(`New#${tag}pw2`);
@@ -67,11 +86,11 @@ await dlg.getByRole('button', { name: 'Đặt lại mật khẩu' }).click();
 await dlg.locator('.form-error, [role=alert]').first().waitFor(); // mã sai
 await new Promise((r) => setTimeout(r, 62000));
 await dlg.getByRole('button', { name: 'Gửi mã xác nhận' }).click(); // mã cũ đã bị vô hiệu: chờ hết thời gian chờ rồi xin mã mới
-const otp2 = await otpFor(email, firstReset.count);
+const otp2 = await otpFor(email, otp1.count + 1);
 await dlg.getByLabel('Mã xác nhận').fill(otp2.code);
 await dlg.getByRole('button', { name: 'Đặt lại mật khẩu' }).click();
 await p1.getByText(/Đã đặt lại mật khẩu/).first().waitFor();
-assert.equal((await s.page.request.post(`${base}/api/auth/login`, { data: { identifier: email, password: initialPassword } })).ok(), false, 'mật khẩu cũ hết hiệu lực');
+assert.equal((await s.page.request.post(`${base}/api/auth/login`, { data: { identifier: email, password: `Reg#${tag}pw1` } })).ok(), false, 'mật khẩu cũ hết hiệu lực');
 await login(p1, email, `New#${tag}pw2`);
 await p1.waitForFunction(() => !!sessionStorage.getItem('stayly.session'), null, { timeout: 8000 }).catch(async (e) => { console.log('LOGIN ERR:', await p1.locator('.form-error, [role=alert]').allInnerTexts(), p1.url()); throw e; });
 log('UC4 quên/đặt lại mật khẩu OK');
@@ -91,13 +110,13 @@ await p1.getByRole('button', { name: 'Đổi mật khẩu', exact: true }).click
 await p1.getByText('Đã đổi mật khẩu').first().waitFor();
 assert.ok((await s.page.request.post(`${base}/api/auth/login`, { data: { identifier: email, password: `Chg#${tag}pw3` } })).ok(), 'đăng nhập bằng mật khẩu mới');
 log('UC5 đổi mật khẩu OK');
-await p1.getByLabel('Họ tên').fill(`E2E Hồ sơ ${tag} sửa`);
+await p1.getByLabel('Họ tên').fill(`E2E Chủ trọ ${tag} sửa`);
 await p1.getByLabel('Số điện thoại', { exact: true }).first().fill(`09${tag}81`);
 await p1.getByRole('button', { name: 'Lưu hồ sơ' }).click();
 await p1.getByText('Đã lưu hồ sơ').first().waitFor();
 const tok1 = (await (await s.page.request.post(`${base}/api/auth/login`, { data: { identifier: email, password: `Chg#${tag}pw3` } })).json()).data.accessToken;
 const prof = (await (await s.page.request.get(`${base}/api/auth/profile`, { headers: { Authorization: `Bearer ${tok1}` } })).json()).data;
-assert.equal(prof.fullName, `E2E Hồ sơ ${tag} sửa`);
+assert.equal(prof.fullName, `E2E Chủ trọ ${tag} sửa`);
 assert.equal(prof.phoneNumber, `09${tag}81`);
 log('UC6 cập nhật hồ sơ OK');
 await p1.getByLabel('Ảnh đại diện').setInputFiles({ name: 'ghi-chu.txt', mimeType: 'text/plain', buffer: Buffer.from('không phải ảnh') });
@@ -186,7 +205,7 @@ log('UC11/UC12 phân quyền OK');
 
 // ---------- UC13 nhật ký thao tác
 await goto('/activity'); await page.waitForTimeout(1000);
-await page.getByLabel('Tìm trong nhật ký').fill(`E2E Hồ sơ ${tag}`);
+await page.getByLabel('Tìm trong nhật ký').fill(`E2E Chủ trọ ${tag}`);
 await page.getByRole('row').filter({ hasText: 'Đổi mật khẩu' }).first().waitFor();
 await page.getByRole('row').filter({ hasText: 'Sửa hồ sơ' }).first().waitFor();
 await page.getByRole('row').filter({ hasText: 'Đăng nhập' }).first().waitFor();

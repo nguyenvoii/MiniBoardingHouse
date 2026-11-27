@@ -21,17 +21,17 @@ class UserStatusCheckerImplTest {
 
     @Test
     void activeUserGetsCurrentRolesFromDatabase() {
-        when(userRepository.findSessionState(1, "session")).thenReturn(List.of(
-                new Object[]{"ACTIVE", "MANAGER", false, "test-hash"}, new Object[]{"ACTIVE", "CASHIER", false, "test-hash"}));
+        when(userRepository.findStatusAndRoleCodes(1)).thenReturn(List.of(
+                new Object[]{"ACTIVE", "MANAGER"}, new Object[]{"ACTIVE", "CASHIER"}));
 
-        assertEquals(Optional.of(List.of("MANAGER", "CASHIER")), checker.state(1, "session").map(com.group7.minihouse.shared.security.UserStatusChecker.State::roles));
+        assertEquals(Optional.of(List.of("MANAGER", "CASHIER")), checker.activeRoles(1));
     }
 
     @Test
     void activeUserWithoutRolesGetsEmptyList() {
-        when(userRepository.findSessionState(2, "session")).thenReturn(List.<Object[]>of(new Object[]{"ACTIVE", null, false, "test-hash"}));
+        when(userRepository.findStatusAndRoleCodes(2)).thenReturn(List.<Object[]>of(new Object[]{"ACTIVE", null}));
 
-        Optional<List<String>> roles = checker.state(2, "session").map(com.group7.minihouse.shared.security.UserStatusChecker.State::roles);
+        Optional<List<String>> roles = checker.activeRoles(2);
 
         assertTrue(roles.isPresent());
         assertTrue(roles.get().isEmpty());
@@ -39,17 +39,17 @@ class UserStatusCheckerImplTest {
 
     @Test
     void lockedOrInactiveUsersHaveNoAccess() {
-        when(userRepository.findSessionState(3, "session")).thenReturn(List.<Object[]>of(new Object[]{"LOCKED", "MANAGER"}));
-        when(userRepository.findSessionState(4, "session")).thenReturn(List.<Object[]>of(new Object[]{"INACTIVE", "TENANT"}));
+        when(userRepository.findStatusAndRoleCodes(3)).thenReturn(List.<Object[]>of(new Object[]{"LOCKED", "MANAGER"}));
+        when(userRepository.findStatusAndRoleCodes(4)).thenReturn(List.<Object[]>of(new Object[]{"INACTIVE", "TENANT"}));
 
-        assertEquals(Optional.empty(), checker.state(3, "session").map(com.group7.minihouse.shared.security.UserStatusChecker.State::roles));
-        assertEquals(Optional.empty(), checker.state(4, "session").map(com.group7.minihouse.shared.security.UserStatusChecker.State::roles));
+        assertEquals(Optional.empty(), checker.activeRoles(3));
+        assertEquals(Optional.empty(), checker.activeRoles(4));
     }
 
     @Test
     void deletedOrUnknownUserHasNoAccess() {
-        when(userRepository.findSessionState(99, "session")).thenReturn(List.of());
+        when(userRepository.findStatusAndRoleCodes(99)).thenReturn(List.of());
 
-        assertEquals(Optional.empty(), checker.state(99, "session").map(com.group7.minihouse.shared.security.UserStatusChecker.State::roles));
+        assertEquals(Optional.empty(), checker.activeRoles(99));
     }
 }

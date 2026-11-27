@@ -9,9 +9,4 @@ public interface NotificationSender {
 
     /** recipient la email hoac so dien thoai. */
     void send(String recipient, String subject, String body);
-
-    /** Thu co ban HTML + ban chu thuong. Mac dinh chi gui ban chu (SMS, log); SMTP gui ca hai. */
-    default void sendHtml(String recipient, String subject, String text, String html) {
-        send(recipient, subject, text);
-    }
 }

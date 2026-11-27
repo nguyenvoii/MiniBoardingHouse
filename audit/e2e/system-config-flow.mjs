@@ -2,7 +2,7 @@
 import { start, assert, tag, log, base } from './lib.mjs';
 
 const { browser, ctx, page, api, goto, staffToken, status, token, loginApi } = await start();
-const tab = async (name) => { await goto('/settings'); await page.getByRole('button', { name, exact: true }).click(); };
+const tab = async (name) => { await goto('/settings'); await page.getByRole('tab', { name, exact: true }).click(); };
 const toast = (t) => page.getByText(t).first().waitFor();
 
 // ---------- UC113 danh mục nhóm sự cố/thiết bị
@@ -170,30 +170,25 @@ assert.equal(await status(manager0.token, 'PUT', '/api/admin/jobs/meter-close/sc
 log('UC120 lịch tự động OK');
 
 // ---------- UC122 sao lưu
-if (await api('GET', '/api/admin/backups/availability')) {
-  await tab('Sao lưu');
-  const before = (await api('GET', '/api/admin/backups')).length;
-  await page.getByRole('button', { name: 'Sao lưu ngay' }).click();
-  await toast('Đã sao lưu');
-  const backups = await api('GET', '/api/admin/backups');
-  assert.equal(backups.length, before + 1, 'bản sao lưu mới có trong danh sách');
-  await page.getByRole('row').filter({ hasText: backups[0].name }).first().waitFor();
-  // phục hồi: nhập sai tên DB bị chặn (không đụng dữ liệu)
-  await page.getByRole('row').first().waitFor();
-  await page.getByRole('button', { name: 'Phục hồi' }).first().click();
-  dlg = page.getByRole('dialog').last();
-  await dlg.getByRole('button', { name: 'Phục hồi dữ liệu' }).click();
-  await dlg.getByText('Gõ tên cơ sở dữ liệu để xác nhận.').waitFor();
-  await dlg.getByLabel('Tên cơ sở dữ liệu để xác nhận').fill('sai-ten');
-  await dlg.getByRole('button', { name: 'Phục hồi dữ liệu' }).click();
-  await dlg.locator('.form-error, [role=alert]').first().waitFor();
-  assert.ok(await api('GET', '/api/chi/tenants'), 'dữ liệu còn nguyên sau phục hồi bị từ chối');
-  await dlg.getByRole('button', { name: 'Hủy' }).click();
-  log('UC122 sao lưu OK (phục hồi thật: BLOCKED quyền CREATE DATABASE trên SQL Server QA)');
-} else {
-  assert.equal(await page.getByRole('button', { name: 'Sao lưu', exact: true }).count(), 0);
-  assert.equal(await status(await token(), 'GET', '/api/admin/backups'), 404);
-}
+await tab('Sao lưu');
+const before = (await api('GET', '/api/admin/backups')).length;
+await page.getByRole('button', { name: 'Sao lưu ngay' }).click();
+await toast('Đã sao lưu');
+const backups = await api('GET', '/api/admin/backups');
+assert.equal(backups.length, before + 1, 'bản sao lưu mới có trong danh sách');
+await page.getByRole('row').filter({ hasText: backups[0].name }).first().waitFor();
+// phục hồi: nhập sai tên DB bị chặn (không đụng dữ liệu)
+await page.getByRole('row').first().waitFor();
+await page.getByRole('button', { name: 'Phục hồi' }).first().click();
+dlg = page.getByRole('dialog').last();
+await dlg.getByRole('button', { name: 'Phục hồi dữ liệu' }).click();
+await dlg.getByText('Gõ tên cơ sở dữ liệu để xác nhận.').waitFor();
+await dlg.getByLabel('Tên cơ sở dữ liệu để xác nhận').fill('sai-ten');
+await dlg.getByRole('button', { name: 'Phục hồi dữ liệu' }).click();
+await dlg.locator('.form-error, [role=alert]').first().waitFor();
+assert.ok(await api('GET', '/api/chi/tenants'), 'dữ liệu còn nguyên sau phục hồi bị từ chối');
+await dlg.getByRole('button', { name: 'Hủy' }).click();
+log('UC122 sao lưu OK (phục hồi thật: BLOCKED quyền CREATE DATABASE trên SQL Server QA)');
 
 // ---------- phân quyền
 const manager = await staffToken('MANAGER');
@@ -213,7 +208,7 @@ await mctx.addInitScript((t) => sessionStorage.setItem('stayly.session', t), man
 const mp = await mctx.newPage();
 await mp.goto(`${base}/#/settings`); await mp.waitForLoadState('networkidle');
 await mp.getByRole('tab', { name: 'Mẫu thông báo' }).waitFor();
-assert.equal(await mp.getByRole('button', { name: 'Sao lưu' }).count(), 0);
+assert.equal(await mp.getByRole('tab', { name: 'Sao lưu' }).count(), 0);
 assert.equal(await mp.getByRole('tab', { name: 'Lịch tự động' }).count(), 0);
 log('phân quyền OK');
 

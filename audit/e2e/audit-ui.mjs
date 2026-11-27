@@ -1,11 +1,9 @@
-import { adminCredentials, localBase } from './environment.mjs';
 import { chromium } from 'playwright';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const baseURL = localBase('http://localhost:8080');
-const credentials = adminCredentials();
+const baseURL = process.env.BASE_URL ?? 'http://localhost:8080';
 const out = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'screens');
 await fs.mkdir(out, { recursive: true });
 const browser = await chromium.launch({ headless: true });
@@ -21,9 +19,8 @@ page.on('response', (r) => {
 });
 
 await page.goto(`${baseURL}/#/login`, { waitUntil: 'networkidle' });
-if (new URL(page.url()).origin !== baseURL) throw new Error('Wrong E2E login origin');
-await page.getByLabel(/email|số điện thoại|tài khoản/i).fill(credentials.identifier);
-await page.getByLabel(/mật khẩu/i).fill(credentials.password);
+await page.getByLabel(/email|số điện thoại|tài khoản/i).fill('admin@minihouse.local');
+await page.getByLabel(/mật khẩu/i).fill('Admin@123');
 await page.getByRole('button', { name: /đăng nhập/i }).click();
 await page.waitForTimeout(800);
 const loginUrl = page.url();

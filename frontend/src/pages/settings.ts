@@ -1,7 +1,7 @@
 import { roomFurnishings } from './roomFurnishings';
 import { h, busy } from '../lib/dom';
 import { icon } from '../lib/icons';
-import { api, privateImage, can, errText, loadSession, PROPERTY_ID, setProperty } from '../lib/api';
+import { api, can, errText, loadSession, PROPERTY_ID, setProperty } from '../lib/api';
 import { backupTab, categoriesTab, equipmentTab, jobsTab, templatesTab } from './systemTabs';
 import { date, money, isoDay } from '../lib/format';
 import { loadLive, loadProperties, loadRoomTypes, type PropertyInfo, type RoomType } from '../data/live';
@@ -45,11 +45,7 @@ export async function settingsPage(view: HTMLElement, _p: Record<string, string>
   const body = h('div');
   const nav = h('nav', { class: 'settings-nav', 'aria-label': 'Nhóm cài đặt' });
   const head = h('div', { class: 'panel-head' });
-  const owner = can('LANDLORD');
-  const backupEnabled = owner && await api.get<boolean>('/api/admin/backups/availability').catch(() => false);
-  const items = GROUPS.map(([g, list]) => [g, list.filter(([k]) =>
-    (!OWNER_ONLY.includes(k) || owner) && (k !== 'backup' || backupEnabled))] as const).filter(([, list]) => list.length);
-  if (!items.some(([, list]) => list.some(([k]) => k === tab))) tab = 'rates';
+  const items = GROUPS.map(([g, list]) => [g, list.filter(([k]) => !OWNER_ONLY.includes(k) || can('LANDLORD'))] as const).filter(([, list]) => list.length);
   const paint = async () => {
     nav.replaceChildren(...items.map(([g, list]) => h('div', { class: 'settings-group' }, h('h2', null, g),
       ...list.map(([k, l]) => h('button', { 'aria-current': k === tab ? 'page' : 'false', onclick: () => { tab = k; void paint(); } }, l)))));
@@ -57,7 +53,7 @@ export async function settingsPage(view: HTMLElement, _p: Record<string, string>
     head.replaceChildren(h('div', null, h('h2', null, cur[1]), h('p', null, cur[2])));
     body.replaceChildren(h('div', { class: 'panel-body' }, h('div', { class: 'skel', style: 'height:80px' })));
     try {
-      body.replaceChildren(tab === 'furnishings' ? h('div', { class: 'panel-body' }, roomFurnishings()) : tab === 'property' ? await propertyTab(paint) : tab === 'rates' ? await ratesTab(paint) : tab === 'services' ? await servicesTab(paint) : tab === 'custom' ? await customTab() : tab === 'room-types' ? await roomTypesTab(paint) : tab === 'equipment' ? await equipmentTab(paint) : tab === 'categories' ? await categoriesTab(paint) : tab === 'templates' ? await templatesTab(paint) : tab === 'jobs' && owner ? await jobsTab(paint) : tab === 'backup' && backupEnabled ? await backupTab(paint) : await bankTab(paint));
+      body.replaceChildren(tab === 'furnishings' ? h('div', { class: 'panel-body' }, roomFurnishings()) : tab === 'property' ? await propertyTab(paint) : tab === 'rates' ? await ratesTab(paint) : tab === 'services' ? await servicesTab(paint) : tab === 'custom' ? await customTab() : tab === 'room-types' ? await roomTypesTab(paint) : tab === 'equipment' ? await equipmentTab(paint) : tab === 'categories' ? await categoriesTab(paint) : tab === 'templates' ? await templatesTab(paint) : tab === 'jobs' && can('LANDLORD') ? await jobsTab(paint) : tab === 'backup' && can('LANDLORD') ? await backupTab(paint) : await bankTab(paint));
     } catch (e) { body.replaceChildren(emptyState('Chưa tải được', errText(e))); }
   };
   view.replaceChildren(pageHead('Cài đặt'), h('div', { class: 'settings' }, nav, h('section', { class: 'panel panel-flush' }, head, body)));
@@ -324,7 +320,7 @@ async function bankTab(reload: () => void): Promise<HTMLElement> {
       { key: 'b', label: 'Ngân hàng', render: (b) => h('b', null, b.bankName) },
       { key: 'n', label: 'Số tài khoản', render: (b) => b.accountNumber },
       { key: 'h', label: 'Chủ tài khoản', render: (b) => b.accountHolder },
-      { key: 'q', label: 'Ảnh QR', render: (b) => (b.qrImageUrl ? privateImage(b.qrImageUrl, 'QR', 'height:48px;border:1px solid var(--line);border-radius:6px') : h('span', { class: 'muted' }, 'Chưa có')) },
+      { key: 'q', label: 'Ảnh QR', render: (b) => (b.qrImageUrl ? h('img', { src: b.qrImageUrl, alt: 'QR', style: 'height:48px;border:1px solid var(--line);border-radius:6px' }) : h('span', { class: 'muted' }, 'Chưa có')) },
       { key: 'd', label: 'Mặc định', render: (b) => (b.isDefault ? h('span', { class: 'st ok' }, icon('check', 14), 'Mặc định') : '') },
       { key: 'a', label: '', render: (b) => bankActions(b, reload) },
     ], list, { empty: emptyState('Chưa có tài khoản ngân hàng', 'Thêm tài khoản để người thuê có nơi chuyển tiền và quét mã QR.') }),

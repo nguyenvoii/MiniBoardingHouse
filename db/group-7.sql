@@ -1,4 +1,4 @@
-﻿-- ============================================================================
+-- ============================================================================
 -- DATABASE CREATION: WEBSITE QUẢN LÝ NHÀ TRỌ MINI FOR RENT (56 TABLES)
 -- Target RDBMS: SQL Server 2016+ / Azure SQL Database
 -- ============================================================================
@@ -33,8 +33,8 @@ CREATE TABLE [users] (
     [avatar_url] NVARCHAR(500) NULL,
     [status] NVARCHAR(20) NOT NULL DEFAULT 'ACTIVE' CHECK ([status] IN ('ACTIVE', 'INACTIVE', 'LOCKED')),
     [must_change_password] BIT NOT NULL DEFAULT 0, -- 1 = mật khẩu tạm do nhân viên cấp, phải đổi ở lần đăng nhập đầu
-    [created_at] DATETIME2 NOT NULL DEFAULT (DATEADD(MINUTE, 420, SYSUTCDATETIME())),
-    [updated_at] DATETIME2 NOT NULL DEFAULT (DATEADD(MINUTE, 420, SYSUTCDATETIME()))
+    [created_at] DATETIME2 NOT NULL DEFAULT GETDATE(),
+    [updated_at] DATETIME2 NOT NULL DEFAULT GETDATE()
 );
 
 -- 2. Mã xác thực OTP Email / SĐT
@@ -67,7 +67,7 @@ CREATE TABLE [permissions] (
 CREATE TABLE [user_roles] (
     [user_id] INT NOT NULL FOREIGN KEY REFERENCES [users]([user_id]) ON DELETE CASCADE,
     [role_id] INT NOT NULL FOREIGN KEY REFERENCES [roles]([role_id]) ON DELETE CASCADE,
-    [assigned_at] DATETIME2 NOT NULL DEFAULT (DATEADD(MINUTE, 420, SYSUTCDATETIME())),
+    [assigned_at] DATETIME2 NOT NULL DEFAULT GETDATE(),
     PRIMARY KEY ([user_id], [role_id])
 );
 
@@ -78,7 +78,7 @@ CREATE TABLE [user_activity_logs] (
     [action_type] VARCHAR(50) NOT NULL, -- LOGIN, LOGOUT, CREATE_INVOICE, UPDATE_METER...
     [description] NVARCHAR(MAX) NULL,
     [ip_address] VARCHAR(45) NULL,
-    [created_at] DATETIME2 NOT NULL DEFAULT (DATEADD(MINUTE, 420, SYSUTCDATETIME()))
+    [created_at] DATETIME2 NOT NULL DEFAULT GETDATE()
 );
 
 -- ============================================================================
@@ -93,7 +93,7 @@ CREATE TABLE [properties] (
     [address] NVARCHAR(255) NOT NULL,
     [total_floors] INT DEFAULT 1,
     [support_phone] VARCHAR(20) NULL,
-    [created_at] DATETIME2 NOT NULL DEFAULT (DATEADD(MINUTE, 420, SYSUTCDATETIME()))
+    [created_at] DATETIME2 NOT NULL DEFAULT GETDATE()
 );
 
 -- 8. Tầng trong khu nhà trọ
@@ -119,7 +119,7 @@ CREATE TABLE [rooms] (
     [initial_water_meter] INT NOT NULL DEFAULT 0,
     [status] NVARCHAR(30) NOT NULL DEFAULT 'VACANT' 
         CONSTRAINT CK_rooms_status CHECK ([status] IN ('VACANT', 'RENTED', 'REPAIRING', 'CLEANING', 'SUSPENDED')),
-    [created_at] DATETIME2 NOT NULL DEFAULT (DATEADD(MINUTE, 420, SYSUTCDATETIME())),
+    [created_at] DATETIME2 NOT NULL DEFAULT GETDATE(),
     CONSTRAINT [UQ_property_room_code] UNIQUE([property_id], [room_code])
 );
 
@@ -162,7 +162,7 @@ CREATE TABLE [tenants] (
     CONSTRAINT CK_tenants_residence_dates CHECK (residence_end_date IS NULL
         OR (residence_start_date IS NOT NULL AND residence_end_date >= residence_start_date)),
     [is_verified] BIT DEFAULT 0,
-    [created_at] DATETIME2 NOT NULL DEFAULT (DATEADD(MINUTE, 420, SYSUTCDATETIME()))
+    [created_at] DATETIME2 NOT NULL DEFAULT GETDATE()
 );
 
 -- 13. Ảnh CCCD mặt trước/sau của khách thuê
@@ -171,7 +171,7 @@ CREATE TABLE [tenant_id_cards] (
     [tenant_id] INT NOT NULL UNIQUE FOREIGN KEY REFERENCES [tenants]([tenant_id]) ON DELETE CASCADE,
     [front_image_url] NVARCHAR(500) NOT NULL,
     [back_image_url] NVARCHAR(500) NOT NULL,
-    [uploaded_at] DATETIME2 NOT NULL DEFAULT (DATEADD(MINUTE, 420, SYSUTCDATETIME()))
+    [uploaded_at] DATETIME2 NOT NULL DEFAULT GETDATE()
 );
 
 -- 14. Danh sách Người ở cùng trong phòng
@@ -218,7 +218,7 @@ CREATE TABLE [booking_requests] (
     [status] NVARCHAR(20) NOT NULL DEFAULT 'PENDING' 
         CHECK ([status] IN ('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED')),
     [rejection_reason] NVARCHAR(255) NULL,
-    [created_at] DATETIME2 NOT NULL DEFAULT (DATEADD(MINUTE, 420, SYSUTCDATETIME()))
+    [created_at] DATETIME2 NOT NULL DEFAULT GETDATE()
 );
 
 IF COL_LENGTH(N'dbo.booking_requests', N'guest_name') IS NULL
@@ -261,7 +261,7 @@ CREATE TABLE [rental_contracts] (
     [pdf_contract_url] NVARCHAR(500) NULL,
     [status] NVARCHAR(20) NOT NULL DEFAULT 'ACTIVE' 
         CHECK ([status] IN ('ACTIVE', 'EXPIRING_SOON', 'EXPIRED', 'TERMINATED')),
-    [created_at] DATETIME2 NOT NULL DEFAULT (DATEADD(MINUTE, 420, SYSUTCDATETIME()))
+    [created_at] DATETIME2 NOT NULL DEFAULT GETDATE()
 );
 
 -- 19. Lịch sử điều chỉnh hợp đồng (Đổi giá, Đổi người...)
@@ -272,7 +272,7 @@ CREATE TABLE [contract_adjustments] (
     [old_value] NVARCHAR(255) NULL,
     [new_value] NVARCHAR(255) NULL,
     [adjusted_by] INT NULL FOREIGN KEY REFERENCES [users]([user_id]),
-    [adjusted_at] DATETIME2 NOT NULL DEFAULT (DATEADD(MINUTE, 420, SYSUTCDATETIME()))
+    [adjusted_at] DATETIME2 NOT NULL DEFAULT GETDATE()
 );
 
 -- 20. Thông báo hợp đồng sắp hết hạn
@@ -280,7 +280,7 @@ CREATE TABLE [contract_notifications] (
     [notification_id] INT IDENTITY(1,1) PRIMARY KEY,
     [contract_id] INT NOT NULL FOREIGN KEY REFERENCES [rental_contracts]([contract_id]) ON DELETE CASCADE,
     [notification_type] VARCHAR(50) NOT NULL, -- EXPIRING_WARNING, EXPIRED_NOTICE
-    [sent_at] DATETIME2 NOT NULL DEFAULT (DATEADD(MINUTE, 420, SYSUTCDATETIME())),
+    [sent_at] DATETIME2 NOT NULL DEFAULT GETDATE(),
     [is_read] BIT DEFAULT 0
 );
 
@@ -309,7 +309,7 @@ CREATE TABLE [meter_readings] (
     [old_water] INT NOT NULL,
     [new_water] INT NOT NULL,
     [used_water] AS ([new_water] - [old_water]),
-    [reading_date] DATETIME2 NOT NULL DEFAULT (DATEADD(MINUTE, 420, SYSUTCDATETIME())),
+    [reading_date] DATETIME2 NOT NULL DEFAULT GETDATE(),
     [recorded_by_user_id] INT NOT NULL FOREIGN KEY REFERENCES [users]([user_id]),
     [is_verified] BIT DEFAULT 1,
     [closing_contract_id] INT NULL CONSTRAINT [FK_meter_readings_closing_contract] REFERENCES [rental_contracts]([contract_id]),
@@ -333,7 +333,7 @@ CREATE TABLE [meter_adjustment_logs] (
     [new_val] INT NOT NULL,
     [reason] NVARCHAR(255) NOT NULL,
     [adjusted_by] INT NOT NULL FOREIGN KEY REFERENCES [users]([user_id]),
-    [adjusted_at] DATETIME2 NOT NULL DEFAULT (DATEADD(MINUTE, 420, SYSUTCDATETIME()))
+    [adjusted_at] DATETIME2 NOT NULL DEFAULT GETDATE()
 );
 
 -- 25. Cảnh báo chỉ số tiêu thụ bất thường (Tăng đột biến)
@@ -388,7 +388,7 @@ CREATE TABLE [rate_change_histories] (
     [old_price] DECIMAL(18,2) NOT NULL,
     [new_price] DECIMAL(18,2) NOT NULL,
     [changed_by] INT NOT NULL FOREIGN KEY REFERENCES [users]([user_id]),
-    [changed_at] DATETIME2 NOT NULL DEFAULT (DATEADD(MINUTE, 420, SYSUTCDATETIME()))
+    [changed_at] DATETIME2 NOT NULL DEFAULT GETDATE()
 );
 
 -- ============================================================================
@@ -400,7 +400,7 @@ CREATE TABLE [monthly_billing_periods] (
     [billing_period_id] INT IDENTITY(1,1) PRIMARY KEY,
     [property_id] INT NOT NULL FOREIGN KEY REFERENCES [properties]([property_id]),
     [month_year] VARCHAR(7) NOT NULL, -- Format: YYYY-MM (e.g. 2026-03)
-    [creation_date] DATETIME2 NOT NULL DEFAULT (DATEADD(MINUTE, 420, SYSUTCDATETIME())),
+    [creation_date] DATETIME2 NOT NULL DEFAULT GETDATE(),
     [status] NVARCHAR(20) NOT NULL DEFAULT 'DRAFT' 
         CHECK ([status] IN ('DRAFT', 'APPROVED', 'PUBLISHED', 'CLOSED'))
 );
@@ -447,7 +447,6 @@ CREATE TABLE [invoices] (
     [payment_status] NVARCHAR(20) NOT NULL DEFAULT 'UNPAID' 
         CHECK ([payment_status] IN ('UNPAID', 'PARTIALLY_PAID', 'PAID', 'OVERDUE', 'CANCELLED')),
     [share_link] NVARCHAR(500) NULL,
-    [share_expires_at] BIGINT NULL,
     [pdf_url] NVARCHAR(500) NULL
 );
 
@@ -456,7 +455,7 @@ CREATE TABLE [invoice_notifications] (
     [notification_id] INT IDENTITY(1,1) PRIMARY KEY,
     [invoice_id] INT NOT NULL FOREIGN KEY REFERENCES [invoices]([invoice_id]) ON DELETE CASCADE,
     [channel] VARCHAR(20) NOT NULL CHECK ([channel] IN ('EMAIL', 'SMS', 'SYSTEM_APP')),
-    [sent_at] DATETIME2 NOT NULL DEFAULT (DATEADD(MINUTE, 420, SYSUTCDATETIME())),
+    [sent_at] DATETIME2 NOT NULL DEFAULT GETDATE(),
     [status] NVARCHAR(20) NOT NULL DEFAULT 'SENT'
 );
 
@@ -471,7 +470,7 @@ CREATE TABLE [payment_transactions] (
     [payment_method] VARCHAR(20) NOT NULL CHECK ([payment_method] IN ('CASH', 'BANK_TRANSFER', 'QR_CODE', 'GATEWAY')),
     [transaction_code] VARCHAR(100) NULL,
     [amount_paid] DECIMAL(18,2) NOT NULL,
-    [payment_date] DATETIME2 NOT NULL DEFAULT (DATEADD(MINUTE, 420, SYSUTCDATETIME())),
+    [payment_date] DATETIME2 NOT NULL DEFAULT GETDATE(),
     [received_by_user_id] INT NOT NULL FOREIGN KEY REFERENCES [users]([user_id]),
     [status] NVARCHAR(20) NOT NULL DEFAULT 'SUCCESS' CHECK ([status] IN ('SUCCESS', 'FAILED', 'REVERSED'))
 );
@@ -484,7 +483,7 @@ CREATE TABLE [receipt_vouchers] (
     [voucher_type] VARCHAR(30) NOT NULL CHECK ([voucher_type] IN ('MONTHLY_RENT', 'DEPOSIT', 'EXTRA_SERVICE')),
     [amount] DECIMAL(18,2) NOT NULL,
     [note] NVARCHAR(255) NULL,
-    [created_at] DATETIME2 NOT NULL DEFAULT (DATEADD(MINUTE, 420, SYSUTCDATETIME()))
+    [created_at] DATETIME2 NOT NULL DEFAULT GETDATE()
 );
 
 -- 37. Ghi nhận thanh toán một phần / nhiều lần
@@ -493,7 +492,7 @@ CREATE TABLE [partial_payment_logs] (
     [invoice_id] INT NOT NULL FOREIGN KEY REFERENCES [invoices]([invoice_id]) ON DELETE CASCADE,
     [installment_number] INT NOT NULL DEFAULT 1,
     [amount] DECIMAL(18,2) NOT NULL,
-    [paid_date] DATETIME2 NOT NULL DEFAULT (DATEADD(MINUTE, 420, SYSUTCDATETIME()))
+    [paid_date] DATETIME2 NOT NULL DEFAULT GETDATE()
 );
 
 -- 38. Tài khoản dư tiền / Thanh toán thừa của Khách
@@ -501,7 +500,7 @@ CREATE TABLE [tenant_prepayments] (
     [prepayment_id] INT IDENTITY(1,1) PRIMARY KEY,
     [tenant_id] INT NOT NULL UNIQUE FOREIGN KEY REFERENCES [tenants]([tenant_id]),
     [excess_balance] DECIMAL(18,2) NOT NULL DEFAULT 0,
-    [updated_at] DATETIME2 NOT NULL DEFAULT (DATEADD(MINUTE, 420, SYSUTCDATETIME()))
+    [updated_at] DATETIME2 NOT NULL DEFAULT GETDATE()
 );
 
 -- 39. Nhật ký cấn trừ tiền dư vào kỳ tiếp theo
@@ -510,7 +509,7 @@ CREATE TABLE [prepayment_deductions] (
     [prepayment_id] INT NOT NULL FOREIGN KEY REFERENCES [tenant_prepayments]([prepayment_id]),
     [target_invoice_id] INT NOT NULL FOREIGN KEY REFERENCES [invoices]([invoice_id]),
     [deducted_amount] DECIMAL(18,2) NOT NULL,
-    [deducted_at] DATETIME2 NOT NULL DEFAULT (DATEADD(MINUTE, 420, SYSUTCDATETIME()))
+    [deducted_at] DATETIME2 NOT NULL DEFAULT GETDATE()
 );
 
 -- ============================================================================
@@ -529,7 +528,7 @@ CREATE TABLE [tenant_debts] (
     [overdue_days] INT DEFAULT 0,
     [debt_status] NVARCHAR(30) NOT NULL DEFAULT 'NORMAL' 
         CHECK ([debt_status] IN ('NORMAL', 'WARNING_OVERDUE', 'LONG_TERM_DEBT', 'CLEARED')),
-    [updated_at] DATETIME2 NOT NULL DEFAULT (DATEADD(MINUTE, 420, SYSUTCDATETIME()))
+    [updated_at] DATETIME2 NOT NULL DEFAULT GETDATE()
 );
 
 -- 41. Nhật ký phạt tiền chậm thanh toán
@@ -539,7 +538,7 @@ CREATE TABLE [debt_penalty_logs] (
     [overdue_days] INT NOT NULL,
     [daily_penalty_rate] DECIMAL(18,2) NOT NULL,
     [calculated_penalty_amount] DECIMAL(18,2) NOT NULL,
-    [created_at] DATETIME2 NOT NULL DEFAULT (DATEADD(MINUTE, 420, SYSUTCDATETIME()))
+    [created_at] DATETIME2 NOT NULL DEFAULT GETDATE()
 );
 
 -- 42. Thông báo nhắc nợ (Tự động 1st, 2nd, Cảnh báo quá hạn)
@@ -548,7 +547,7 @@ CREATE TABLE [debt_reminders] (
     [debt_id] INT NOT NULL FOREIGN KEY REFERENCES [tenant_debts]([debt_id]) ON DELETE CASCADE,
     [reminder_level] VARCHAR(20) NOT NULL CHECK ([reminder_level] IN ('FIRST_REMINDER', 'SECOND_REMINDER', 'FINAL_WARNING')),
     [message_content] NVARCHAR(MAX) NOT NULL,
-    [sent_at] DATETIME2 NOT NULL DEFAULT (DATEADD(MINUTE, 420, SYSUTCDATETIME()))
+    [sent_at] DATETIME2 NOT NULL DEFAULT GETDATE()
 );
 
 -- 43. Ghi nhận lịch sử cam kết & Xử lý nợ
@@ -559,7 +558,7 @@ CREATE TABLE [debt_processing_logs] (
     [delay_reason] NVARCHAR(500) NULL,
     [staff_note] NVARCHAR(500) NULL,
     [recorded_by] INT NOT NULL FOREIGN KEY REFERENCES [users]([user_id]),
-    [recorded_at] DATETIME2 NOT NULL DEFAULT (DATEADD(MINUTE, 420, SYSUTCDATETIME()))
+    [recorded_at] DATETIME2 NOT NULL DEFAULT GETDATE()
 );
 
 -- ============================================================================
@@ -574,7 +573,7 @@ CREATE TABLE [checkout_requests] (
     [actual_checkout_date] DATE NULL,
     [status] NVARCHAR(30) NOT NULL DEFAULT 'PENDING' 
         CHECK ([status] IN ('PENDING', 'INSPECTING', 'FINALIZED', 'CANCELLED')),
-    [created_at] DATETIME2 NOT NULL DEFAULT (DATEADD(MINUTE, 420, SYSUTCDATETIME()))
+    [created_at] DATETIME2 NOT NULL DEFAULT GETDATE()
 );
 
 -- 45. Biên bản kiểm tra phòng & Bồi thường hư hỏng tài sản khi trả
@@ -588,7 +587,7 @@ CREATE TABLE [checkout_inspections] (
     [unpaid_utilities_amount] DECIMAL(18,2) DEFAULT 0,
     [inspection_photo_url] NVARCHAR(500) NULL,
     [inspected_by] INT NOT NULL FOREIGN KEY REFERENCES [users]([user_id]),
-    [inspected_at] DATETIME2 NOT NULL DEFAULT (DATEADD(MINUTE, 420, SYSUTCDATETIME()))
+    [inspected_at] DATETIME2 NOT NULL DEFAULT GETDATE()
 );
 
 -- 46. Phiếu hoàn tiền đặt cọc (Sau cấn trừ công nợ & hư hỏng)
@@ -614,7 +613,7 @@ CREATE TABLE [maintenance_requests] (
     [priority] NVARCHAR(20) NOT NULL DEFAULT 'NORMAL' CHECK ([priority] IN ('LOW', 'NORMAL', 'URGENT')),
     [status] NVARCHAR(30) NOT NULL DEFAULT 'OPEN' 
         CHECK ([status] IN ('OPEN', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED', 'CLOSED')),
-    [created_at] DATETIME2 NOT NULL DEFAULT (DATEADD(MINUTE, 420, SYSUTCDATETIME()))
+    [created_at] DATETIME2 NOT NULL DEFAULT GETDATE()
 );
 
 -- 48. Phân công Nhân viên & Chi phí Sửa chữa Sự cố
@@ -641,7 +640,7 @@ CREATE TABLE [tenant_vehicles] (
     [brand] NVARCHAR(50) NULL,
     [color] NVARCHAR(30) NULL,
     [is_active] BIT NOT NULL DEFAULT 1,
-    [created_at] DATETIME2 NOT NULL DEFAULT (DATEADD(MINUTE, 420, SYSUTCDATETIME())),
+    [created_at] DATETIME2 NOT NULL DEFAULT GETDATE(),
     CONSTRAINT [UQ_vehicle_plate] UNIQUE([license_plate])
 );
 
@@ -668,7 +667,7 @@ CREATE TABLE [room_equipment_requests] (
         CHECK ([status] IN ('PENDING', 'APPROVED', 'REJECTED', 'INSTALLED', 'REMOVED')),
     [reviewed_by] INT NULL FOREIGN KEY REFERENCES [users]([user_id]),
     [note] NVARCHAR(255) NULL,
-    [created_at] DATETIME2 NOT NULL DEFAULT (DATEADD(MINUTE, 420, SYSUTCDATETIME()))
+    [created_at] DATETIME2 NOT NULL DEFAULT GETDATE()
 );
 
 -- 52. Phí tiện ích bổ sung theo phòng (thiết bị điện, dịch vụ theo kỳ) (Usecase 109)
@@ -694,7 +693,7 @@ CREATE TABLE [operating_expenses] (
     [expense_date] DATE NOT NULL,
     [receipt_url] NVARCHAR(500) NULL,
     [recorded_by] INT NOT NULL FOREIGN KEY REFERENCES [users]([user_id]),
-    [created_at] DATETIME2 NOT NULL DEFAULT (DATEADD(MINUTE, 420, SYSUTCDATETIME()))
+    [created_at] DATETIME2 NOT NULL DEFAULT GETDATE()
 );
 
 -- 54. Tài khoản ngân hàng & mã QR nhận tiền (Usecase 119)
@@ -730,7 +729,7 @@ CREATE TABLE [user_notifications] (
     [reference_type] VARCHAR(30) NULL, -- INVOICE, CONTRACT, DEBT, MAINTENANCE...
     [reference_id] INT NULL,
     [is_read] BIT NOT NULL DEFAULT 0,
-    [created_at] DATETIME2 NOT NULL DEFAULT (DATEADD(MINUTE, 420, SYSUTCDATETIME()))
+    [created_at] DATETIME2 NOT NULL DEFAULT GETDATE()
 );
 
 -- 57. Biên bản nhận phòng / bàn giao khi bắt đầu thuê (Usecase 124)
@@ -748,7 +747,7 @@ CREATE TABLE [checkin_inspections] (
     [notes] NVARCHAR(MAX) NULL,
     [tenant_confirmed] BIT NOT NULL DEFAULT 1,
     [inspected_by_name] NVARCHAR(100) NULL,
-    [created_at] DATETIME2 NOT NULL DEFAULT (DATEADD(MINUTE, 420, SYSUTCDATETIME()))
+    [created_at] DATETIME2 NOT NULL DEFAULT GETDATE()
 );
 GO
 
@@ -832,16 +831,9 @@ BEGIN
         cron        NVARCHAR(60)  NOT NULL,
         enabled     BIT           NOT NULL CONSTRAINT DF_job_settings_enabled DEFAULT 1,
         updated_by  INT           NULL,
-        updated_at  DATETIME2     NOT NULL CONSTRAINT DF_job_settings_updated DEFAULT (DATEADD(MINUTE, 420, SYSUTCDATETIME()))
+        updated_at  DATETIME2     NOT NULL CONSTRAINT DF_job_settings_updated DEFAULT SYSDATETIME()
     );
 END;
-GO
-
-CREATE TABLE dbo.revoked_sessions (
-    session_id VARCHAR(36) NOT NULL PRIMARY KEY,
-    expires_at BIGINT NOT NULL
-);
-CREATE INDEX IX_revoked_sessions_expires_at ON dbo.revoked_sessions (expires_at);
 GO
 
 SET NOEXEC OFF;

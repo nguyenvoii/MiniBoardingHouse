@@ -1,8 +1,6 @@
 package com.group7.minihouse.toan.service;
 
 import java.math.BigDecimal;
-import java.time.Duration;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
@@ -44,7 +42,6 @@ import jakarta.persistence.PersistenceContext;
 public class InvoiceService {
 
     public static final String SHARE_PREFIX = "/api/invoices/share/";
-    private static final Duration SHARE_LIFETIME = Duration.ofDays(7);
     static final String ST_REMINDER = "REMINDER_BEFORE_DUE";
     static final String ST_OVERDUE = "OVERDUE_NOTICE";
     static final String ST_ADJUSTED = "INVOICE_ADJUSTED";
@@ -158,7 +155,7 @@ public class InvoiceService {
         inv.setTotalAmount(fee.getTotalCalculatedAmount());
         inv.setPaidAmount(BigDecimal.ZERO);
         inv.setPaymentStatus("UNPAID");
-        ensureActiveShareLink(inv);
+        inv.setShareLink(SHARE_PREFIX + UUID.randomUUID());
         calculator.refreshStatus(inv, LocalDate.now()); // tong <= 0 thi la PAID ngay, khong ket o UNPAID
         inv = invoiceRepo.save(inv);
         invoiceRepo.flush();
@@ -291,46 +288,35 @@ public class InvoiceService {
     /** Gui hoa don len thong bao website (UC 81); lien ket chia se nam trong hoa don. */
     @Transactional
     public NotificationResponse sendToApp(Integer invoiceId) {
-        Invoice inv = invoiceRepo.findByIdForUpdate(invoiceId).orElseThrow(() -> notFound("Hoa don"));
-        ensureActiveShareLink(inv);
+        Invoice inv = find(invoiceId);
+        if (inv.getShareLink() == null) {
+            inv.setShareLink(SHARE_PREFIX + UUID.randomUUID());
+        }
         return toResponse(addNotification(inv, "SYSTEM_APP", "SENT"));
     }
 
     @Transactional
     public ShareLink shareLink(Integer invoiceId) {
         Invoice invoice = invoiceRepo.findByIdForUpdate(invoiceId).orElseThrow(() -> notFound("Hoa don"));
-        ensureActiveShareLink(invoice);
-        return new ShareLink(invoice.getShareLink());
-    }
-
-    private static void ensureActiveShareLink(Invoice invoice) {
         if ("CANCELLED".equals(invoice.getPaymentStatus())) {
             throw new BusinessException(HttpStatus.CONFLICT, "Khong chia se hoa don da huy");
         }
-        Instant now = Instant.now();
-        if (invoice.getShareLink() == null || !shareIsCurrent(invoice, now)) {
+        if (invoice.getShareLink() == null) {
             invoice.setShareLink(SHARE_PREFIX + UUID.randomUUID());
-            invoice.setShareExpiresAt(now.plus(SHARE_LIFETIME).getEpochSecond());
         }
-    }
-
-    private static boolean shareIsCurrent(Invoice invoice, Instant now) {
-        Long expiresAt = invoice.getShareExpiresAt();
-        return expiresAt != null && expiresAt > now.getEpochSecond();
+        return new ShareLink(invoice.getShareLink());
     }
 
     @Transactional
     public void revokeShareLink(Integer invoiceId) {
         Invoice invoice = invoiceRepo.findByIdForUpdate(invoiceId).orElseThrow(() -> notFound("Hoa don"));
         invoice.setShareLink(null);
-        invoice.setShareExpiresAt(null);
     }
 
     @Transactional(readOnly = true)
     public SharedInvoice detailByShareToken(String token) {
         Invoice invoice = invoiceRepo.findByShareLink(SHARE_PREFIX + token)
                 .filter(value -> !"CANCELLED".equals(value.getPaymentStatus()))
-                .filter(value -> shareIsCurrent(value, Instant.now()))
                 .orElseThrow(() -> notFound("Hoa don chia se"));
         InvoiceResponse response = toResponse(invoice);
         return new SharedInvoice(response.invoiceCode(), response.monthYear(), response.issueDate(),
