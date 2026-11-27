@@ -100,7 +100,7 @@ export async function refreshMyProfile(): Promise<void> {
   } catch { /* không nạp được thì giữ tên trong token */ }
 }
 
-export function logout(): void {
+function clearSession(): void {
   session = null;
   myAvatar = null;
   try {
@@ -111,6 +111,16 @@ export function logout(): void {
     /* bỏ qua */
   }
   location.hash = '#/login';
+}
+
+export async function logout(): Promise<void> {
+  if (loadSession()) await request('POST', '/api/auth/logout');
+  clearSession();
+}
+
+export function renewSession(accessToken: string): void {
+  startSession({ accessToken });
+  clearMustChangePassword();
 }
 
 export function isMeterReaderOnly(s: Session | null): boolean {
@@ -186,7 +196,7 @@ async function request<T>(method: string, path: string, body?: unknown, auth = t
     throw new ApiError('Không kết nối được máy chủ. Kiểm tra mạng hoặc xem backend đã chạy chưa.', 0);
   }
   if (res.status === 401 && auth) {
-    logout();
+    if (session?.token === s?.token) clearSession();
     throw new ApiError('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.', 401);
   }
   const type = res.headers.get('content-type') ?? '';
@@ -233,6 +243,26 @@ export const api = {
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   },
 };
+
+/** Tải ảnh riêng bằng phiên hiện tại và giải phóng URL tạm sau khi trình duyệt đọc xong. */
+export function loadPrivateImage(img: HTMLImageElement, path: string): void {
+  if (!path.startsWith('/api/') || new URL(path, location.origin).origin !== location.origin) return;
+  void api.blobUrl(path).then((url) => {
+    if (!url) return;
+    const release = () => URL.revokeObjectURL(url);
+    img.addEventListener('load', release, { once: true });
+    img.addEventListener('error', release, { once: true });
+    img.src = url;
+  }).catch(() => {});
+}
+
+export function privateImage(path: string, alt: string, style = ''): HTMLImageElement {
+  const img = document.createElement('img');
+  img.alt = alt;
+  img.style.cssText = style;
+  loadPrivateImage(img, path);
+  return img;
+}
 
 export interface Page<T> {
   items: T[];

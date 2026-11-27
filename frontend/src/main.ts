@@ -134,6 +134,10 @@ async function render(): Promise<void> {
     navigate('/meters'); // người ghi chỉ số không có Tổng quan: vào thẳng màn họ dùng được
     return;
   }
+  if (mustChangePassword()) {
+    forcePasswordChange(() => void render());
+    return;
+  }
   const kind = tenant ? 'tenant' : 'staff';
   if (shellKind !== kind || !shell) {
     shell = tenant ? buildTenantShell(s) : buildStaffShell(s);
@@ -141,7 +145,6 @@ async function render(): Promise<void> {
     app.replaceChildren(shell.root);
     void refreshMyProfile();
   }
-  if (mustChangePassword()) forcePasswordChange();
   const m = match(path);
   document.title = `${TITLES[path] ?? (path.startsWith('/billing/') ? 'Kỳ tính tiền' : 'Stayly')} · Stayly`.replace('Stayly · Stayly', 'Stayly');
   // Trang cũ có thể vẫn đang tải khi người dùng chuyển màn.

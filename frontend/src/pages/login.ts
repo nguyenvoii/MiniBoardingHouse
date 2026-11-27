@@ -1,6 +1,6 @@
 import { busy, h } from '../lib/dom';
 import { icon } from '../lib/icons';
-import { api, clearMustChangePassword, errText, login, loginWithQr, logout, viaQrSession } from '../lib/api';
+import { api, errText, login, loginWithQr, logout, renewSession, viaQrSession } from '../lib/api';
 import { field, formError, input, openDialog, toast } from '../ui/kit';
 import { logo } from '../ui/shell';
 
@@ -108,7 +108,7 @@ export function renderLogin(root: HTMLElement, onDone: () => void): void {
 
 let forceOpen = false;
 /** Tài khoản đang dùng mật khẩu tạm: hộp thoại không đóng được cho tới khi đổi mật khẩu (hoặc đăng xuất). */
-export function forcePasswordChange(): void {
+export function forcePasswordChange(onChanged: () => void): void {
   if (forceOpen) return;
   forceOpen = true;
   const qr = viaQrSession(); // vào bằng mã QR: chưa biết mật khẩu tạm, đặt thẳng mật khẩu mới
@@ -123,7 +123,13 @@ export function forcePasswordChange(): void {
     ...(qr ? [field('Nhập lại mật khẩu mới', again)] : []));
   const ok = h('button', { class: 'btn' }, 'Đổi mật khẩu');
   const out = h('button', { class: 'btn secondary' }, 'Đăng xuất');
-  out.addEventListener('click', () => { d.close(); forceOpen = false; logout(); });
+  out.addEventListener('click', async () => {
+    try { await logout(); d.close(); forceOpen = false; }
+    catch (e) {
+      if (location.hash === '#/login') { d.close(); forceOpen = false; }
+      else err.replaceChildren(formError(errText(e)));
+    }
+  });
   d.foot.append(out, ok);
   ok.addEventListener('click', async () => {
     err.replaceChildren();
@@ -131,12 +137,14 @@ export function forcePasswordChange(): void {
     if (qr && nw.value !== again.value) { err.append(formError('Hai lần nhập mật khẩu mới chưa giống nhau.')); return; }
     ok.setAttribute('disabled', '');
     try {
-      if (qr) await api.post('/api/auth/qr-set-password', { newPassword: nw.value });
-      else await api.post('/api/auth/password', { currentPassword: cur.value, newPassword: nw.value });
-      clearMustChangePassword();
+      const { accessToken } = qr
+        ? await api.post<{ accessToken: string }>('/api/auth/qr-set-password', { newPassword: nw.value })
+        : await api.post<{ accessToken: string }>('/api/auth/password', { currentPassword: cur.value, newPassword: nw.value });
+      renewSession(accessToken);
       d.close();
       forceOpen = false;
       toast(qr ? 'Đã đặt mật khẩu mới' : 'Đã đổi mật khẩu');
+      onChanged();
     } catch (e) {
       err.append(formError(errText(e)));
     } finally {

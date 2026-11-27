@@ -1,6 +1,7 @@
 package com.group7.minihouse.shared.config;
 
 import java.time.Clock;
+import java.time.ZoneId;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -10,6 +11,6 @@ public class ClockConfig {
 
     @Bean
     Clock clock() {
-        return Clock.systemDefaultZone();
+        return Clock.system(ZoneId.of("Asia/Ho_Chi_Minh"));
     }
 }

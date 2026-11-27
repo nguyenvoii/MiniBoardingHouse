@@ -6,10 +6,10 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 
 /**
  * Chi bat @PreAuthorize khi app.security.enabled=true.
- * Khi tat (mac dinh), @PreAuthorize bi bo qua de dong doi test API khong can token.
+ * Khi tat (chi may dev, dat trong application-local.properties), @PreAuthorize bi bo qua de test API khong can token.
  */
 @Configuration
 @EnableMethodSecurity
-@ConditionalOnProperty(name = "app.security.enabled", havingValue = "true")
+@ConditionalOnProperty(name = "app.security.enabled", havingValue = "true", matchIfMissing = true)
 public class MethodSecurityConfig {
 }

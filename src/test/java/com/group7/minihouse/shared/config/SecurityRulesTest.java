@@ -19,8 +19,10 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
+import org.springframework.boot.jackson2.autoconfigure.Jackson2AutoConfiguration;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -31,6 +33,7 @@ import org.springframework.web.bind.annotation.RestController;
  * Luat URL khi app.security.enabled=true (khong can DB): mac dinh chi nhan vien duoc vao,
  * nguoi thue chi vao /api/me/** va /api/auth/** => dong doi quen @PreAuthorize cung khong lo du lieu cho nguoi thue.
  */
+@ImportAutoConfiguration(Jackson2AutoConfiguration.class)
 @WebMvcTest(controllers = {SecurityRulesTest.Probe.class, MeterReadingController.class, CashierPaymentController.class})
 @Import({SecurityConfig.class, MethodSecurityConfig.class, JwtService.class, SecurityRulesTest.Probe.class})
 @TestPropertySource(properties = {
@@ -42,7 +45,7 @@ class SecurityRulesTest {
     static class Probe {
         @GetMapping("/api/probe/staff") String staff() { return "ok"; }
         @GetMapping("/api/me/probe") String tenantArea() { return "ok"; }
-        @GetMapping("/api/auth/probe") String auth() { return "ok"; }
+        @GetMapping("/api/auth/me") String auth() { return "ok"; }
         @GetMapping("/api/invoices/5/detail") String invoiceDetail() { return "ok"; }
         @GetMapping("/api/invoices/5") String invoice() { return "ok"; }
         @org.springframework.web.bind.annotation.PostMapping("/api/auth/forgot-password") String forgot() { return "ok"; }
@@ -69,7 +72,7 @@ class SecurityRulesTest {
                 .andExpect(status().isOk());
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/auth/reset-password"))
                 .andExpect(status().isOk());
-        mvc.perform(get("/api/auth/probe")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/auth/me")).andExpect(status().isUnauthorized());
     }
 
     /** Khach quet QR chua co phien dang nhap nen API doi ma QR phai cong khai (tu kiem tra ma ben trong). */
@@ -88,19 +91,44 @@ class SecurityRulesTest {
         mvc.perform(get("/api/invoices/5").header("Authorization", t)).andExpect(status().isForbidden());
     }
 
+    /** C3: nguoi thue (hoac bat ky ai) da dang nhap khong tu dang ky/xac thuc thanh chu tro duoc: dong ca API. */
+    @Test
+    void loggedInTenantCannotCallOwnerRegistration() throws Exception {
+        dbRoles = List.of("TENANT");
+        String t = bearer("TENANT");
+        for (String path : List.of("/api/auth/register", "/api/auth/verify-email", "/api/auth/resend-verification")) {
+            mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(path).header("Authorization", t))
+                    .andExpect(status().isForbidden());
+        }
+    }
+
+    /** T3: dang dung mat khau tam thi chi nhom /api/auth/** dung duoc, con lai 403 du goi API truc tiep. */
+    @Test
+    void tempPasswordSessionIsLimitedToAuthEndpoints() throws Exception {
+        dbRoles = List.of("TENANT");
+        mustChange = true;
+        String t = bearer("TENANT");
+        mvc.perform(get("/api/me/probe").header("Authorization", t)).andExpect(status().isForbidden());
+        mvc.perform(get("/api/invoices/5/detail").header("Authorization", t)).andExpect(status().isForbidden());
+        mvc.perform(get("/api/auth/me").header("Authorization", t)).andExpect(status().isOk());
+        mustChange = false; // doi xong mat khau: dung binh thuong
+        mvc.perform(get("/api/me/probe").header("Authorization", t)).andExpect(status().isOk());
+    }
+
     @Autowired MockMvc mvc;
     @Autowired JwtService jwt;
-    @MockBean UserStatusChecker statusChecker;
-    @MockBean MeterReadingService meterReadingService;
-    @MockBean PaymentService paymentService;
-    @MockBean FileStorage storage;
+    @MockitoBean UserStatusChecker statusChecker;
+    @MockitoBean MeterReadingService meterReadingService;
+    @MockitoBean PaymentService paymentService;
+    @MockitoBean FileStorage storage;
 
     /** Vai tro "trong DB" ma statusChecker tra ve; bearer() dat bang vai tro trong token (nhu chua bi doi). */
     List<String> dbRoles = List.of();
+    boolean mustChange = false;
 
     @BeforeEach
     void databaseKnowsTheUser() {
-        when(statusChecker.activeRoles(any())).thenAnswer(inv -> Optional.of(dbRoles));
+        when(statusChecker.state(any(), any())).thenAnswer(inv -> Optional.of(new UserStatusChecker.State(dbRoles, mustChange, "test-hash")));
     }
 
     /** Quyen lay tu DB moi request, khong lay tu token: giang chuc/doi vai tro co hieu luc NGAY. */
@@ -119,13 +147,13 @@ class SecurityRulesTest {
     /** UC9: khoa tai khoan phai chan NGAY token da cap (kiem tra trang thai trong DB moi request). */
     @Test
     void lockedUsersTokenIsRejectedImmediately() throws Exception {
-        when(statusChecker.activeRoles(1)).thenReturn(Optional.empty());
+        when(statusChecker.state(org.mockito.ArgumentMatchers.eq(1), any())).thenReturn(Optional.empty());
 
         mvc.perform(get("/api/probe/staff").header("Authorization", bearer("MANAGER")))
                 .andExpect(status().isUnauthorized());
         mvc.perform(get("/api/me/probe").header("Authorization", bearer("TENANT")))
                 .andExpect(status().isUnauthorized());
-        mvc.perform(get("/api/auth/probe").header("Authorization", bearer("MANAGER")))
+        mvc.perform(get("/api/auth/me").header("Authorization", bearer("MANAGER")))
                 .andExpect(status().isUnauthorized());
     }
 
@@ -146,7 +174,7 @@ class SecurityRulesTest {
     private String bearer(String... roles) {
         dbRoles = List.of(roles);
         Integer tenantId = Arrays.asList(roles).contains("TENANT") ? 1 : null;
-        return "Bearer " + jwt.generate(new AuthUser(1, "a@b.c", "A", List.of(roles), tenantId));
+        return "Bearer " + jwt.generate(new AuthUser(1, "a@b.c", "A", List.of(roles), tenantId), "test-hash");
     }
 
     @Test
@@ -175,7 +203,7 @@ class SecurityRulesTest {
 
     @Test
     void anyLoggedInUserReachesAuthArea() throws Exception {
-        mvc.perform(get("/api/auth/probe").header("Authorization", bearer("TENANT")))
+        mvc.perform(get("/api/auth/me").header("Authorization", bearer("TENANT")))
                 .andExpect(status().isOk());
     }
 

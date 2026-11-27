@@ -11,6 +11,12 @@ import com.group7.minihouse.shared.exception.BusinessException;
 import com.group7.minihouse.shared.security.AuthUser;
 import com.group7.minihouse.shared.security.JwtService;
 import java.util.List;
+import java.util.Locale;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.time.Instant;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -25,33 +31,41 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final TenantReadRepository tenantReadRepository;
+    private final JdbcTemplate jdbc;
+    // BCrypt cost 10, the same work factor as the configured password encoder.
+    private static final String TIMING_HASH = "$2a$10$R8DntFtyKRRUPZzpbXjyGu9V65vRxnO.RZDhb1LaIX9I47vQlxrQu";
+    private static final String DEMO_PASSWORD_HASH = "$2a$10$Pc6uubpMhGt6uuP/TqMCyulqTZc2GQVvfgNqWPYx7ciLqNtJzs3uy";
+
+    @Value("${app.auth.allow-demo-accounts:false}")
+    private boolean allowDemoAccounts;
 
     public AuthService(UserRepository userRepository, UserRoleRepository userRoleRepository,
                        ActivityLogService activityLogService, PasswordEncoder passwordEncoder,
-                       JwtService jwtService, TenantReadRepository tenantReadRepository) {
+                       JwtService jwtService, TenantReadRepository tenantReadRepository, JdbcTemplate jdbc) {
         this.tenantReadRepository = tenantReadRepository;
         this.userRepository = userRepository;
         this.userRoleRepository = userRoleRepository;
         this.activityLogService = activityLogService;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
+        this.jdbc = jdbc;
     }
 
     @Transactional
     public LoginResponse login(LoginRequest req, String ipAddress) {
         String id = req.identifier().trim();
-        String key = id.toLowerCase();
+        AttemptKey key = new AttemptKey(ipAddress, id.toLowerCase(Locale.ROOT));
         checkNotLocked(key);
         // Cung 1 thong bao cho "khong co tai khoan" va "sai mat khau" de khong lo tai khoan nao ton tai
         boolean tooLong = req.password().getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 72;
-        User user = tooLong ? null : userRepository.findByEmailOrPhoneNumber(id, id)
-                .filter(u -> passwordEncoder.matches(req.password(), u.getPasswordHash()))
-                .orElse(null);
-        if (user == null) {
+        User user = tooLong ? null : userRepository.findByEmailOrPhoneNumber(id, id).orElse(null);
+        boolean matches = passwordEncoder.matches(tooLong ? "" : req.password(),
+                user == null ? TIMING_HASH : user.getPasswordHash());
+        if (user == null || !matches || (!allowDemoAccounts && DEMO_PASSWORD_HASH.equals(user.getPasswordHash()))) {
             recordFailure(key);
             throw new BusinessException(HttpStatus.UNAUTHORIZED, "Sai tai khoan hoac mat khau");
         }
-        FAILURES.remove(key);
+        clearFailure(key);
 
         if (!"ACTIVE".equals(user.getStatus())) {
             throw new BusinessException(HttpStatus.FORBIDDEN, "Tai khoan khong hoat dong (bi khoa hoac ngung)");
@@ -63,39 +77,65 @@ public class AuthService {
 
         activityLogService.log(user.getUserId(), "LOGIN", "Dang nhap thanh cong", ipAddress);
 
-        return new LoginResponse(jwtService.generate(authUser), "Bearer", jwtService.getExpirationSeconds(), authUser,
+        return new LoginResponse(jwtService.generate(authUser, user.getPasswordHash()), "Bearer", jwtService.getExpirationSeconds(), authUser,
                 user.isMustChangePassword());
     }
 
-    // Chong do mat khau don gian (do an): dem lan sai theo tai khoan trong bo nho, sai MAX_FAILURES lan thi khoa tam
-    // LOCK_MINUTES phut. Khoi dong lai may chu thi xoa; khong can bang rieng.
+    @Transactional
+    public void logout(JwtService.Session session, String ip) {
+        jdbc.update("""
+                INSERT INTO dbo.revoked_sessions (session_id, expires_at)
+                SELECT ?, ? WHERE NOT EXISTS (
+                    SELECT 1 FROM dbo.revoked_sessions WITH (UPDLOCK, HOLDLOCK) WHERE session_id = ?
+                )
+                """, session.id(), session.expiresAt(), session.id());
+        jdbc.update("DELETE FROM dbo.revoked_sessions WHERE expires_at <= ?", Instant.now().getEpochSecond());
+        activityLogService.log(session.user().userId(), "LOGOUT", "Dang xuat", ip);
+    }
+
     static final int MAX_FAILURES = 5;
     static final long LOCK_MINUTES = 5;
-    private static final java.util.Map<String, long[]> FAILURES = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final long WINDOW_NANOS = java.util.concurrent.TimeUnit.MINUTES.toNanos(LOCK_MINUTES);
+    private static final int MAX_TRACKED_PAIRS = 10_000;
+    private static final Map<AttemptKey, Attempts> FAILURES = new LinkedHashMap<>();
+    private record AttemptKey(String address, String identifier) {}
+    private record Attempts(int count, long expiresAt) {}
+    private static long nextCleanup = System.nanoTime();
 
     /** Dung cho test: xoa trang thai dem. */
-    static void resetFailures() {
+    static synchronized void resetFailures() {
         FAILURES.clear();
     }
 
-    private static void checkNotLocked(String key) {
-        long[] f = FAILURES.get(key);
-        if (f != null && f[1] > System.currentTimeMillis()) {
+    private static synchronized void checkNotLocked(AttemptKey key) {
+        long now = System.nanoTime();
+        if (now - nextCleanup >= 0) {
+            FAILURES.values().removeIf(attempts -> now - attempts.expiresAt() >= 0);
+            nextCleanup = now + java.util.concurrent.TimeUnit.SECONDS.toNanos(30);
+        }
+        Attempts attempts = FAILURES.get(key);
+        if (attempts != null && now - attempts.expiresAt() < 0 && attempts.count() >= MAX_FAILURES) {
             throw new BusinessException(HttpStatus.TOO_MANY_REQUESTS,
                     "Dang nhap sai qua nhieu lan, vui long thu lai sau " + LOCK_MINUTES + " phut");
         }
     }
 
-    private static void recordFailure(String key) {
-        FAILURES.compute(key, (k, f) -> {
-            long now = System.currentTimeMillis();
-            long[] cur = f == null || (f[1] != 0 && f[1] <= now) ? new long[] {0, 0} : f; // het han khoa thi dem lai
-            cur[0]++;
-            if (cur[0] >= MAX_FAILURES) {
-                cur[1] = now + LOCK_MINUTES * 60_000;
-            }
-            return cur;
-        });
+    private static synchronized void recordFailure(AttemptKey key) {
+        long now = System.nanoTime();
+        Attempts previous = FAILURES.get(key);
+        if (previous == null && FAILURES.size() >= MAX_TRACKED_PAIRS) {
+            FAILURES.remove(FAILURES.keySet().iterator().next());
+        }
+        if (previous == null || now - previous.expiresAt() >= 0) {
+            FAILURES.put(key, new Attempts(1, now + WINDOW_NANOS));
+        } else if (previous.count() < MAX_FAILURES) {
+            int count = previous.count() + 1;
+            FAILURES.put(key, new Attempts(count, count == MAX_FAILURES ? now + WINDOW_NANOS : previous.expiresAt()));
+        }
+    }
+
+    private static synchronized void clearFailure(AttemptKey key) {
+        FAILURES.remove(key);
     }
 
     /** Tai khoan nguoi thue noi voi ho so khach thue qua so dien thoai (xem docs/thiet-ke/tai-khoan-nguoi-thue.md). */

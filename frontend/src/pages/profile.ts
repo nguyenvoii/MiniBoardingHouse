@@ -1,5 +1,5 @@
 import { h, busy } from '../lib/dom';
-import { api, clearMustChangePassword, errText, loadSession, setMyProfile } from '../lib/api';
+import { api, errText, loadPrivateImage, loadSession, renewSession, setMyProfile } from '../lib/api';
 import { dl, field, formError, input, pageHead, panel, toast } from '../ui/kit';
 import { ROLE_NAMES } from '../ui/shell';
 
@@ -35,15 +35,23 @@ export async function profilePage(view: HTMLElement): Promise<void> {
   const err2 = h('div');
   const chg = h('button', { class: 'btn' }, 'Đổi mật khẩu');
   chg.addEventListener('click', () => busy(chg, async () => {
-    try { await api.post('/api/auth/password', { currentPassword: cur.value, newPassword: nw.value }); err2.replaceChildren(); cur.value = nw.value = ''; clearMustChangePassword(); toast('Đã đổi mật khẩu'); }
+    try {
+      const { accessToken } = await api.post<{ accessToken: string }>('/api/auth/password', { currentPassword: cur.value, newPassword: nw.value });
+      renewSession(accessToken);
+      err2.replaceChildren(); cur.value = nw.value = ''; toast('Đã đổi mật khẩu');
+    }
     catch (e) { err2.replaceChildren(formError(errText(e))); }
   }));
 
+  const avatarPreview = p.avatarUrl
+    ? h('img', { alt: 'Ảnh đại diện hiện tại', width: 64, height: 64, style: 'object-fit:cover;border-radius:50%' })
+    : null;
+  if (avatarPreview && p.avatarUrl) loadPrivateImage(avatarPreview, p.avatarUrl);
   view.replaceChildren(
     pageHead('Tài khoản của tôi'),
     h('div', { class: 'grid-eq' },
       panel('Hồ sơ', h('div', { class: 'panel-body stack' }, err1, dl([['Email', p.email ?? '–'], ['Vai trò', s.roles.map((r) => ROLE_NAMES[r] ?? r).join(', ')]]),
-        p.avatarUrl ? h('img', { src: p.avatarUrl, alt: 'Ảnh đại diện hiện tại', width: 64, height: 64, style: 'object-fit:cover;border-radius:50%' }) : null,
+        avatarPreview,
         field('Ảnh đại diện', avatar, 'Tối đa 2 MB'), h('div', { class: 'form-actions' }, upload),
         field('Họ tên', name), field('Số điện thoại', phone), h('div', { class: 'form-actions' }, save))),
       panel('Xác thực số điện thoại', phoneVerifyBox(p.phoneNumber)),

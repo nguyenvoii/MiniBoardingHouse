@@ -1,7 +1,7 @@
 import { requestBooking } from './bookings';
 import { h, busy, mount } from '../lib/dom';
 import { icon } from '../lib/icons';
-import { api, errText, loadSession, Page } from '../lib/api';
+import { api, privateImage, errText, loadSession, Page } from '../lib/api';
 import { date, dateTime, money, monthLabel, isoDay } from '../lib/format';
 import type { Contract, ContractDetail, Notification, QrInfo } from '../data/types';
 import { dl, emptyState, field, formError, openDialog, plate, select, statusBadge, toast } from '../ui/kit';
@@ -164,7 +164,7 @@ async function payQr(inv: MyInvoice, btn: HTMLElement): Promise<void> {
       const q = await api.post<QrInfo>('/api/me/payments/qr', { invoiceId: inv.invoiceId, method: 'QR_CODE' });
       const d = openDialog('Quét mã để trả tiền', { width: 420 });
       d.body.append(
-        h('div', { class: 'qr-box' }, q.qrImageUrl ? h('img', { src: q.qrImageUrl, alt: 'Mã QR ngân hàng' }) : h('p', { class: 'muted' }, 'Chủ trọ chưa tải ảnh QR. Hãy chuyển khoản theo thông tin bên dưới.')),
+        h('div', { class: 'qr-box' }, q.qrImageUrl ? privateImage(q.qrImageUrl, 'Mã QR ngân hàng') : h('p', { class: 'muted' }, 'Chủ trọ chưa tải ảnh QR. Hãy chuyển khoản theo thông tin bên dưới.')),
         dl([['Số tiền', `${money(q.payment.amountPaid)} ₫`], ['Ngân hàng', q.bankName], ['Số tài khoản', q.accountNumber], ['Chủ tài khoản', q.accountHolder], ['Nội dung', h('span', { class: 'plate' }, q.transferContent)]]),
         h('p', { class: 'muted' }, 'Giữ nguyên nội dung chuyển khoản để chủ trọ đối chiếu. Hóa đơn được cập nhật sau khi chủ trọ xác nhận đã nhận tiền.'),
       );

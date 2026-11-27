@@ -1,0 +1,118 @@
+HƯỚNG DẪN DEMO THUYẾT TRÌNH 5 PHÚT - STAYLY (NHÓM 7)
+
+Dành cho slide 6: "Demo - vòng đời chị An" (2 phút 10 giây).
+Tất cả dữ liệu dưới đây là dữ liệu ảo, đã nạp sẵn vào database MiniBoardingHouseDB.
+
+
+1. TRẠNG THÁI DỮ LIỆU ĐÃ CHUẨN BỊ
+
+Khu trọ: "Khu trọ Bình An" (nhớ chọn đúng khu này ở ô chọn khu trên thanh trên cùng).
+
+Phòng:
+  101  TRỐNG   2.950.000 đồng/tháng, cọc 2.950.000  <- phòng của chị An, demo sẽ cho thuê
+  102  Đang thuê, anh Trần Văn Bình    (người thuê dùng ở bước 3)
+  103  Đang thuê, chị Lê Thị Cúc
+  104  Đang thuê, anh Phạm Quốc Dũng
+  201  Đang thuê, chị Võ Thị Em
+  202  Đang thuê, anh Đặng Minh Phúc
+  203, 204  Trống
+
+Chị An CHƯA có trong hệ thống: bạn sẽ thêm chị An ngay lúc demo (bước 1).
+
+Hóa đơn tháng 10 và 11 đã có, đủ trạng thái để Tổng quan và Công nợ nhìn "như thật":
+  Phòng 102 (anh Bình): tháng 11 CHƯA TRẢ 3.313.500 đồng  <- dùng cho bước 3
+  Phòng 103: đã trả đủ cả hai tháng
+  Phòng 104: tháng 11 trả một phần (1.000.000 / 3.630.000)
+  Phòng 201: tháng 10 QUÁ HẠN, tháng 11 chưa trả (hiện ở màn Công nợ)
+  Phòng 202: đã trả đủ
+
+Đã cài sẵn: đơn giá điện 3.500, nước 15.000, Internet, rác, gửi xe, tài khoản ngân hàng Vietcombank (để ra mã QR).
+
+
+2. TÀI KHOẢN ĐĂNG NHẬP
+
+Chủ trọ  : admin@minihouse.local   mật khẩu Admin@123
+Người thuê (anh Bình, phòng 102) : 0905000102   mật khẩu Admin@123
+
+Chị An: tài khoản do chính bạn cấp trong bước 2 (hệ thống sinh mật khẩu tạm). Khi chị An đăng nhập lần đầu, hệ thống bắt đổi mật khẩu, mất thời gian. VÌ VẬY KHÔNG đăng nhập bằng chị An lúc demo. Bước 3 dùng tài khoản anh Bình.
+
+
+3. CHUẨN BỊ TRƯỚC GIỜ LÊN (làm ở nhà, làm theo thứ tự)
+
+Bước 1. Bật SQL Server (đã chạy sẵn trên máy này).
+Bước 2. Sao lưu DB để tập xong còn đặt lại được. Mở PowerShell ở thư mục dự án:
+          powershell -ExecutionPolicy Bypass -File db\demo\sao-luu-truoc-demo.ps1
+        Chỉ cần làm một lần, KHI DB đang ở trạng thái sạch (chưa có chị An).
+Bước 3. Bật ứng dụng. Mở cửa sổ cmd ở thư mục dự án:
+          set JAVA_HOME=C:\Program Files\Java\jdk-17
+          set SPRING_PROFILES_ACTIVE=local
+          "C:\Program Files\NetBeans-12.6\netbeans\java\maven\bin\mvn.cmd" spring-boot:run
+        Đợi dòng "Started MiniBoardingHouseApplication". Mở http://localhost:8080
+Bước 4. Mở 2 cửa sổ trình duyệt:
+          Cửa sổ 1 (thường): đăng nhập chủ trọ, chọn "Khu trọ Bình An".
+          Cửa sổ 2 (ẨN DANH): đăng nhập 0905000102, kiểm tra thấy hóa đơn tháng 11, rồi để yên đó.
+Bước 5. Phóng to trình duyệt 125% đến 150% (Ctrl và +). Tắt thông báo Windows, Zalo, Messenger.
+Bước 6. Quay video dự phòng 2 phút 10 giây đúng kịch bản bên dưới (xem mục 6).
+
+Tập xong muốn làm lại từ đầu: Ctrl+C tắt app, chạy
+          powershell -ExecutionPolicy Bypass -File db\demo\dat-lai-sau-demo.ps1
+rồi bật lại app (bước 3) và đăng nhập lại.
+
+
+4. KỊCH BẢN DEMO 2 PHÚT 10 GIÂY
+
+Vào đầu, slide 6 chỉ hiện vài giây, rồi chuyển sang trình duyệt.
+
+BƯỚC 1. TIẾP NHẬN (25 giây) - cửa sổ chủ trọ
+  Menu "Khách hàng" > "Thêm khách hàng". Nhập:
+    Họ tên : Nguyễn Thị An
+    SĐT    : 0905000001
+    CCCD   : 079300000001
+  Lưu. Khách hiện ở trạng thái "Chưa thuê".
+  Nói: "Khách đến, nhân viên nhập hồ sơ một lần duy nhất."
+
+BƯỚC 2. NHẬN PHÒNG (35 giây) - menu "Nhận khách" (làm một mạch 4 bước)
+  Bước 1: chọn chị An.
+  Bước 2: chọn phòng 101 (chỉ hiện phòng trống), thời hạn 12 tháng, giá 2.950.000, cọc 2.950.000. Bấm Lập hợp đồng.
+  Bước 3: bàn giao phòng, nhập chỉ số điện ban đầu 0, nước 0, số chìa khóa 2, tình trạng đồ đạc "tốt". Đây là biên bản nhận phòng.
+  Bước 4: nhập 2.950.000 ở ô thu cọc, bấm Ghi nhận thu cọc. Khách ký. Bấm Cấp tài khoản. Bấm Hoàn tất nhận phòng.
+  Nói: "Lúc vào phòng có gì, chỉ số bao nhiêu, đều được ghi lại, cọc đã thu đủ."
+  MẸO TIẾT KIỆM GIỜ: gõ sẵn các số này vào ghi chú cạnh màn hình, đừng nghĩ lúc đang nói.
+
+BƯỚC 3. ĐANG Ở (35 giây) - chuyển sang cửa sổ ẩn danh (anh Bình)
+  Nói trước: "Giờ em chuyển sang một người thuê đang ở, anh Bình, để thấy giai đoạn đang ở."
+  Mở hóa đơn tháng 11 (3.313.500 đồng), bấm "Trả bằng mã QR": hiện mã QR, số tài khoản, nội dung chuyển khoản.
+  Bấm Hỗ trợ, báo sự cố: "Vòi nước bị rỉ". Gửi.
+  Nói: "Người thuê tự xem hóa đơn, tự trả tiền, tự báo sự cố, chủ trọ không phải nhắn Zalo."
+  LƯU Ý: đừng bấm xác nhận đã trả của anh Bình nếu muốn tập lại nhiều lần; chỉ cần mở mã QR là đủ để thầy thấy.
+
+BƯỚC 4. TRẢ PHÒNG (35 giây) - quay lại cửa sổ chủ trọ
+  Menu "Trả phòng": tạo yêu cầu trả phòng cho chị An (phòng 101), xác nhận lịch kiểm tra.
+  Ghi nhận hiện trạng: điện 20, nước 3, thêm một thiết bị hư hỏng "Vòi nước" bồi thường 150.000. Lưu.
+  Lập phiếu hoàn cọc: màn quyết toán hiện số tiền hoàn lại (cọc 2.950.000 trừ hư hỏng 150.000).
+  Bấm Đã hoàn tiền, rồi Thanh lý hợp đồng. Phòng 101 về Trống.
+  Nói: "Ba câu hỏi lúc đầu, giờ hệ thống trả lời trong một màn hình."
+
+Tổng: 25 + 35 + 35 + 35 = 130 giây = 2 phút 10 giây.
+
+
+5. NẾU CÓ SỰ CỐ LÚC LÊN
+
+  Màn hình trắng hoặc lỗi mạng : bật video dự phòng NGAY, không sửa lỗi trên sân khấu.
+  Quên chọn khu trọ            : chọn lại "Khu trọ Bình An" ở thanh trên cùng.
+  Phòng 101 không hiện trong danh sách chọn phòng: đang chọn sai khu trọ, hoặc bạn đã tập xong mà chưa đặt lại DB. Chạy dat-lai-sau-demo.ps1.
+  Bước 2 không cho "Hoàn tất nhận phòng": chưa thu đủ cọc, nhập đủ 2.950.000 rồi ghi nhận.
+  Không đăng nhập được anh Bình : kiểm tra đúng SĐT 0905000102 và mật khẩu Admin@123.
+
+
+6. QUAY VIDEO DỰ PHÒNG
+
+Quay màn hình bằng Win + G (Xbox Game Bar) hoặc OBS, chạy đúng kịch bản mục 4, không cần tiếng. Lưu ở Desktop với tên demo-du-phong.mp4. Quay xong nhớ ĐẶT LẠI DB (dat-lai-sau-demo.ps1) rồi bật lại app, để lúc thuyết trình phòng 101 lại trống.
+
+
+7. CÂU THẦY CÓ THỂ HỎI VÀ GỢI Ý TRẢ LỜI
+
+  "Dữ liệu này thật hay ảo?"          Ảo, nạp bằng file db/demo/demo-thuyet-trinh.sql.
+  "Hóa đơn tính thế nào?"             Tiền phòng + điện + nước + dịch vụ, tính theo kỳ tháng, chủ trọ duyệt rồi phát hành.
+  "Tiền cọc hoàn dựa vào đâu?"        Cọc ĐÃ THU trừ công nợ và tiền hư hỏng, đối chiếu biên bản nhận phòng với biên bản trả phòng.
+  "Phân quyền ra sao?"                Chủ trọ, quản lý, thu ngân, người ghi điện nước, người thuê; mỗi vai thấy màn hình riêng.

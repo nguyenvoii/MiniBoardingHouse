@@ -48,6 +48,9 @@ public class Invoice {
     @Column(name = "share_link", length = 500)
     private String shareLink;
 
+    @Column(name = "share_expires_at")
+    private Long shareExpiresAt;
+
     @Column(name = "pdf_url", length = 500)
     private String pdfUrl;
 
@@ -84,6 +87,8 @@ public class Invoice {
 
     public String getShareLink() { return shareLink; }
     public void setShareLink(String shareLink) { this.shareLink = shareLink; }
+    public Long getShareExpiresAt() { return shareExpiresAt; }
+    public void setShareExpiresAt(Long shareExpiresAt) { this.shareExpiresAt = shareExpiresAt; }
 
     public String getPdfUrl() { return pdfUrl; }
     public void setPdfUrl(String pdfUrl) { this.pdfUrl = pdfUrl; }

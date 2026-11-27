@@ -17,13 +17,16 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
+import org.springframework.boot.jackson2.autoconfigure.Jackson2AutoConfiguration;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 /** UC13: chi LANDLORD xem nhat ky cua moi nguoi; ai da dang nhap cung xem duoc nhat ky cua CHINH MINH. */
+@ImportAutoConfiguration(Jackson2AutoConfiguration.class)
 @WebMvcTest(controllers = ActivityLogController.class)
 @Import({SecurityConfig.class, MethodSecurityConfig.class, JwtService.class, GlobalExceptionHandler.class})
 @TestPropertySource(properties = {
@@ -33,21 +36,21 @@ class ActivityLogControllerSecurityTest {
 
     @Autowired MockMvc mvc;
     @Autowired JwtService jwt;
-    @MockBean ActivityLogService service;
-    @MockBean UserStatusChecker statusChecker;
-    @MockBean com.group7.minihouse.shared.export.TableExporter exporter;
+    @MockitoBean ActivityLogService service;
+    @MockitoBean UserStatusChecker statusChecker;
+    @MockitoBean com.group7.minihouse.shared.export.TableExporter exporter;
 
     String dbRole = "MANAGER";
 
     @BeforeEach
     void databaseKnowsTheUser() {
-        when(statusChecker.activeRoles(any())).thenAnswer(inv -> Optional.of(List.of(dbRole)));
+        when(statusChecker.state(any(), any())).thenAnswer(inv -> Optional.of(new UserStatusChecker.State(List.of(dbRole), false, "test-hash")));
     }
 
     private String bearer(String role) {
         dbRole = role;
         Integer tenantId = "TENANT".equals(role) ? 1 : null;
-        return "Bearer " + jwt.generate(new AuthUser(1, "a@b.c", "A", List.of(role), tenantId));
+        return "Bearer " + jwt.generate(new AuthUser(1, "a@b.c", "A", List.of(role), tenantId), "test-hash");
     }
 
     @Test
