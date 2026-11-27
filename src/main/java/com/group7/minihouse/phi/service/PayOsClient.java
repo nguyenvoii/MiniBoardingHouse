@@ -1,6 +1,8 @@
 package com.group7.minihouse.phi.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.group7.minihouse.shared.exception.BusinessException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -24,6 +26,8 @@ import org.springframework.web.client.RestClientException;
 @Component
 @ConditionalOnProperty(name = "app.payment.payos.enabled", havingValue = "true")
 public class PayOsClient {
+
+    private static final ObjectMapper JSON = new ObjectMapper();
 
     private final RestClient client;
     private final String checksumKey;
@@ -73,10 +77,10 @@ public class PayOsClient {
         String description = "MBH" + order;
         String signature = sign(checksumKey, order, amount, description, returnUrl, cancelUrl);
         try {
-            JsonNode payload = client.post().uri("/v2/payment-requests").contentType(MediaType.APPLICATION_JSON)
+            JsonNode payload = parse(client.post().uri("/v2/payment-requests").contentType(MediaType.APPLICATION_JSON)
                     .body(Map.of("orderCode", order, "amount", amount, "description", description,
                             "returnUrl", returnUrl, "cancelUrl", cancelUrl, "signature", signature))
-                    .retrieve().body(JsonNode.class);
+                    .retrieve().body(String.class));
             JsonNode data = result(payload, order, amount);
             URI checkout = URI.create(data.path("checkoutUrl").asText());
             if (!"https".equals(checkout.getScheme()) || !checkoutHost.equalsIgnoreCase(checkout.getHost())
@@ -91,11 +95,20 @@ public class PayOsClient {
 
     public boolean paid(long order, long amount) {
         try {
-            JsonNode payload = client.get().uri("/v2/payment-requests/{order}", order)
-                    .retrieve().body(JsonNode.class);
+            JsonNode payload = parse(client.get().uri("/v2/payment-requests/{order}", order)
+                    .retrieve().body(String.class));
             JsonNode data = result(payload, order, amount);
             return "PAID".equals(data.path("status").asText()) && matchesInteger(data.path("amountPaid"), amount);
         } catch (RestClientException ex) {
+            throw upstreamFailure();
+        }
+    }
+
+    // Tu doc chuoi bang Jackson 2: converter mac dinh cua Spring 7 la Jackson 3, khong doc duoc JsonNode cua Jackson 2.
+    private static JsonNode parse(String body) {
+        try {
+            return body == null ? null : JSON.readTree(body);
+        } catch (JsonProcessingException ex) {
             throw upstreamFailure();
         }
     }
