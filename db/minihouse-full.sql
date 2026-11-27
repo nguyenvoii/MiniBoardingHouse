@@ -1,9 +1,10 @@
 ﻿-- ============================================================================
 -- MINIBOARDINGHOUSE - FILE SQL CHUẨN (GỘP): TẠO DATABASE + 56 BẢNG + DỮ LIỆU MẪU
 -- Nhóm 7. Chạy MỘT file này trong SSMS (F5) là đủ, không cần chạy thêm file nào khác.
---   Phần 1: tạo database MiniBoardingHouseDB và 56 bảng (nội dung của group-7.sql)
+--   Phần 1: tạo database MiniBoardingHouseDB và toàn bộ bảng (nội dung của group-7.sql)
 --   Phần 2: nạp dữ liệu mẫu: 5 vai trò, các quyền, tài khoản admin (nội dung của seed.sql)
 -- Chạy lại nhiều lần vẫn an toàn: nếu bảng đã có thì bỏ qua phần tạo bảng, seed không nhân đôi dữ liệu.
+-- File này được GHÉP từ group-7.sql + seed.sql: sửa schema ở group-7.sql rồi ghép lại, đừng sửa riêng ở đây.
 -- Không cần patch_01_users_unique.sql (filtered unique index đã nằm sẵn trong phần 1).
 -- Muốn tạo lại từ đầu: DROP DATABASE [MiniBoardingHouseDB] rồi chạy lại file này.
 -- Tài khoản mặc định (CHỈ DÙNG DEV/DEMO): admin@minihouse.local / Admin@123
@@ -25,7 +26,7 @@ GO
 -- Muốn tạo lại từ đầu: DROP DATABASE [MiniBoardingHouseDB] rồi chạy lại file này.
 IF OBJECT_ID(N'dbo.users', N'U') IS NOT NULL
 BEGIN
-    PRINT N'Schema đã tồn tại - bỏ qua phần tạo bảng.';
+    PRINT N'Schema da ton tai - bo qua group-7.sql.';
     SET NOEXEC ON;
 END
 GO
@@ -43,6 +44,7 @@ CREATE TABLE [users] (
     [full_name] NVARCHAR(100) NOT NULL,
     [avatar_url] NVARCHAR(500) NULL,
     [status] NVARCHAR(20) NOT NULL DEFAULT 'ACTIVE' CHECK ([status] IN ('ACTIVE', 'INACTIVE', 'LOCKED')),
+    [must_change_password] BIT NOT NULL DEFAULT 0, -- 1 = mật khẩu tạm do nhân viên cấp, phải đổi ở lần đăng nhập đầu
     [created_at] DATETIME2 NOT NULL DEFAULT GETDATE(),
     [updated_at] DATETIME2 NOT NULL DEFAULT GETDATE()
 );
@@ -193,6 +195,11 @@ CREATE TABLE [room_residents] (
     [phone_number] VARCHAR(20) NULL,
     [identity_number] VARCHAR(20) NULL,
     [relationship_with_primary] NVARCHAR(50) NULL, -- Bạn bè, Vợ/Chồng, Anh em...
+    [date_of_birth] DATE NULL,
+    [permanent_address] NVARCHAR(255) NULL,
+    [temp_residence_registered_on] DATE NULL, -- Ngày đăng ký tạm trú với công an khu vực
+    [id_front_image_url] NVARCHAR(500) NULL, -- Ảnh CCCD mặt trước
+    [id_back_image_url] NVARCHAR(500) NULL, -- Ảnh CCCD mặt sau
     [start_date] DATE NOT NULL,
     [end_date] DATE NULL,
     [is_active] BIT DEFAULT 1
@@ -225,6 +232,16 @@ CREATE TABLE [booking_requests] (
     [rejection_reason] NVARCHAR(255) NULL,
     [created_at] DATETIME2 NOT NULL DEFAULT GETDATE()
 );
+
+IF COL_LENGTH(N'dbo.booking_requests', N'guest_name') IS NULL
+BEGIN
+    ALTER TABLE dbo.booking_requests ALTER COLUMN tenant_id INT NULL;
+    ALTER TABLE dbo.booking_requests ADD guest_name NVARCHAR(100) NULL, guest_phone VARCHAR(20) NULL, hold_until DATETIME2 NULL;
+END;
+IF COL_LENGTH(N'dbo.rooms', N'held_booking_id') IS NULL
+    ALTER TABLE dbo.rooms ADD held_booking_id INT NULL;
+IF OBJECT_ID(N'dbo.FK_rooms_held_booking', N'F') IS NULL
+    ALTER TABLE dbo.rooms ADD CONSTRAINT FK_rooms_held_booking FOREIGN KEY (held_booking_id) REFERENCES dbo.booking_requests(booking_id);
 
 -- 17. Mẫu điều khoản hợp đồng thuê trọ
 CREATE TABLE [contract_templates] (
@@ -414,6 +431,7 @@ CREATE TABLE [calculated_monthly_fees] (
     [discount_amount] DECIMAL(18,2) DEFAULT 0,
     [late_penalty_amount] DECIMAL(18,2) DEFAULT 0,
     [total_calculated_amount] DECIMAL(18,2) NOT NULL,
+    -- Phòng đổi khách giữa tháng có 2 hợp đồng trong cùng kỳ: mỗi hợp đồng 1 bảng tính
     CONSTRAINT [UQ_period_room_contract_calculated] UNIQUE([billing_period_id], [room_id], [contract_id])
 );
 
@@ -725,6 +743,24 @@ CREATE TABLE [user_notifications] (
     [is_read] BIT NOT NULL DEFAULT 0,
     [created_at] DATETIME2 NOT NULL DEFAULT GETDATE()
 );
+
+-- 57. Biên bản nhận phòng / bàn giao khi bắt đầu thuê (Usecase 124)
+CREATE TABLE [checkin_inspections] (
+    [inspection_id] INT IDENTITY(1,1) PRIMARY KEY,
+    [room_id] INT NOT NULL FOREIGN KEY REFERENCES [rooms]([room_id]),
+    [tenant_id] INT NOT NULL FOREIGN KEY REFERENCES [tenants]([tenant_id]),
+    [contract_id] INT NULL FOREIGN KEY REFERENCES [rental_contracts]([contract_id]),
+    [checkin_date] DATE NOT NULL,
+    [initial_electric_meter] INT NOT NULL,
+    [initial_water_meter] INT NOT NULL,
+    [key_handed_count] INT NOT NULL DEFAULT 1,
+    [furnishings_condition] NVARCHAR(MAX) NULL,
+    [inspection_photo_url] NVARCHAR(500) NULL,
+    [notes] NVARCHAR(MAX) NULL,
+    [tenant_confirmed] BIT NOT NULL DEFAULT 1,
+    [inspected_by_name] NVARCHAR(100) NULL,
+    [created_at] DATETIME2 NOT NULL DEFAULT GETDATE()
+);
 GO
 
 -- ============================================================================
@@ -753,6 +789,63 @@ SET QUOTED_IDENTIFIER ON;
 GO
 CREATE UNIQUE INDEX UX_users_email ON [users] ([email]) WHERE [email] IS NOT NULL;
 CREATE UNIQUE INDEX UX_users_phone ON [users] ([phone_number]) WHERE [phone_number] IS NOT NULL;
+GO
+
+-- 57. Loai phong (UC16)
+CREATE TABLE [room_types] (
+ [room_type_id] INT IDENTITY(1,1) PRIMARY KEY,
+ [property_id] INT NOT NULL FOREIGN KEY REFERENCES [properties]([property_id]) ON DELETE CASCADE,
+ [type_name] NVARCHAR(100) NOT NULL,
+ [description] NVARCHAR(255) NULL,
+ [default_rent_price] DECIMAL(18,2) NOT NULL,
+ [default_deposit_amount] DECIMAL(18,2) NOT NULL,
+ CONSTRAINT [UQ_room_type_property_name] UNIQUE([property_id], [type_name])
+);
+
+ALTER TABLE [rooms] ADD [room_type_id] INT NULL
+    CONSTRAINT [FK_rooms_room_type] FOREIGN KEY REFERENCES [room_types]([room_type_id]);
+
+CREATE TABLE dbo.room_meter_changes (
+    change_id INT IDENTITY(1,1) PRIMARY KEY,
+    room_id INT NOT NULL REFERENCES dbo.rooms(room_id),
+    meter_kind VARCHAR(10) NOT NULL CHECK (meter_kind IN ('ELECTRIC', 'WATER')),
+    installed_on DATE NOT NULL,
+    serial_number NVARCHAR(80) NOT NULL,
+    previous_reading INT NULL CHECK (previous_reading >= 0),
+    installed_reading INT NOT NULL CHECK (installed_reading >= 0),
+    CONSTRAINT UQ_room_meter_change UNIQUE (room_id, meter_kind, installed_on, serial_number)
+);
+
+CREATE TABLE dbo.standard_furnishings (
+    standard_id INT IDENTITY(1,1) PRIMARY KEY,
+    item_name NVARCHAR(100) NOT NULL,
+    quantity INT NOT NULL CHECK (quantity > 0),
+    condition_status NVARCHAR(100) NOT NULL,
+    notes NVARCHAR(500) NULL
+);
+
+INSERT INTO dbo.standard_furnishings (item_name, quantity, condition_status, notes) VALUES
+    (N'Máy lạnh Inverter 1.5 HP', 1, N'Mới / Hoạt động tốt', N'Kèm remote điều khiển chính hãng'),
+    (N'Giường ngủ gỗ tự nhiên 1m6 x 2m', 1, N'Mới / Tốt', N'Khung giường chắc chắn, vạt phản phẳng'),
+    (N'Tủ quần áo gỗ 2 cánh', 1, N'Mới / Tốt', N'Có ngăn kéo và chìa khóa tủ'),
+    (N'Bình nóng lạnh Ariston 20L', 1, N'Mới / Hoạt động tốt', N'Có chống giật ELCB an toàn'),
+    (N'Bàn ghế làm việc / học tập', 1, N'Mới / Tốt', N'Bàn gỗ chân sắt + ghế xoay êm'),
+    (N'Tủ lạnh mini 90L', 1, N'Mới / Hoạt động tốt', N'Tiết kiệm điện năng');
+GO
+
+SET XACT_ABORT ON;
+
+-- UC120: lich chay cua cac tac vu tu dong, chinh duoc tren giao dien (ghi de gia tri mac dinh trong cau hinh).
+IF OBJECT_ID(N'dbo.job_settings', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.job_settings (
+        job_name    NVARCHAR(60)  NOT NULL CONSTRAINT PK_job_settings PRIMARY KEY,
+        cron        NVARCHAR(60)  NOT NULL,
+        enabled     BIT           NOT NULL CONSTRAINT DF_job_settings_enabled DEFAULT 1,
+        updated_by  INT           NULL,
+        updated_at  DATETIME2     NOT NULL CONSTRAINT DF_job_settings_updated DEFAULT SYSDATETIME()
+    );
+END;
 GO
 
 SET NOEXEC OFF;
@@ -828,18 +921,23 @@ FROM [users] u CROSS JOIN [roles] r
 WHERE u.[email] = 'admin@minihouse.local' AND r.[role_code] = 'LANDLORD'
   AND NOT EXISTS (SELECT 1 FROM [user_roles] ur WHERE ur.[user_id] = u.[user_id] AND ur.[role_id] = r.[role_id]);
 GO
+
+-- Nhóm sự cố (7 mã khớp giao diện người thuê me.ts) và nhóm thiết bị; chạy lại an toàn. Xem thêm db/patch_05_incident_categories.sql
+INSERT INTO [incident_categories] ([category_code], [category_name], [category_type], [description], [is_active])
+SELECT v.code, v.name, v.type, v.descr, 1
+FROM (VALUES
+    ('ELECTRIC_ISSUE',  N'Điện: mất điện, chập, nhảy aptomat', 'INCIDENT',  N'Sự cố về điện trong phòng'),
+    ('WATER_ISSUE',     N'Nước: yếu, rò rỉ, tắc',              'INCIDENT',  N'Sự cố về nước trong phòng'),
+    ('AIR_CONDITIONER', N'Máy lạnh',                           'INCIDENT',  N'Máy lạnh không mát, chảy nước, kêu to'),
+    ('DOOR_LOCK',       N'Cửa, ổ khóa',                        'INCIDENT',  N'Hỏng cửa, kẹt khóa, mất chìa'),
+    ('INTERNET',        N'Mạng Internet',                      'INCIDENT',  N'Mất mạng, wifi yếu'),
+    ('METER_CHECK',     N'Nghi ngờ công tơ tính sai',          'INCIDENT',  N'Đề nghị kiểm tra đồng hồ điện, nước'),
+    ('OTHER_INCIDENT',  N'Sự cố khác',                         'INCIDENT',  N'Các sự cố không thuộc nhóm trên'),
+    ('EQ_AIR_CONDITIONER', N'Máy lạnh (thiết bị)',             'EQUIPMENT', N'Lắp thêm hoặc dùng thêm máy lạnh'),
+    ('EQ_FRIDGE',       N'Tủ lạnh',                            'EQUIPMENT', N'Lắp thêm hoặc dùng thêm tủ lạnh'),
+    ('EQ_WASHER',       N'Máy giặt',                           'EQUIPMENT', N'Lắp thêm hoặc dùng thêm máy giặt'),
+    ('EQ_WATER_HEATER', N'Bình nước nóng',                     'EQUIPMENT', N'Lắp thêm bình nước nóng'),
+    ('EQ_OTHER',        N'Thiết bị khác',                      'EQUIPMENT', N'Thiết bị khác cần tính phụ phí')
+) AS v(code, name, type, descr)
+WHERE NOT EXISTS (SELECT 1 FROM [incident_categories] c WHERE c.[category_code] = v.code);
 GO
-
-SET XACT_ABORT ON;
-
--- UC120: lich chay cua cac tac vu tu dong, chinh duoc tren giao dien (ghi de gia tri mac dinh trong cau hinh).
-IF OBJECT_ID(N'dbo.job_settings', N'U') IS NULL
-BEGIN
-    CREATE TABLE dbo.job_settings (
-        job_name    NVARCHAR(60)  NOT NULL CONSTRAINT PK_job_settings PRIMARY KEY,
-        cron        NVARCHAR(60)  NOT NULL,
-        enabled     BIT           NOT NULL CONSTRAINT DF_job_settings_enabled DEFAULT 1,
-        updated_by  INT           NULL,
-        updated_at  DATETIME2     NOT NULL CONSTRAINT DF_job_settings_updated DEFAULT SYSDATETIME()
-    );
-END;

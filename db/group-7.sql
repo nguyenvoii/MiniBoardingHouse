@@ -779,10 +779,6 @@ CREATE UNIQUE INDEX UX_users_email ON [users] ([email]) WHERE [email] IS NOT NUL
 CREATE UNIQUE INDEX UX_users_phone ON [users] ([phone_number]) WHERE [phone_number] IS NOT NULL;
 GO
 
-SET NOEXEC OFF;
-GO
-
-
 -- 57. Loai phong (UC16)
 CREATE TABLE [room_types] (
  [room_type_id] INT IDENTITY(1,1) PRIMARY KEY,
@@ -838,3 +834,7 @@ BEGIN
         updated_at  DATETIME2     NOT NULL CONSTRAINT DF_job_settings_updated DEFAULT SYSDATETIME()
     );
 END;
+GO
+
+SET NOEXEC OFF;
+GO
