@@ -32,4 +32,12 @@ public interface PaymentTransactionRepository extends JpaRepository<PaymentTrans
     @Query("select i from Invoice i where i.paymentStatus in ('UNPAID', 'PARTIALLY_PAID', 'OVERDUE') "
             + "and lower(:content) like concat('%', lower(i.invoiceCode), '%')")
     List<com.group7.minihouse.shared.entity.Invoice> findPayableMentionedIn(@Param("content") String content);
+
+    /**
+     * Nhu tren nhung bo dau gach cua ma hoa don; content da bo moi ky tu khong phai chu/so va viet thuong.
+     * Nhieu ngan hang xoa dau "-" va khoang trang khi chuyen noi dung, nen SePay bao ve "BA202611202" thay vi "BA202611-202".
+     */
+    @Query("select i from Invoice i where i.paymentStatus in ('UNPAID', 'PARTIALLY_PAID', 'OVERDUE') "
+            + "and locate(replace(lower(i.invoiceCode), '-', ''), :content) > 0")
+    List<com.group7.minihouse.shared.entity.Invoice> findPayableMentionedInFlat(@Param("content") String flatContent);
 }
