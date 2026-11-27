@@ -56,6 +56,42 @@ public class TenantService {
         return list.stream().map(this::toDTO).collect(Collectors.toList());
     }
 
+    /**
+     * Tìm khách cho các ô chọn: lọc ở DB và giới hạn số dòng để danh sách lớn không bị tải hết.
+     * available=true: chỉ khách chưa có hợp đồng còn hiệu lực (ACTIVE / EXPIRING_SOON / EXPIRED chưa thanh lý); renting=true: ngược lại.
+     * Từ khóa khớp tên, SĐT, CCCD hoặc mã phòng đang thuê.
+     */
+    @Transactional(readOnly = true)
+    @SuppressWarnings("unchecked")
+    public List<TenantDTO> search(String keyword, Integer limit, boolean available, boolean renting) {
+        StringBuilder jpql = new StringBuilder("select t from Tenant t where 1=1");
+        boolean hasKeyword = keyword != null && !keyword.isBlank();
+        if (hasKeyword) {
+            jpql.append(" and (lower(t.fullName) like :kw escape '!' or t.phoneNumber like :kw escape '!'"
+                    + " or t.identityNumber like :kw escape '!'"
+                    + " or exists (select 1 from RentalContract rc where rc.tenant = t and rc.status in ('ACTIVE','EXPIRING_SOON','EXPIRED')"
+                    + " and lower(rc.room.roomCode) like :kw escape '!'))");
+        }
+        if (available) {
+            jpql.append(" and not exists (select 1 from RentalContract c where c.tenant = t"
+                    + " and c.status in ('ACTIVE','EXPIRING_SOON','EXPIRED'))");
+        }
+        if (renting) {
+            jpql.append(" and exists (select 1 from RentalContract c2 where c2.tenant = t"
+                    + " and c2.status in ('ACTIVE','EXPIRING_SOON','EXPIRED'))");
+        }
+        jpql.append(" order by t.fullName, t.tenantId");
+        jakarta.persistence.Query q = em.createQuery(jpql.toString(), Tenant.class);
+        if (hasKeyword) {
+            String escaped = keyword.trim().toLowerCase().replace("!", "!!").replace("%", "!%").replace("_", "!_");
+            q.setParameter("kw", "%" + escaped + "%");
+        }
+        if (limit != null) {
+            q.setMaxResults(Math.max(1, Math.min(limit, 50)));
+        }
+        return ((List<Tenant>) q.getResultList()).stream().map(this::toDTO).collect(Collectors.toList());
+    }
+
     @Transactional(readOnly = true)
     public TenantDTO getById(Integer id) {
         Tenant tenant = tenantRepository.findById(id)

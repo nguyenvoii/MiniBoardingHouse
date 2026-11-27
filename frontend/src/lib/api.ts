@@ -113,7 +113,17 @@ export function clearMustChangePassword(): void {
 }
 
 export async function login(identifier: string, password: string): Promise<Session> {
-  const r = await request<{ accessToken: string; mustChangePassword?: boolean }>('POST', '/api/auth/login', { identifier, password }, false);
+  return startSession(await request<LoginResult>('POST', '/api/auth/login', { identifier, password }, false));
+}
+
+/** Khách quét QR được cấp tài khoản: đổi mã trong QR lấy phiên đăng nhập (vẫn phải đổi mật khẩu tạm). */
+export async function loginWithQr(token: string): Promise<Session> {
+  return startSession(await request<LoginResult>('POST', '/api/auth/qr-login', { token }, false));
+}
+
+interface LoginResult { accessToken: string; mustChangePassword?: boolean }
+
+function startSession(r: LoginResult): Session {
   session = fromToken(r.accessToken);
   try {
     if (r.mustChangePassword) sessionStorage.setItem(MUST_KEY, '1'); else sessionStorage.removeItem(MUST_KEY);

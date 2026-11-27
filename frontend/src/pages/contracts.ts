@@ -6,6 +6,8 @@ import { restoreVi } from '../lib/vi';
 import { date, dateTime, money, isoDay } from '../lib/format';
 import { loadLive } from '../data/live';
 import type { Contract, ContractDetail } from '../data/types';
+import { tenantPicker } from '../ui/tenantPicker';
+import { residentsBox } from '../ui/occupancy';
 import { confirmDialog, dl, emptyState, field, formError, input, openDialog, pageHead, plate, select, statusBadge, table, toast } from '../ui/kit';
 
 export const ADJ: Record<string, string> = {
@@ -48,12 +50,12 @@ export async function contractsPage(view: HTMLElement, _p: Record<string, string
 }
 
 async function createContract(roomId: number | null, done: () => void): Promise<void> {
-  const { rooms: liveRooms, tenants: liveTenants } = await loadLive();
+  const { rooms: liveRooms } = await loadLive();
   const d = openDialog('Lập hợp đồng thuê', { width: 640 });
   const err = h('div');
   const vacant = liveRooms.filter((r) => r.status === 'VACANT');
   const room = select(vacant.map((r) => [String(r.roomId), `${r.code} · ${money(r.price)} ₫/tháng`] as [string, string]), roomId ? String(roomId) : '');
-  const tenant = select(liveTenants.map((t) => [String(t.tenantId), `${t.name} · ${t.phone}`] as [string, string]));
+  const tenant = tenantPicker({ label: 'Tìm người thuê' });
   const start = input({ type: 'date', value: isoDay() });
   const end = input({ type: 'date' });
   const rent = input({ type: 'number', min: '0', step: '10000', placeholder: 'Mặc định theo phòng', class: 'input num-in' });
@@ -66,13 +68,13 @@ async function createContract(roomId: number | null, done: () => void): Promise<
   const template = contractTemplateField();
   const booking = select([['', 'Không gắn giữ chỗ']], '');
   const syncBooking = () => {
-    const r = Number(room.value); const t = Number(tenant.value);
+    const r = Number(room.value); const t = Number(tenant.value());
     const fit = bookings.filter((b) => b.roomId === r && b.tenantId === t);
     booking.replaceChildren(...[['', fit.length ? 'Không gắn giữ chỗ' : 'Không có giữ chỗ đã duyệt cho phòng và khách này'], ...fit.map((b) => [String(b.bookingId), `Giữ chỗ #${b.bookingId}${b.depositPaid ? ` · đã giữ ${money(b.depositPaid)} ₫` : ''}`])].map(([v, l]) => h('option', { value: v }, l)));
   };
-  room.addEventListener('change', syncBooking); tenant.addEventListener('change', syncBooking); syncBooking();
+  room.addEventListener('change', syncBooking); tenant.onChange(syncBooking); syncBooking();
   d.body.append(err,
-    h('div', { class: 'form-grid' }, field('Phòng (chỉ phòng trống)', room), field('Người thuê', tenant),
+    h('div', { class: 'form-grid' }, field('Phòng (chỉ phòng trống)', room), field('Người thuê', tenant.root),
       field('Ngày bắt đầu', start), field('Ngày kết thúc', end),
       field('Giá thuê (₫/tháng)', rent), field('Tiền cọc (₫)', dep),
       field('Chu kỳ thanh toán', cycle), field('Hạn trả mỗi kỳ (ngày trong tháng)', due, 'Từ 1 đến 28'),
@@ -82,10 +84,10 @@ async function createContract(roomId: number | null, done: () => void): Promise<
   ok.addEventListener('click', () => busy(ok, async () => {
     err.replaceChildren();
     if (!room.value || !end.value) { err.replaceChildren(formError('Chọn phòng và ngày kết thúc.')); return; }
-    if (!tenant.value) { err.replaceChildren(formError('Chưa có khách nào để lập hợp đồng. Thêm khách ở màn Khách hàng trước.')); return; }
+    if (!tenant.value()) { err.replaceChildren(formError('Chọn người thuê (gõ tên hoặc số điện thoại để tìm). Khách mới thì thêm ở màn Khách hàng trước.')); return; }
     try {
       const c = await api.post<Contract>('/api/contracts', {
-        roomId: Number(room.value), tenantId: Number(tenant.value), startDate: start.value, endDate: end.value,
+        roomId: Number(room.value), tenantId: Number(tenant.value()), startDate: start.value, endDate: end.value,
         monthlyRentPrice: rent.value ? Number(rent.value) : null, depositAmount: dep.value ? Number(dep.value) : null,
         paymentCycleMonths: Number(cycle.value), paymentDueDay: Number(due.value), lateFeePerDay: Number(late.value),
         templateId: template.value(), bookingId: booking.value ? Number(booking.value) : null,
@@ -96,6 +98,14 @@ async function createContract(roomId: number | null, done: () => void): Promise<
       void openContract(c.contractId, done);
     } catch (e) { err.replaceChildren(formError(errText(e))); }
   }));
+}
+
+/** Người ở ghép của phòng trong hợp đồng: một người đứng tên, những người còn lại khai ở đây (CCCD, ngày vào ở, tạm trú). */
+function residentsSection(roomId: number): HTMLElement {
+  const box = h('div', null, h('h3', { style: 'margin-bottom:10px' }, 'Người ở cùng'), h('p', { class: 'muted' }, 'Đang tải…'));
+  void api.get<{ maxOccupants: number }>(`/api/chi/rooms/${roomId}`).then((r) => r.maxOccupants, () => 0)
+    .then((max) => box.replaceChildren(h('h3', { style: 'margin-bottom:10px' }, 'Người ở cùng'), residentsBox(roomId, max)));
+  return box;
 }
 
 async function openContract(id: number, reload: () => void): Promise<void> {
@@ -120,6 +130,7 @@ async function openContract(id: number, reload: () => void): Promise<void> {
       ['Chữ ký', c.digitalSignatureUrl ? h('img', { src: c.digitalSignatureUrl, alt: 'Chữ ký', style: 'height:56px;border:1px solid var(--line);border-radius:6px;background:#fff' }) : 'Chưa ký'],
     ]),
     status,
+    ...(occupying ? [residentsSection(c.roomId)] : []),
     h('div', null, h('h3', { style: 'margin-bottom:10px' }, 'Lịch sử thay đổi'),
       history.length
         ? h('ol', { class: 'timeline' }, ...history.map((a) => h('li', null, h('span', { class: 'pip' }),
@@ -318,16 +329,15 @@ function collectDeposit(c: Contract, remaining: number, done: () => void): void 
 
 /** UC49: đổi người đứng tên hợp đồng (người mới phải ký lại). */
 async function changeTenant(c: Contract, done: () => void): Promise<void> {
-  const { tenants } = await loadLive();
   const d = openDialog('Đổi người đứng tên hợp đồng');
   const err = h('div');
-  const who = select(tenants.filter((t) => t.tenantId !== c.tenantId && !t.contract).map((t) => [String(t.tenantId), `${t.name} · ${t.phone}`] as [string, string]), '', { 'aria-label': 'Người đứng tên mới' });
-  d.body.append(err, h('p', null, `Hợp đồng ${c.contractCode} hiện đứng tên ${c.tenantName}. Người mới phải ký lại và chưa có hợp đồng nào khác.`), field('Người đứng tên mới', who));
+  const who = tenantPicker({ available: true, exclude: c.tenantId, label: 'Tìm người đứng tên mới' });
+  d.body.append(err, h('p', null, `Hợp đồng ${c.contractCode} hiện đứng tên ${c.tenantName}. Người mới phải ký lại và chưa có hợp đồng nào khác.`), field('Người đứng tên mới', who.root));
   const ok = h('button', { class: 'btn' }, 'Đổi người đứng tên');
   d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Hủy'), ok);
   ok.addEventListener('click', () => busy(ok, async () => {
-    if (!who.value) { err.replaceChildren(formError('Chọn người đứng tên mới.')); return; }
-    try { await api.patch(`/api/contracts/${c.contractId}`, { tenantId: Number(who.value) }); d.close(); toast('Đã đổi người đứng tên, người mới cần ký lại'); done(); }
+    if (!who.value()) { err.replaceChildren(formError('Chọn người đứng tên mới.')); return; }
+    try { await api.patch(`/api/contracts/${c.contractId}`, { tenantId: Number(who.value()) }); d.close(); toast('Đã đổi người đứng tên, người mới cần ký lại'); done(); }
     catch (e) { err.replaceChildren(formError(errText(e))); }
   }));
 }

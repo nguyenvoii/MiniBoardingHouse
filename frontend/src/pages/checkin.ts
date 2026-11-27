@@ -4,9 +4,10 @@ import { icon } from '../lib/icons';
 import { api, errText } from '../lib/api';
 import { money, isoDay } from '../lib/format';
 import { loadLive } from '../data/live';
+import { tenantPicker } from '../ui/tenantPicker';
 import type { Contract } from '../data/types';
-import { card, dl, field, formError, input, pageHead, plate, select, searchablePicker, toast, openDialog } from '../ui/kit';
-import { addTenant } from './tenants';
+import { card, dl, field, formError, input, pageHead, plate, select, searchablePicker, toast } from '../ui/kit';
+import { addTenant, showPassword } from './tenants';
 import { signPad } from './contracts';
 import { residentsBox, vehiclesBox } from '../ui/occupancy';
 
@@ -45,11 +46,11 @@ export async function checkinPage(view: HTMLElement, _p: Record<string, string>,
   const preRoom = Number(query.get('room')) || null;
   const preContract = Number(query.get('contract')) || null;
 
-  const pick = (id: number) => {
-    const t = live.tenants.find((x) => x.tenantId === id);
-    if (t) { st.tenantId = t.tenantId; st.tenantName = t.name; st.tenantPhone = t.phone; }
+  const pick = async (id: number) => {
+    const t = await api.get<{ tenantId: number; fullName: string; phoneNumber: string }>(`/api/chi/tenants/${id}`).catch(() => null);
+    if (t) { st.tenantId = t.tenantId; st.tenantName = t.fullName; st.tenantPhone = t.phoneNumber; }
   };
-  if (preTenant) pick(preTenant);
+  if (preTenant) await pick(preTenant);
   if (preRoom) { const r = live.rooms.find((x) => x.roomId === preRoom); if (r) { st.roomId = r.roomId; st.roomCode = r.code; } }
   if (preContract) {
     // Tiếp tục một hợp đồng đã lập nhưng chưa bàn giao phòng
@@ -108,20 +109,19 @@ export async function checkinPage(view: HTMLElement, _p: Record<string, string>,
 
   // ---- Bước 1: chọn hoặc thêm khách ----
   function step1(): HTMLElement {
-    const available = live.tenants.filter((t) => !t.roomCode);
-    const tenantPicker = searchablePicker(available.map((t) => [String(t.tenantId), `${t.name} · ${t.phone}`] as [string, string]), st.tenantId ? String(st.tenantId) : '', { label: 'Tìm khách hàng' });
+    const picker = tenantPicker({ available: true });
     const next = h('button', { class: 'btn' }, 'Tiếp tục', icon('right', 16));
-    next.addEventListener('click', () => {
-      if (!tenantPicker.value()) { toast('Hãy chọn khách hoặc thêm khách mới', 'err'); return; }
-      pick(Number(tenantPicker.value())); go(1);
-    });
+    next.addEventListener('click', () => busy(next, async () => {
+      if (!picker.value()) { toast('Hãy chọn khách hoặc thêm khách mới', 'err'); return; }
+      await pick(Number(picker.value())); go(1);
+    }));
     return card('1. Khách đến thuê phòng là ai?', [
       h('p', { class: 'muted' }, 'Chọn khách đã có hồ sơ (người đến hỏi thuê trước đó). Nếu là khách mới, thêm hồ sơ rồi tiếp tục. Chỉ hiện khách chưa đang thuê phòng nào.'),
-      field('Khách hàng', tenantPicker.root),
+      field('Khách hàng', picker.root),
       h('div', { class: 'row', style: 'display:flex;gap:10px;flex-wrap:wrap' },
         h('button', { class: 'btn secondary', onclick: () => addTenant((c) => {
           if (!c) return;
-          void loadLive().then((l) => { live.tenants.splice(0, live.tenants.length, ...l.tenants); pick(c.tenantId); go(1); });
+          void pick(c.tenantId).then(() => go(1));
         }) }, icon('plus', 16), 'Thêm khách mới'), next),
     ]);
   }
@@ -192,18 +192,37 @@ export async function checkinPage(view: HTMLElement, _p: Record<string, string>,
       el.value = String(r.initialElectricMeter ?? 0); wa.value = String(r.initialWaterMeter ?? 0);
     }).catch(() => { el.value = '0'; wa.value = '0'; });
     const keys = input({ type: 'number', min: '0', value: '2', class: 'input num-in' });
-    const cond = h('textarea', { class: 'textarea', placeholder: 'Ví dụ: 1 giường, 1 tủ, 1 điều hòa, 1 bình nóng lạnh; tường sạch, không hư hỏng' }) as HTMLTextAreaElement;
+    // Đồ đạc của phòng: mỗi món một ô tick (có, nguyên vẹn) kèm ghi chú; không tick thì phải ghi chú lý do (thiếu/hỏng)
+    const items: Array<{ line: string; tick: HTMLInputElement; note: HTMLInputElement }> = [];
+    const checklist = h('div', { class: 'stack', style: 'gap:6px' }, h('p', { class: 'muted' }, 'Đang tải danh sách đồ đạc…'));
+    const cond = h('textarea', { class: 'textarea', placeholder: 'Phòng chưa khai báo đồ đạc: ghi tay, ví dụ 1 giường, 1 tủ, 1 điều hòa; tường sạch' }) as HTMLTextAreaElement;
+    void api.get<Array<{ itemName: string; quantity: number | null; conditionStatus: string | null }>>(`/api/chi/furnishings/room/${st.roomId}`).catch(() => []).then((list) => {
+      if (!list.length) { checklist.replaceChildren(h('p', { class: 'muted' }, 'Phòng này chưa khai báo đồ đạc (mục Phòng > Thiết bị). Ghi tay ở ô bên dưới.'), cond); return; }
+      checklist.replaceChildren(...list.map((f) => {
+        const tick = h('input', { type: 'checkbox', 'aria-label': `${f.itemName}: có và nguyên vẹn` }) as HTMLInputElement;
+        const note = input({ placeholder: 'Ghi chú (bắt buộc nếu thiếu hoặc hỏng)', maxlength: '150', 'aria-label': `Ghi chú ${f.itemName}` });
+        items.push({ line: `${f.itemName}${f.quantity && f.quantity > 1 ? ` (x${f.quantity})` : ''}`, tick, note });
+        return h('div', { style: 'display:grid;grid-template-columns:minmax(150px,1fr) minmax(0,2fr);gap:10px;align-items:center' },
+          h('label', { style: 'display:flex;gap:8px;align-items:center' }, tick, h('span', null, h('b', null, f.itemName), f.quantity && f.quantity > 1 ? ` ×${f.quantity}` : '', f.conditionStatus ? h('span', { class: 'muted' }, ` · ${f.conditionStatus}`) : null)), note);
+      }));
+    });
     const notes = h('textarea', { class: 'textarea', placeholder: 'Không bắt buộc' }) as HTMLTextAreaElement;
     const confirmed = h('input', { type: 'checkbox', id: 'ck' }) as HTMLInputElement; // không tick sẵn: chỉ tick khi khách có mặt đồng ý
     const ok = h('button', { class: 'btn' }, 'Lưu biên bản và tiếp tục');
     ok.addEventListener('click', () => busy(ok, async () => {
       err.replaceChildren();
-      if (!cond.value.trim()) { err.replaceChildren(formError('Ghi tình trạng phòng và đồ đạc lúc bàn giao để sau này đối chiếu khi trả phòng.')); return; }
+      if (items.length) {
+        const bad = items.find((i) => !i.tick.checked && !i.note.value.trim());
+        if (bad) { err.replaceChildren(formError(`Chưa kiểm "${bad.line}": tick nếu có và nguyên vẹn, nếu không thì ghi chú thiếu hoặc hỏng.`)); bad.note.focus(); return; }
+      } else if (!cond.value.trim()) { err.replaceChildren(formError('Ghi tình trạng phòng và đồ đạc lúc bàn giao để sau này đối chiếu khi trả phòng.')); return; }
+      const condition = items.length
+        ? items.map((i) => `${i.tick.checked ? '✔' : '✖'} ${i.line}${i.note.value.trim() ? `: ${i.note.value.trim()}` : ''}`).join('\n')
+        : cond.value.trim();
       try {
         await api.post('/api/chi/checkin-inspections', {
           roomId: st.roomId, tenantId: st.tenantId, contractId: st.contract!.contractId, checkinDate: isoDay(),
           initialElectricMeter: Number(el.value), initialWaterMeter: Number(wa.value), keyHandedCount: Number(keys.value),
-          furnishingsCondition: cond.value.trim(), notes: notes.value.trim() || null, tenantConfirmed: confirmed.checked,
+          furnishingsCondition: condition, notes: notes.value.trim() || null, tenantConfirmed: confirmed.checked,
         });
         st.handedOver = true; toast('Đã lưu biên bản bàn giao'); go(3);
       } catch (e) { err.replaceChildren(formError(errText(e))); }
@@ -212,7 +231,7 @@ export async function checkinPage(view: HTMLElement, _p: Record<string, string>,
       err,
       h('p', { class: 'muted' }, 'Cùng khách đọc chỉ số công tơ và kiểm tra đồ đạc. Đây là căn cứ tính điện nước tháng đầu; khi trả phòng biên bản hiện lại để nhân viên đối chiếu.'),
       h('div', { class: 'form-grid' }, field('Chỉ số điện lúc nhận (kWh)', el), field('Chỉ số nước lúc nhận (m³)', wa), field('Số chìa khóa bàn giao', keys)),
-      field('Tình trạng phòng và đồ đạc', cond), field('Ghi chú', notes),
+      field('Đồ đạc trong phòng (tick từng món khi đã kiểm)', checklist), field('Ghi chú chung (tường, sàn, vệ sinh…)', notes),
       h('label', { style: 'display:flex;gap:8px;align-items:center' }, confirmed, 'Khách đã xem và đồng ý với biên bản'),
       h('div', { style: 'display:flex;gap:10px;flex-wrap:wrap' }, h('button', { class: 'btn secondary', onclick: () => go(1) }, icon('left', 16), 'Quay lại'), ok),
     ]);
@@ -241,7 +260,7 @@ export async function checkinPage(view: HTMLElement, _p: Record<string, string>,
     acct.addEventListener('click', () => busy(acct, async () => {
       try {
         const r = await api.post<{ phoneNumber: string; temporaryPassword: string }>(`/api/tenants/${st.tenantId}/account`);
-        st.accountDone = true; showPassword(r.phoneNumber, r.temporaryPassword); paint();
+        st.accountDone = true; showPassword(r.phoneNumber, r.temporaryPassword, st.tenantId!); paint();
       } catch (e) {
         // Khách đã có tài khoản từ trước thì coi như xong
         if (/da co|đã có|exist/i.test(errText(e))) { st.accountDone = true; paint(); } else toast(errText(e), 'err');
@@ -286,12 +305,4 @@ export async function checkinPage(view: HTMLElement, _p: Record<string, string>,
   paint();
 }
 
-function showPassword(phone: string, password: string): void {
-  const d = openDialog('Đã cấp tài khoản', { width: 440 });
-  d.body.append(
-    h('p', null, 'Đưa thông tin này cho khách. Mật khẩu tạm chỉ hiện một lần.'),
-    dl([['Đăng nhập bằng', phone], ['Mật khẩu tạm', h('span', { class: 'plate lg', style: 'font-size:20px;letter-spacing:0.08em' }, password)]]),
-  );
-  d.foot.append(h('button', { class: 'btn', onclick: d.close }, 'Xong'));
-}
 

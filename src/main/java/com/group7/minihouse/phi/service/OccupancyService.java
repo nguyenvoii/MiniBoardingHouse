@@ -226,6 +226,12 @@ public class OccupancyService {
         r.setPhoneNumber(blank(req.phoneNumber()));
         r.setIdentityNumber(blank(req.identityNumber()));
         r.setRelationshipWithPrimary(blank(req.relationship()));
+        if (req.dateOfBirth() != null && req.dateOfBirth().isAfter(LocalDate.now())) {
+            throw bad("Ngay sinh khong duoc o tuong lai");
+        }
+        r.setDateOfBirth(req.dateOfBirth());
+        r.setPermanentAddress(blank(req.permanentAddress()));
+        r.setTempResidenceRegisteredOn(req.tempResidenceRegisteredOn());
     }
 
     private static String blank(String s) {
@@ -249,6 +255,7 @@ public class OccupancyService {
 
     private static ResidentResponse toResponse(RoomResident r) {
         return new ResidentResponse(r.getResidentId(), r.getRoom().getRoomId(), r.getFullName(), r.getPhoneNumber(),
-                r.getIdentityNumber(), r.getRelationshipWithPrimary(), r.getStartDate());
+                r.getIdentityNumber(), r.getRelationshipWithPrimary(), r.getStartDate(), r.getDateOfBirth(),
+                r.getPermanentAddress(), r.getTempResidenceRegisteredOn());
     }
 }

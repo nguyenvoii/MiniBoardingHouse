@@ -63,7 +63,7 @@ interface ApiRoom {
   roomId: number; roomCode: string; floorNumber: number | null; areaSqm: number; baseRentPrice: number;
   depositAmount: number; maxOccupants: number; status: string;
 }
-interface ApiTenant {
+export interface ApiTenant {
   tenantId: number; fullName: string; phoneNumber: string; identityNumber: string; email: string | null; occupation: string | null;
 }
 interface ApiFurnishing { roomId: number; itemName: string }
@@ -95,16 +95,13 @@ function roomStatus(apiStatus: string, hasContract: boolean): RoomStatus {
   return 'VACANT'; // kể cả khi DB ghi RENTED mà không còn hợp đồng hiệu lực
 }
 
-export async function loadLive(): Promise<{ rooms: LiveRoom[]; tenants: LiveTenant[]; contracts: Contract[] }> {
-  const [apiRooms, furnishings, apiTenants, contracts] = await Promise.all([
+export async function loadLive(): Promise<{ rooms: LiveRoom[]; contracts: Contract[] }> {
+  const [apiRooms, furnishings, contracts] = await Promise.all([
     api.get<ApiRoom[]>(`/api/chi/rooms?propertyId=${PROPERTY_ID}`),
     api.get<ApiFurnishing[]>('/api/chi/furnishings').catch(() => [] as ApiFurnishing[]),
-    api.get<ApiTenant[]>('/api/chi/tenants'),
     liveContracts().catch(() => [] as Contract[]),
   ]);
   const byRoom = new Map(contracts.map((c) => [c.roomId, c]));
-  const byTenant = new Map<number, Contract>();
-  for (const c of contracts) if (!byTenant.has(c.tenantId)) byTenant.set(c.tenantId, c);
   const items = new Map<number, string[]>();
   for (const f of furnishings) {
     const list = items.get(f.roomId) ?? [];
@@ -137,7 +134,14 @@ export async function loadLive(): Promise<{ rooms: LiveRoom[]; tenants: LiveTena
     })
     .sort((a, b) => a.floor - b.floor || a.code.localeCompare(b.code, 'vi', { numeric: true }));
 
-  const tenants: LiveTenant[] = apiTenants.map((t) => {
+  return { rooms, contracts };
+}
+
+/** Gắn hợp đồng đang hiệu lực vào các khách vừa tìm được (khách tải theo trang, không tải cả danh sách). */
+export function mapTenants(apiTenants: ApiTenant[], contracts: Contract[]): LiveTenant[] {
+  const byTenant = new Map<number, Contract>();
+  for (const c of contracts) if (!byTenant.has(c.tenantId)) byTenant.set(c.tenantId, c);
+  return apiTenants.map((t) => {
     const c = byTenant.get(t.tenantId);
     return {
       tenantId: t.tenantId,
@@ -151,5 +155,4 @@ export async function loadLive(): Promise<{ rooms: LiveRoom[]; tenants: LiveTena
       since: c?.startDate,
     };
   });
-  return { rooms, tenants, contracts };
 }

@@ -1,10 +1,10 @@
 import { h, busy } from '../lib/dom';
 import { icon } from '../lib/icons';
 import { api, ApiError, can, errText, loadSession, Page, PROPERTY_ID } from '../lib/api';
-import { loadLive } from '../data/live';
 import { dateTime, money, monthLabel } from '../lib/format';
 import { getMonth } from '../lib/ctx';
 import type { Invoice, Payment, QrInfo } from '../data/types';
+import { tenantPicker } from '../ui/tenantPicker';
 import { confirmDialog, emptyState, field, formError, input, openDialog, pageHead, panel, plate, select, statusBadge, table, toast } from '../ui/kit';
 
 const METHODS: Record<string, string> = { CASH: 'Tiền mặt', BANK_TRANSFER: 'Chuyển khoản', QR_CODE: 'Mã QR', GATEWAY: 'Cổng thanh toán' };
@@ -251,15 +251,14 @@ interface Prepay { prepaymentId: number | null; tenantId: number; excessBalance:
 interface Deduction { deductionId: number; targetInvoiceId: number; deductedAmount: number; deductedAt: string }
 
 async function prepaymentDrawer(): Promise<void> {
-  const { tenants } = await loadLive();
   const d = openDialog('Số dư trả trước của khách', { drawer: true });
-  const who = select(tenants.map((t) => [String(t.tenantId), `${t.name} · ${t.phone}`] as [string, string]), '', { 'aria-label': 'Chọn khách' });
+  const who = tenantPicker({ label: 'Tìm khách' });
   const body = h('div', { class: 'stack' });
-  d.body.append(h('p', { class: 'muted' }, 'Tiền khách trả dư được giữ thành số dư, cấn trừ vào hóa đơn kỳ sau hoặc hoàn lại cho khách.'), field('Khách', who), body);
+  d.body.append(h('p', { class: 'muted' }, 'Tiền khách trả dư được giữ thành số dư, cấn trừ vào hóa đơn kỳ sau hoặc hoàn lại cho khách.'), field('Khách', who.root), body);
   d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Đóng'));
   const paint = async () => {
-    if (!who.value) { body.replaceChildren(emptyState('Chưa có khách', 'Thêm khách ở mục Khách hàng.')); return; }
-    const tid = Number(who.value);
+    if (!who.value()) { body.replaceChildren(emptyState('Chưa chọn khách', 'Gõ tên hoặc số điện thoại ở ô trên để xem số dư.')); return; }
+    const tid = Number(who.value());
     body.replaceChildren(h('p', { class: 'muted' }, 'Đang tải...'));
     try {
       const [bal, ded, invs] = await Promise.all([
@@ -300,6 +299,6 @@ async function prepaymentDrawer(): Promise<void> {
         ], ded) : h('p', { class: 'muted' }, 'Chưa cấn trừ lần nào.'));
     } catch (e) { body.replaceChildren(formError(errText(e))); }
   };
-  who.addEventListener('change', () => void paint());
+  who.onChange(() => void paint());
   await paint();
 }

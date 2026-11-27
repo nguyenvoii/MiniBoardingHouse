@@ -1,10 +1,12 @@
 import { h, busy, mount } from '../lib/dom';
 import { icon } from '../lib/icons';
 import { api, errText, can } from '../lib/api';
+import { date, isoDay } from '../lib/format';
 import { confirmDialog, field, formError, input, openDialog, select, toast } from './kit';
 
 export interface Vehicle { vehicleId: number; tenantId: number; licensePlate: string; vehicleType: string; brand: string | null; color: string | null }
-export interface Resident { residentId: number; roomId: number; fullName: string; phoneNumber: string | null; identityNumber: string | null; relationship: string | null; startDate: string }
+export interface Resident { residentId: number; roomId: number; fullName: string; phoneNumber: string | null; identityNumber: string | null; relationship: string | null; startDate: string;
+  dateOfBirth: string | null; permanentAddress: string | null; tempResidenceRegisteredOn: string | null }
 
 const VEHICLE_TYPES: Array<[string, string]> = [['MOTORBIKE', 'Xe máy'], ['ELECTRIC_BIKE', 'Xe đạp điện'], ['BICYCLE', 'Xe đạp'], ['CAR', 'Ô tô'], ['OTHER', 'Khác']];
 const typeLabel = (t: string) => VEHICLE_TYPES.find((x) => x[0] === t)?.[1] ?? t;
@@ -66,7 +68,7 @@ export function residentsBox(roomId: number, maxOccupants: number): HTMLElement 
       mount(box,
         list.length
           ? h('ul', null, ...list.map((r) => h('li', { class: 'list-row' },
-              h('div', { class: 'grow' }, h('b', null, r.fullName), h('span', null, [r.relationship, r.phoneNumber].filter(Boolean).join(' · ') || ' ')),
+              h('div', { class: 'grow' }, h('b', null, r.fullName), h('span', null, [r.relationship, r.phoneNumber, `ở từ ${date(r.startDate)}`, r.tempResidenceRegisteredOn ? `tạm trú ${date(r.tempResidenceRegisteredOn)}` : 'chưa khai tạm trú'].filter(Boolean).join(' · '))),
               canEdit ? h('div', { class: 'row-actions' },
                 h('button', { class: 'btn secondary sm', onclick: () => residentDialog(roomId, r, load) }, icon('edit', 14), 'Sửa'),
                 h('button', { class: 'btn secondary sm', onclick: async () => {
@@ -92,11 +94,17 @@ function residentDialog(roomId: number, r: Resident | null, done: () => void): v
   const rel = input({ value: r?.relationship ?? '', placeholder: 'Quan hệ: bạn bè, vợ/chồng, con...' });
   const phone = input({ type: 'tel', value: r?.phoneNumber ?? '' });
   const idn = input({ value: r?.identityNumber ?? '', placeholder: 'CCCD (không bắt buộc)' });
-  d.body.append(err, field('Họ tên', name), field('Quan hệ với người đứng tên', rel), h('div', { class: 'form-grid' }, field('Số điện thoại', phone), field('CCCD', idn)));
+  const since = input({ type: 'date', value: r?.startDate ?? isoDay(), 'aria-label': 'Ngày vào ở' });
+  const dob = input({ type: 'date', value: r?.dateOfBirth ?? '', 'aria-label': 'Ngày sinh' });
+  const addr = input({ value: r?.permanentAddress ?? '', maxlength: '255', placeholder: 'Địa chỉ thường trú (không bắt buộc)', 'aria-label': 'Địa chỉ thường trú' });
+  const temp = input({ type: 'date', value: r?.tempResidenceRegisteredOn ?? '', 'aria-label': 'Ngày đăng ký tạm trú' });
+  d.body.append(err, field('Họ tên', name), field('Quan hệ với người đứng tên', rel), h('div', { class: 'form-grid' }, field('Số điện thoại', phone), field('CCCD', idn),
+    field('Ngày sinh', dob), field('Ngày vào ở', since), field('Địa chỉ thường trú', addr), field('Ngày đăng ký tạm trú', temp, 'Để trống nếu chưa khai báo với công an khu vực')));
   const ok = h('button', { class: 'btn' }, 'Lưu');
   d.foot.append(h('button', { class: 'btn secondary', onclick: d.close }, 'Hủy'), ok);
   ok.addEventListener('click', () => busy(ok, async () => {
-    const body = { fullName: name.value, relationship: rel.value, phoneNumber: phone.value, identityNumber: idn.value };
+    const body = { fullName: name.value, relationship: rel.value, phoneNumber: phone.value, identityNumber: idn.value, startDate: since.value || null,
+      dateOfBirth: dob.value || null, permanentAddress: addr.value, tempResidenceRegisteredOn: temp.value || null };
     try { await (r ? api.put(`/api/residents/${r.residentId}`, body) : api.post(`/api/rooms/${roomId}/residents`, body)); d.close(); toast('Đã lưu'); done(); }
     catch (e) { err.replaceChildren(formError(errText(e))); }
   }));

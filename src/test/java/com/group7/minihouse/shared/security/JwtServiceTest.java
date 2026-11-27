@@ -60,4 +60,18 @@ class JwtServiceTest {
         String token = jwt.generate(new AuthUser(1, "x@y.z", "X", List.of(), null));
         assertNull(jwt.parse(token));
     }
+
+    /** Token trong ma QR chi dung de doi lay phien: dua thang lam Bearer thi phai bi tu choi, va nguoc lai. */
+    @Test
+    void qrTokenIsNotASessionToken() {
+        JwtService jwt = new JwtService(SECRET, 60);
+        String qr = jwt.generateQrLogin(7, 42, "abc", 60);
+        assertNull(jwt.parse(qr));
+        JwtService.QrClaims c = jwt.parseQrLogin(qr);
+        assertEquals(7, c.userId());
+        assertEquals(42, c.tenantId());
+        assertEquals("abc", c.fingerprint());
+        assertNull(jwt.parseQrLogin(jwt.generate(new AuthUser(7, "a@b.c", "An", List.of("TENANT"), 42))));
+        assertNull(jwt.parseQrLogin(new JwtService(SECRET, 60).generateQrLogin(7, 42, "abc", -1)));
+    }
 }

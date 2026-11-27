@@ -35,6 +35,15 @@ public class RoomResident {
     @Column(name = "relationship_with_primary", length = 50)
     private String relationshipWithPrimary;
 
+    @Column(name = "date_of_birth")
+    private LocalDate dateOfBirth;
+
+    @Column(name = "permanent_address", length = 255)
+    private String permanentAddress;
+
+    @Column(name = "temp_residence_registered_on")
+    private LocalDate tempResidenceRegisteredOn;
+
     @Column(name = "start_date", nullable = false)
     private LocalDate startDate;
 
@@ -45,6 +54,15 @@ public class RoomResident {
     private Boolean isActive;
 
     public RoomResident() {}
+
+    public LocalDate getDateOfBirth() { return dateOfBirth; }
+    public void setDateOfBirth(LocalDate dateOfBirth) { this.dateOfBirth = dateOfBirth; }
+
+    public String getPermanentAddress() { return permanentAddress; }
+    public void setPermanentAddress(String permanentAddress) { this.permanentAddress = permanentAddress; }
+
+    public LocalDate getTempResidenceRegisteredOn() { return tempResidenceRegisteredOn; }
+    public void setTempResidenceRegisteredOn(LocalDate tempResidenceRegisteredOn) { this.tempResidenceRegisteredOn = tempResidenceRegisteredOn; }
 
     public Integer getResidentId() { return residentId; }
     public void setResidentId(Integer residentId) { this.residentId = residentId; }

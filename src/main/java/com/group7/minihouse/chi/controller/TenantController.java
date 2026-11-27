@@ -38,7 +38,13 @@ public class TenantController {
 
     @PreAuthorize("hasAnyRole('LANDLORD','MANAGER','CASHIER')")
     @GetMapping
-    public ApiResponse<List<TenantDTO>> getAllTenants(@RequestParam(value = "keyword", required = false) String keyword) {
+    public ApiResponse<List<TenantDTO>> getAllTenants(@RequestParam(value = "keyword", required = false) String keyword,
+                                                      @RequestParam(value = "limit", required = false) Integer limit,
+                                                      @RequestParam(value = "available", defaultValue = "false") boolean available,
+                                                      @RequestParam(value = "renting", defaultValue = "false") boolean renting) {
+        if (limit != null || available || renting) {
+            return ApiResponse.ok(tenantService.search(keyword, limit, available, renting));
+        }
         return ApiResponse.ok(tenantService.getAllTenants(keyword));
     }
 

@@ -183,6 +183,9 @@ CREATE TABLE [room_residents] (
     [phone_number] VARCHAR(20) NULL,
     [identity_number] VARCHAR(20) NULL,
     [relationship_with_primary] NVARCHAR(50) NULL, -- Bạn bè, Vợ/Chồng, Anh em...
+    [date_of_birth] DATE NULL,
+    [permanent_address] NVARCHAR(255) NULL,
+    [temp_residence_registered_on] DATE NULL, -- Ngày đăng ký tạm trú với công an khu vực
     [start_date] DATE NOT NULL,
     [end_date] DATE NULL,
     [is_active] BIT DEFAULT 1

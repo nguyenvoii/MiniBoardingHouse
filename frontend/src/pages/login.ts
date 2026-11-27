@@ -1,6 +1,6 @@
 import { busy, h } from '../lib/dom';
 import { icon } from '../lib/icons';
-import { api, clearMustChangePassword, errText, login, logout } from '../lib/api';
+import { api, clearMustChangePassword, errText, login, loginWithQr, logout } from '../lib/api';
 import { field, formError, input, openDialog, toast } from '../ui/kit';
 import { logo } from '../ui/shell';
 
@@ -96,6 +96,14 @@ export function renderLogin(root: HTMLElement, onDone: () => void): void {
     ),
   );
   id.focus();
+
+  // Khách quét QR lúc được cấp tài khoản: link có ?qr=<mã>, đăng nhập luôn không cần gõ mật khẩu tạm
+  const qr = new URLSearchParams(location.search).get('qr');
+  if (qr) {
+    history.replaceState(null, '', location.pathname + location.hash); // bỏ mã khỏi thanh địa chỉ và lịch sử
+    err.replaceChildren(h('p', { class: 'muted' }, 'Đang đăng nhập bằng mã QR…'));
+    loginWithQr(qr).then(onDone, (ex) => { err.replaceChildren(formError(errText(ex))); });
+  }
 }
 
 let forceOpen = false;

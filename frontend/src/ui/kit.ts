@@ -195,6 +195,46 @@ export function searchablePicker(options: Array<[string, string]>, value = '', a
   return { root, input: search, value: () => selected[0] };
 }
 
+/**
+ * Ô chọn tìm trên server: chỉ tải vài dòng khớp từ khóa (gõ xong 250ms mới hỏi), không đổ cả danh sách ra.
+ * `search` trả về [giá trị, nhãn]; kết quả cũ về muộn hơn kết quả mới thì bị bỏ.
+ */
+export function remotePicker(search: (q: string) => Promise<Array<[string, string]>>, attrs: { label?: string; placeholder?: string } = {}): { root: HTMLElement; input: HTMLInputElement; value: () => string; onChange: (cb: () => void) => void } {
+  let selected: [string, string] = ['', ''];
+  let seq = 0;
+  let timer: number | undefined;
+  const listeners: Array<() => void> = [];
+  const root = h('div', { class: 'search-picker' });
+  const box = input({ type: 'search', class: 'input', placeholder: attrs.placeholder ?? 'Gõ tên, số điện thoại hoặc CCCD để tìm…', 'aria-label': attrs.label ?? 'Tìm kiếm', autocomplete: 'off' });
+  const list = h('div', { class: 'search-picker-list', role: 'listbox' });
+  const choose = (item: [string, string]) => { selected = item; box.value = item[1]; list.hidden = true; listeners.forEach((cb) => cb()); };
+  const run = async () => {
+    const mine = ++seq;
+    list.hidden = false;
+    list.replaceChildren(h('p', { class: 'search-picker-empty' }, 'Đang tìm…'));
+    let found: Array<[string, string]>;
+    try { found = await search(box.value.trim()); } catch { if (mine === seq) list.replaceChildren(h('p', { class: 'search-picker-empty' }, 'Không tải được kết quả, thử lại.')); return; }
+    if (mine !== seq) return;
+    if (!found.length) { list.replaceChildren(h('p', { class: 'search-picker-empty' }, 'Không tìm thấy kết quả')); return; }
+    list.replaceChildren(...found.map((item) => {
+      const b = h('button', { type: 'button', class: `search-picker-option${item[0] === selected[0] ? ' selected' : ''}`, role: 'option', 'aria-selected': item[0] === selected[0] ? 'true' : 'false' }, item[1], item[0] === selected[0] ? ' ✓' : null);
+      b.addEventListener('click', () => choose(item));
+      return b;
+    }));
+  };
+  box.addEventListener('focus', () => { void run(); });
+  box.addEventListener('input', () => {
+    if (selected[0]) { selected = ['', '']; listeners.forEach((cb) => cb()); } // gõ lại nghĩa là bỏ lựa chọn cũ
+    window.clearTimeout(timer);
+    timer = window.setTimeout(() => { void run(); }, 250);
+  });
+  box.addEventListener('keydown', (e) => { if (e.key === 'Escape') { list.hidden = true; box.blur(); } });
+  document.addEventListener('click', (e) => { if (!root.contains(e.target as Node)) list.hidden = true; });
+  list.hidden = true;
+  root.append(box, list);
+  return { root, input: box, value: () => selected[0], onChange: (cb) => { listeners.push(cb); } };
+}
+
 export function formError(msg: string): HTMLElement {
   return h('div', { class: 'form-error', role: 'alert' }, icon('alert'), h('span', null, msg));
 }

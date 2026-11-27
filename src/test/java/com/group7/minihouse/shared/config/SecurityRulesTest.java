@@ -47,6 +47,7 @@ class SecurityRulesTest {
         @GetMapping("/api/invoices/5") String invoice() { return "ok"; }
         @org.springframework.web.bind.annotation.PostMapping("/api/auth/forgot-password") String forgot() { return "ok"; }
         @org.springframework.web.bind.annotation.PostMapping("/api/auth/reset-password") String reset() { return "ok"; }
+        @org.springframework.web.bind.annotation.PostMapping("/api/auth/qr-login") String qr() { return "ok"; }
         @org.springframework.web.bind.annotation.PostMapping("/api/auth/register") String register() { return "ok"; }
         @org.springframework.web.bind.annotation.PostMapping("/api/auth/verify-email") String verify() { return "ok"; }
         @org.springframework.web.bind.annotation.PostMapping("/api/auth/resend-verification") String resend() { return "ok"; }
@@ -69,6 +70,13 @@ class SecurityRulesTest {
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/auth/reset-password"))
                 .andExpect(status().isOk());
         mvc.perform(get("/api/auth/probe")).andExpect(status().isUnauthorized());
+    }
+
+    /** Khach quet QR chua co phien dang nhap nen API doi ma QR phai cong khai (tu kiem tra ma ben trong). */
+    @Test
+    void qrLoginIsPublic() throws Exception {
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/auth/qr-login"))
+                .andExpect(status().isOk());
     }
 
     /** Nguoi thue xem chi tiet hoa don duoc (controller kiem chu so huu), nhung khong vao cac URL hoa don khac. */

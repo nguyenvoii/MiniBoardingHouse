@@ -166,8 +166,9 @@ interface Lifecycle {
 }
 
 async function loadLifecycle(): Promise<Lifecycle> {
-  const [live, inspections, tickets, checkouts] = await Promise.all([
+  const [live, prospectList, inspections, tickets, checkouts] = await Promise.all([
     loadLive().catch(() => null),
+    api.get<unknown[]>('/api/chi/tenants?available=true&limit=50').catch(() => null), // chỉ cần đếm, tối đa 50
     // biên bản nhận phòng: hợp đồng mới (30 ngày) chưa có biên bản là việc còn dang dở
     api.get<Array<{ contractId: number | null }>>('/api/chi/checkin-inspections').catch(() => null),
     api.get<Page<{ status: string }>>('/api/maintenance-requests?size=200').catch(() => null),
@@ -181,7 +182,7 @@ async function loadLifecycle(): Promise<Lifecycle> {
   const unhandedList = inspections ? contracts.filter((c) => c.startDate >= since && !handed.has(c.contractId)) : [];
   return {
     unhanded: unhandedList.length, firstUnhanded: unhandedList[0]?.contractId ?? null,
-    prospects: (live?.tenants ?? []).filter((x) => !x.roomCode).length,
+    prospects: prospectList?.length ?? 0,
     vacant: rooms.filter((r) => r.status === 'VACANT').length,
     unsigned: contracts.filter((c) => !c.digitalSignatureUrl).length,
     renting: rooms.filter((r) => r.status === 'RENTED').length,
@@ -198,7 +199,7 @@ interface LifeCol { name: string; sub: string; rows: LifeRow[]; action: { label:
 
 function lifecyclePanel(l: Lifecycle, overdue: number): HTMLElement {
   const cols: LifeCol[] = [
-    { name: 'Tiếp nhận', sub: `${l.prospects} khách chưa thuê`, action: { label: 'Thêm khách', href: '#/tenants' },
+    { name: 'Tiếp nhận', sub: `${l.prospects >= 50 ? '50+' : l.prospects} khách chưa thuê`, action: { label: 'Thêm khách', href: '#/tenants' },
       rows: [{ label: 'Khách chưa thuê phòng', n: l.prospects, href: '#/tenants' }, { label: 'Phòng đang trống', n: l.vacant, href: '#/rooms' }] },
     { name: 'Nhận phòng', sub: l.unhanded ? `${l.unhanded} chưa bàn giao phòng` : l.unsigned ? `${l.unsigned} hợp đồng chưa ký` : 'Không việc tồn', action: { label: 'Nhận khách', href: '#/checkin' },
       rows: [{ label: 'Hợp đồng mới chưa bàn giao phòng', n: l.unhanded, href: l.firstUnhanded ? `#/checkin?contract=${l.firstUnhanded}` : '#/contracts', hot: l.unhanded > 0 },

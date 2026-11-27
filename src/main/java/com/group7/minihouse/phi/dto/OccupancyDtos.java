@@ -14,9 +14,16 @@ public final class OccupancyDtos {
                                   String brand, String color) {}
 
     public record ResidentRequest(String fullName, String phoneNumber, String identityNumber, String relationship,
-                                  LocalDate startDate) {}
+                                  LocalDate startDate, LocalDate dateOfBirth, String permanentAddress,
+                                  LocalDate tempResidenceRegisteredOn) {
+        public ResidentRequest(String fullName, String phoneNumber, String identityNumber, String relationship,
+                               LocalDate startDate) {
+            this(fullName, phoneNumber, identityNumber, relationship, startDate, null, null, null);
+        }
+    }
 
     /** Nguoi o cung (khong tinh nguoi dung ten hop dong: nguoi do luon duoc tinh la 1 nguoi). */
     public record ResidentResponse(Integer residentId, Integer roomId, String fullName, String phoneNumber,
-                                   String identityNumber, String relationship, LocalDate startDate) {}
+                                   String identityNumber, String relationship, LocalDate startDate,
+                                   LocalDate dateOfBirth, String permanentAddress, LocalDate tempResidenceRegisteredOn) {}
 }
