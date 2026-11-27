@@ -1,16 +1,17 @@
 import { h } from '../lib/dom';
 import { icon, IconName } from '../lib/icons';
-import { Role, Session, can, logout, loadSession, myAvatarUrl, onMyProfile } from '../lib/api';
+import { Role, Session, can, errText, loadPrivateImage, logout, loadSession, myAvatarUrl, onMyProfile } from '../lib/api';
 import { getMonth, setMonth, onMonth } from '../lib/ctx';
 import { PROPERTY_ID, setProperty } from '../lib/api';
 import { loadProperties } from '../data/live';
 import { monthLabel, shiftMonth, initials } from '../lib/format';
 import { notificationBell } from './bell';
+import { toast } from './kit';
 
 export function logo(size = 32): HTMLElement {
-  // Biển vàng bo góc: dấu hiệu của Stayly
-  const el = h('span', { 'aria-hidden': 'true', style: `display:inline-grid;place-items:center;width:${size}px;height:${size}px;border-radius:${size * 0.24}px;background:var(--plate);border:2px solid var(--plate-ink);` });
-  el.appendChild(h('span', { style: `width:${size * 0.34}px;height:${size * 0.34}px;border-radius:50%;background:var(--rail);border:${Math.max(2, size * 0.09)}px solid var(--plate-ink);box-sizing:border-box` }));
+  // Ngôi nhà vàng, chữ S là một tuyến đi qua hai trạm: dấu hiệu của Stayly (cùng hình với favicon trong index.html)
+  const el = h('span', { 'aria-hidden': 'true', style: `display:inline-block;flex:none;width:${size}px;height:${size}px;line-height:0` });
+  el.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="100%" height="100%"><path d="M32 5 58 25.5V52a7 7 0 0 1-7 7H13a7 7 0 0 1-7-7V25.5Z" fill="#F4C20D" stroke="#F4C20D" stroke-width="5" stroke-linejoin="round"/><path d="M43 31H29a5.5 5.5 0 0 0 0 11h6a5.5 5.5 0 0 1 0 11H21" fill="none" stroke="#16231D" stroke-width="5" stroke-linecap="round"/><circle cx="43" cy="31" r="4.6" fill="#16231D"/><circle cx="43" cy="31" r="1.9" fill="#F4C20D"/><circle cx="21" cy="53" r="4.6" fill="#16231D"/><circle cx="21" cy="53" r="1.9" fill="#F4C20D"/></svg>';
   return el;
 }
 
@@ -68,8 +69,18 @@ export const ROLE_NAMES: Record<string, string> = {
 /** Ảnh đại diện nếu có, không thì chữ cái đầu của tên. */
 function paintAvatar(el: HTMLElement, name: string): void {
   const url = myAvatarUrl();
-  if (url) el.replaceChildren(h('img', { src: url, alt: '' }));
-  else el.textContent = initials(name);
+  el.textContent = initials(name);
+  if (url) {
+    const img = h('img', { alt: '' });
+    img.addEventListener('load', () => {
+      if (myAvatarUrl() === url) el.replaceChildren(img);
+    }, { once: true });
+    loadPrivateImage(img, url);
+  }
+}
+
+function signOut(): void {
+  void logout().catch((e) => { if (loadSession()) toast(errText(e), 'err'); });
 }
 
 export interface StaffShell { root: HTMLElement; view: HTMLElement; setActive(path: string): void }
@@ -103,7 +114,7 @@ export function buildStaffShell(s: Session): StaffShell {
   const offProfile = onMyProfile(() => (rail.isConnected ? paintWho() : offProfile()));
   rail.appendChild(h('div', { class: 'rail-foot' },
     h('div', { class: 'rail-user' }, avatarEl, h('div', null, whoName, h('span', null, s.roles.map((r) => ROLE_NAMES[r] ?? r).join(', ')))),
-    h('button', { class: 'nav-link', style: 'border:0;background:none;width:100%;text-align:left;font:inherit', onclick: logout }, icon('logout'), h('span', null, 'Đăng xuất')),
+    h('button', { class: 'nav-link', style: 'border:0;background:none;width:100%;text-align:left;font:inherit', onclick: signOut }, icon('logout'), h('span', null, 'Đăng xuất')),
   ));
 
   const out = h('output', null, monthLabel(getMonth()));
@@ -169,7 +180,7 @@ export function buildTenantShell(s: Session): TenantShell {
   const root = h('div', { class: 'm-app' },
     h('header', { class: 'm-top' }, logo(28), h('b', { class: 'm-brand' }, 'Stayly'), title,
       who,
-      h('button', { class: 'icon-btn', 'aria-label': `Đăng xuất ${s.name}`, onclick: logout }, icon('logout'))),
+      h('button', { class: 'icon-btn', 'aria-label': `Đăng xuất ${s.name}`, onclick: signOut }, icon('logout'))),
     view,
     h('nav', { class: 'm-tabs', 'aria-label': 'Điều hướng' }, ...links),
   );

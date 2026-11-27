@@ -5,6 +5,7 @@
   background: var(--rail); color: var(--rail-ink); padding: 16px 12px 12px; gap: 4px; overflow: hidden;
 }
 .brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 10px; text-decoration: none; color: #fff; }
+.brand:hover { color: #fff; } /* base.css đặt a:hover xanh đậm, trùng màu nền rail nên chữ Stayly biến mất */
 .brand b { font-size: 20px; letter-spacing: -0.02em; font-weight: 700; }
 .brand small { display: block; font-size: 11px; color: var(--rail-ink-2); font-weight: 500; margin-top: -2px; }
 .rail-nav { flex: 1; min-height: 0; overflow-y: auto; margin: 0 -6px; padding: 0 6px; display: flex; flex-direction: column; gap: 1px; scrollbar-color: rgb(255 255 255 / 0.25) transparent; }
