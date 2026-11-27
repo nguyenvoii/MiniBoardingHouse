@@ -9,6 +9,8 @@ import { signPad, ADJ, fmtVal, isNum } from './contracts';
 import { input } from '../ui/kit';
 import type { InvoiceDetail } from '../data/types';
 import { routeLine } from '../ui/route';
+import { navigate } from '../lib/router';
+import { notificationTarget } from '../ui/bell';
 
 interface MyInvoice { invoiceId: number; invoiceCode: string; issueDate: string; dueDate: string; totalAmount: number; paidAmount: number; remainingAmount: number; paymentStatus: string }
 
@@ -223,8 +225,13 @@ export async function meNotificationsPage(view: HTMLElement): Promise<void> {
   view.replaceChildren(
     h('div', { style: 'display:flex;justify-content:space-between;align-items:center' }, h('h2', null, 'Thông báo'), r.items.some((n) => !n.isRead) ? readAll : null),
     r.items.length
-      ? h('section', { class: 'panel panel-flush' }, ...r.items.map((n) => h('div', { class: 'list-row', style: n.isRead ? '' : 'background:var(--primary-faint)' },
-          h('div', { class: 'grow' }, h('b', null, n.title), h('span', { style: 'display:block' }, n.content), h('span', null, dateTime(n.createdAt))),
+      ? h('section', { class: 'panel panel-flush' }, ...r.items.map((n) => h('div', { class: 'list-row', style: (n.isRead ? '' : 'background:var(--primary-faint);') + (notificationTarget(n, true) ? 'cursor:pointer' : '') },
+          h('div', { class: 'grow', onclick: () => {
+            const to = notificationTarget(n, true);
+            if (!to) return;
+            if (!n.isRead) void api.patch(`/api/me/notifications/${n.userNotificationId}/read`).catch(() => {});
+            navigate(to);
+          } }, h('b', null, n.title), h('span', { style: 'display:block' }, n.content), h('span', null, dateTime(n.createdAt))),
           h('div', { class: 'stack' },
             n.isRead
               ? action('Xóa', () => api.del('/api/me/notifications/' + n.userNotificationId))
