@@ -4,6 +4,7 @@ import { api, errText } from '../lib/api';
 import { date } from '../lib/format';
 import { liveContracts, mapTenants, LiveTenant, ApiTenant } from '../data/live';
 import { vehiclesBox } from '../ui/occupancy';
+import { qrImage } from '../ui/qr';
 import { confirmDialog, dl, field, formError, input, openDialog, pageHead, panel, plate, select, statusBadge, table, toast } from '../ui/kit';
 
 interface StayHistory { roomCode: string; startDate: string; endDate: string | null; checkoutReason: string | null }
@@ -252,7 +253,8 @@ export function showPassword(phone: string, password: string, tenantId: number):
       try { await navigator.clipboard.writeText(link); toast('Đã chép link'); } catch { toast('Không chép được, hãy chép tay', 'err'); }
     });
     quick.replaceChildren(h('b', null, 'Đăng nhập nhanh không cần gõ mật khẩu'),
-      h('p', { class: 'muted' }, 'Khách mở link này là vào thẳng web (hiệu lực 24 giờ, mất hiệu lực khi khách đổi mật khẩu).'), copyLink);
+      h('p', { class: 'muted' }, 'Khách quét mã QR bằng điện thoại là vào thẳng web (hiệu lực 24 giờ, mất hiệu lực khi khách đổi mật khẩu).'),
+      qrImage(link, 'Mã QR đăng nhập nhanh cho khách'), copyLink);
   }, (e) => quick.replaceChildren(h('p', { class: 'muted' }, `Chưa tạo được link đăng nhập nhanh: ${errText(e)}`)));
   const copy = h('button', { class: 'btn secondary' }, icon('check', 16), 'Chép mật khẩu');
   copy.addEventListener('click', async () => {

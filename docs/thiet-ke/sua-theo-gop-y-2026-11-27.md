@@ -28,7 +28,7 @@ Phòng chưa khai báo đồ đạc thì vẫn ghi tay như cũ.
 `POST /api/tenants/{id}/account/login-link` (chủ trọ/quản lý) trả mã; `POST /api/auth/qr-login` (công khai) đổi mã lấy phiên đăng nhập.
 Mã hết hạn sau 24 giờ, chỉ dùng được khi tài khoản còn mật khẩu tạm; khách đổi mật khẩu hoặc được cấp lại mật khẩu tạm là mã chết.
 Mã không dùng trực tiếp làm token phiên được (JwtService.parse từ chối). Link dạng `/?qr=<mã>`, trang đăng nhập đổi mã rồi xóa khỏi thanh địa chỉ.
-Hiện mới có link để sao chép. Hình mã QR cần thêm thư viện vẽ QR, chờ Phi đồng ý.
+Hộp thoại cấp tài khoản vẽ mã QR của link (thư viện qrcode-generator, ui/qr.ts) kèm nút chép link.
 
 ## 5. Đóng đăng ký chủ trọ và yêu cầu thuê của khách vãng lai
 
