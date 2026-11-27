@@ -48,15 +48,12 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> {
                 if (enabled) {
                     auth.requestMatchers("/api/auth/login", "/api/auth/forgot-password",
-                            "/api/auth/reset-password", "/api/auth/register", "/api/auth/verify-email",
-                            "/api/auth/resend-verification", "/api/ping",
+                            "/api/auth/reset-password", "/api/ping",
                             "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html",
                             "/ui/**", "/", "/index.html", "/assets/**", "/favicon.ico").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/uploads/rooms/**", "/api/auth/avatars/*", "/api/bank-accounts/qr/*", "/api/contracts/signatures/*").permitAll()
                         // cong thanh toan goi ve (tu kiem tra bi mat qua header X-Callback-Secret trong controller)
                         .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/payments/callback").permitAll() // /ui/**: giao dien tinh xem thu (chi co tren may nao dat thu muc demo-ui)
-                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/public/booking/rooms").permitAll()
-                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/public/booking").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/invoices/share/*").permitAll()
                         .requestMatchers("/api/auth/**").authenticated()
                         // Khu vuc nguoi thue: API cua nguoi thue DAT DUOI /api/me/** (vd /api/me/invoices)

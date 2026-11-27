@@ -1,4 +1,3 @@
-import { requestBooking } from './bookings';
 import { busy, h } from '../lib/dom';
 import { icon } from '../lib/icons';
 import { api, clearMustChangePassword, errText, login, logout } from '../lib/api';
@@ -17,9 +16,7 @@ export function renderLogin(root: HTMLElement, onDone: () => void): void {
     field('Email hoặc số điện thoại', id),
     field('Mật khẩu', pw),
     btn,
-    h('button', { type: 'button', class: 'btn secondary', onclick: () => requestBooking(true) }, 'Gửi yêu cầu thuê phòng'),
     h('button', { type: 'button', class: 'link-btn', style: 'align-self:flex-start', onclick: () => forgot() }, 'Quên mật khẩu?'),
-    h('button', { type: 'button', class: 'link-btn', style: 'align-self:flex-start', onclick: () => register() }, 'Đăng ký tài khoản chủ trọ'),
   );
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -45,48 +42,6 @@ export function renderLogin(root: HTMLElement, onDone: () => void): void {
       btn.removeAttribute('disabled');
     }
   });
-
-  /** UC1/UC2: chủ trọ tự đăng ký, nhập mã xác thực gửi qua email để kích hoạt. */
-  function register(): void {
-    const dialog = openDialog('Đăng ký tài khoản chủ trọ');
-    const error = h('div', { role: 'alert' });
-    const name = input({ maxlength: '100', autocomplete: 'name', 'aria-label': 'Họ và tên' });
-    const email = input({ type: 'email', autocomplete: 'email', 'aria-label': 'Email' });
-    const phone = input({ type: 'tel', autocomplete: 'tel', placeholder: 'Không bắt buộc', 'aria-label': 'Số điện thoại' });
-    const pass = input({ type: 'password', autocomplete: 'new-password', 'aria-label': 'Mật khẩu' });
-    const body = h('div', { class: 'stack' }, error, field('Họ và tên', name), field('Email (nhận mã xác thực)', email), field('Số điện thoại', phone), field('Mật khẩu', pass, 'Từ 8 ký tự, có cả chữ và số'));
-    dialog.body.append(body);
-    const send = h('button', { class: 'btn' }, 'Đăng ký');
-    dialog.foot.append(h('button', { class: 'btn secondary', onclick: dialog.close }, 'Hủy'), send);
-    send.addEventListener('click', () => busy(send, async () => {
-      error.replaceChildren();
-      if (!name.value.trim() || !email.value.trim() || !pass.value) { error.replaceChildren(formError('Nhập họ tên, email và mật khẩu.')); return; }
-      try {
-        await api.post('/api/auth/register', { fullName: name.value.trim(), email: email.value.trim(), phoneNumber: phone.value.trim() || null, password: pass.value });
-      } catch (e) { error.replaceChildren(formError(errText(e))); return; }
-      verify(email.value.trim());
-      dialog.close();
-    }));
-  }
-
-  function verify(mail: string): void {
-    const dialog = openDialog('Xác thực email');
-    const error = h('div', { role: 'alert' });
-    const code = input({ inputmode: 'numeric', autocomplete: 'one-time-code', maxlength: '10', 'aria-label': 'Mã xác thực' });
-    dialog.body.append(error, h('p', null, `Mã xác thực đã gửi tới ${mail}. Nhập mã để kích hoạt tài khoản.`), field('Mã xác thực', code));
-    const ok = h('button', { class: 'btn' }, 'Kích hoạt tài khoản');
-    const resend = h('button', { class: 'btn secondary' }, 'Gửi lại mã');
-    dialog.foot.append(resend, ok);
-    resend.addEventListener('click', () => busy(resend, async () => {
-      try { await api.post('/api/auth/resend-verification', { identifier: mail }); toast('Đã gửi lại mã nếu tài khoản đang chờ xác thực'); } catch (e) { error.replaceChildren(formError(errText(e))); }
-    }));
-    ok.addEventListener('click', () => busy(ok, async () => {
-      error.replaceChildren();
-      if (!code.value.trim()) { error.replaceChildren(formError('Nhập mã xác thực.')); return; }
-      try { await api.post('/api/auth/verify-email', { email: mail, code: code.value.trim() }); dialog.close(); id.value = mail; toast('Đã kích hoạt tài khoản, hãy đăng nhập'); }
-      catch (e) { error.replaceChildren(formError(errText(e))); }
-    }));
-  }
 
   function forgot(): void {
     const dialog = openDialog('Đặt lại mật khẩu');

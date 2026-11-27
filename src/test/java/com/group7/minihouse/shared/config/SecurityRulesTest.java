@@ -52,12 +52,12 @@ class SecurityRulesTest {
         @org.springframework.web.bind.annotation.PostMapping("/api/auth/resend-verification") String resend() { return "ok"; }
     }
 
-    /** UC1/UC2: dang ky va xac thuc email dien ra truoc khi co tai khoan dang nhap duoc => phai cong khai. */
+    /** Dang ky chu tro / xac thuc email / yeu cau thue cua khach vang lai KHONG duoc mo ra ngoai: chua dang nhap la 401. */
     @Test
-    void registerAndVerifyEmailArePublic() throws Exception {
-        for (String path : List.of("/api/auth/register", "/api/auth/verify-email", "/api/auth/resend-verification")) {
+    void registerVerifyAndGuestBookingAreNotPublic() throws Exception {
+        for (String path : List.of("/api/auth/register", "/api/auth/verify-email", "/api/auth/resend-verification", "/api/public/booking")) {
             mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(path))
-                    .andExpect(status().isOk());
+                    .andExpect(status().isUnauthorized());
         }
     }
 
