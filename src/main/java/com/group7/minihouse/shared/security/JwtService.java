@@ -26,8 +26,14 @@ public class JwtService {
     }
 
     public String generate(AuthUser user) {
+        return generate(user, false);
+    }
+
+    /** viaQr: phien lay tu ma QR (khach chua biet mat khau tam), cho phep dat mat khau moi ma khong can mat khau cu. */
+    public String generate(AuthUser user, boolean viaQr) {
         Instant now = Instant.now();
         return Jwts.builder()
+                .claim("via", viaQr ? QR_TYPE : null)
                 .subject(String.valueOf(user.userId()))
                 .claim("email", user.email())
                 .claim("name", user.fullName())
@@ -72,6 +78,16 @@ public class JwtService {
                 .expiration(Date.from(now.plusSeconds(minutes * 60)))
                 .signWith(key)
                 .compact();
+    }
+
+    /** Token phien (khong phai token trong ma QR) co duoc cap tu viec quet ma QR khong. */
+    public boolean isQrSession(String token) {
+        try {
+            Claims c = Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
+            return QR_TYPE.equals(c.get("via", String.class)) && !QR_TYPE.equals(c.get("typ", String.class));
+        } catch (JwtException | IllegalArgumentException e) {
+            return false;
+        }
     }
 
     /** Tra ve null neu token sai, het han hoac khong phai token ma QR. */

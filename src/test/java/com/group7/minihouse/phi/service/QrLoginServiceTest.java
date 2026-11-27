@@ -1,6 +1,8 @@
 package com.group7.minihouse.phi.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
@@ -23,6 +25,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 /** Ma QR dang nhap cho nguoi thue: chi dung duoc khi con mat khau tam, mat hieu luc khi doi/cap lai mat khau. */
 @ExtendWith(MockitoExtension.class)
@@ -40,7 +43,7 @@ class QrLoginServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new QrLoginService(tenantRepository, userRepository, userRoleRepository, activityLogService, jwt);
+        service = new QrLoginService(tenantRepository, userRepository, userRoleRepository, activityLogService, jwt, new BCryptPasswordEncoder());
         Tenant t = new Tenant();
         t.setTenantId(42);
         t.setPhoneNumber("0901234567");
@@ -89,6 +92,29 @@ class QrLoginServiceTest {
     void garbageOrSessionTokenIsRejected() {
         assertThrows(BusinessException.class, () -> service.login("khong-phai-token", "ip"));
         assertThrows(BusinessException.class, () -> service.login(null, "ip"));
+    }
+
+    @Test
+    void scannedSessionCanSetFirstPasswordWithoutTheTempOne() {
+        String qrCode = service.issue(42).token();
+        LoginResponse r = service.login(qrCode, "ip");
+        assertTrue(jwt.isQrSession(r.accessToken()));          // phien nay mang dau "vao bang QR"
+        String old = account.getPasswordHash();
+
+        service.setFirstPassword(9, "MatKhauMoi123", "ip");
+
+        assertFalse(account.isMustChangePassword());
+        assertNotEquals(old, account.getPasswordHash());
+        // ma QR cu chet vi mat khau da doi, va khong dat lai lan hai duoc
+        assertEquals(HttpStatus.UNAUTHORIZED, assertThrows(BusinessException.class, () -> service.login(qrCode, "ip")).getStatus());
+    }
+
+    @Test
+    void firstPasswordRejectsWeakOnesAndAccountsThatAlreadyHaveOwn() {
+        assertEquals(HttpStatus.BAD_REQUEST, assertThrows(BusinessException.class, () -> service.setFirstPassword(9, "12345678", "ip")).getStatus());
+        assertEquals(HttpStatus.BAD_REQUEST, assertThrows(BusinessException.class, () -> service.setFirstPassword(9, "abc", "ip")).getStatus());
+        account.setMustChangePassword(false);
+        assertEquals(HttpStatus.CONFLICT, assertThrows(BusinessException.class, () -> service.setFirstPassword(9, "MatKhauMoi123", "ip")).getStatus());
     }
 
     @Test

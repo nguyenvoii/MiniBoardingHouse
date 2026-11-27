@@ -106,6 +106,7 @@ export function logout(): void {
   try {
     sessionStorage.removeItem(KEY);
     sessionStorage.removeItem(MUST_KEY);
+    sessionStorage.removeItem(QR_KEY);
   } catch {
     /* bỏ qua */
   }
@@ -131,16 +132,26 @@ export function mustChangePassword(): boolean {
   try { return sessionStorage.getItem(MUST_KEY) === '1'; } catch { return false; }
 }
 export function clearMustChangePassword(): void {
-  try { sessionStorage.removeItem(MUST_KEY); } catch { /* bỏ qua */ }
+  try { sessionStorage.removeItem(MUST_KEY); sessionStorage.removeItem(QR_KEY); } catch { /* bỏ qua */ }
+}
+
+const QR_KEY = 'stayly.viaQr';
+/** Phiên này vào bằng mã QR: khách chưa biết mật khẩu tạm nên được đặt mật khẩu mới mà không cần nhập mật khẩu cũ. */
+export function viaQrSession(): boolean {
+  try { return sessionStorage.getItem(QR_KEY) === '1'; } catch { return false; }
 }
 
 export async function login(identifier: string, password: string): Promise<Session> {
-  return startSession(await request<LoginResult>('POST', '/api/auth/login', { identifier, password }, false));
+  const s = startSession(await request<LoginResult>('POST', '/api/auth/login', { identifier, password }, false));
+  try { sessionStorage.removeItem(QR_KEY); } catch { /* bỏ qua */ }
+  return s;
 }
 
 /** Khách quét QR được cấp tài khoản: đổi mã trong QR lấy phiên đăng nhập (vẫn phải đổi mật khẩu tạm). */
 export async function loginWithQr(token: string): Promise<Session> {
-  return startSession(await request<LoginResult>('POST', '/api/auth/qr-login', { token }, false));
+  const s = startSession(await request<LoginResult>('POST', '/api/auth/qr-login', { token }, false));
+  try { sessionStorage.setItem(QR_KEY, '1'); } catch { /* bỏ qua */ }
+  return s;
 }
 
 interface LoginResult { accessToken: string; mustChangePassword?: boolean }

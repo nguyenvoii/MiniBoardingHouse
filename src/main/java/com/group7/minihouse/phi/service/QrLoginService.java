@@ -14,6 +14,7 @@ import java.security.MessageDigest;
 import java.util.HexFormat;
 import java.util.List;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,15 +35,17 @@ public class QrLoginService {
     private final UserRoleRepository userRoleRepository;
     private final ActivityLogService activityLogService;
     private final JwtService jwtService;
+    private final PasswordEncoder passwordEncoder;
 
     public QrLoginService(TenantReadRepository tenantRepository, UserRepository userRepository,
                           UserRoleRepository userRoleRepository, ActivityLogService activityLogService,
-                          JwtService jwtService) {
+                          JwtService jwtService, PasswordEncoder passwordEncoder) {
         this.tenantRepository = tenantRepository;
         this.userRepository = userRepository;
         this.userRoleRepository = userRoleRepository;
         this.activityLogService = activityLogService;
         this.jwtService = jwtService;
+        this.passwordEncoder = passwordEncoder;
     }
 
     /** Nhan vien tao ma cho tai khoan nguoi thue dang dung mat khau tam. */
@@ -83,7 +86,26 @@ public class QrLoginService {
         }
         AuthUser authUser = new AuthUser(user.getUserId(), user.getEmail(), user.getFullName(), roles, claims.tenantId());
         activityLogService.log(user.getUserId(), "LOGIN", "Dang nhap bang ma QR", ip);
-        return new LoginResponse(jwtService.generate(authUser), "Bearer", jwtService.getExpirationSeconds(), authUser, true);
+        return new LoginResponse(jwtService.generate(authUser, true), "Bearer", jwtService.getExpirationSeconds(), authUser, true);
+    }
+
+    /**
+     * Khach vao bang ma QR thi dat mat khau moi ngay, khong can biet mat khau tam. Chi dung duoc khi tai khoan CON
+     * dung mat khau tam; dat xong thi ma QR cu mat hieu luc (dau van tay mat khau da doi).
+     */
+    @Transactional
+    public void setFirstPassword(Integer userId, String newPassword, String ip) {
+        User user = userRepository.findById(userId).orElseThrow(() -> BusinessException.notFound("Tai khoan"));
+        if (!user.isMustChangePassword()) {
+            throw new BusinessException(HttpStatus.CONFLICT, "Tai khoan da co mat khau rieng, hay dung chuc nang doi mat khau");
+        }
+        if (!AccountService.isStrong(newPassword)) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Mat khau moi phai co it nhat 8 ky tu, gom ca chu va so");
+        }
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        user.setMustChangePassword(false);
+        userRepository.save(user);
+        activityLogService.log(userId, "CHANGE_PASSWORD", "Dat mat khau moi lan dau (vao bang ma QR)", ip);
     }
 
     /** Dau van tay cua mat khau hien tai: cap lai mat khau tam hoac doi mat khau thi doi theo, ma QR cu mat hieu luc. */

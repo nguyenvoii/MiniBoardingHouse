@@ -61,6 +61,18 @@ class JwtServiceTest {
         assertNull(jwt.parse(token));
     }
 
+    /** Chi phien lay tu viec quet QR moi duoc dat mat khau moi khong can mat khau cu. */
+    @Test
+    void onlyQrSessionsAreMarkedAsQr() {
+        JwtService jwt = new JwtService(SECRET, 60);
+        AuthUser u = new AuthUser(7, "a@b.c", "An", List.of("TENANT"), 42);
+        assertTrue(jwt.isQrSession(jwt.generate(u, true)));
+        assertFalse(jwt.isQrSession(jwt.generate(u)));
+        assertFalse(jwt.isQrSession(jwt.generateQrLogin(7, 42, "abc", 60))); // token trong ma QR khong tinh
+        assertFalse(jwt.isQrSession("rac"));
+        assertNotNull(jwt.parse(jwt.generate(u, true))); // van dung nhu phien binh thuong
+    }
+
     /** Token trong ma QR chi dung de doi lay phien: dua thang lam Bearer thi phai bi tu choi, va nguoc lai. */
     @Test
     void qrTokenIsNotASessionToken() {
