@@ -1,13 +1,14 @@
 ﻿-- ============================================================================
--- MINIBOARDINGHOUSE - FILE SQL CHUẨN (GỘP): TẠO DATABASE + 56 BẢNG + DỮ LIỆU MẪU
--- Nhóm 7. Chạy MỘT file này trong SSMS (F5) là đủ, không cần chạy thêm file nào khác.
---   Phần 1: tạo database MiniBoardingHouseDB và toàn bộ bảng (nội dung của group-7.sql)
---   Phần 2: nạp dữ liệu mẫu: 5 vai trò, các quyền, tài khoản admin (nội dung của seed.sql)
--- Chạy lại nhiều lần vẫn an toàn: nếu bảng đã có thì bỏ qua phần tạo bảng, seed không nhân đôi dữ liệu.
--- File này được GHÉP từ group-7.sql + seed.sql: sửa schema ở group-7.sql rồi ghép lại, đừng sửa riêng ở đây.
--- Không cần patch_01_users_unique.sql (filtered unique index đã nằm sẵn trong phần 1).
+-- MINIBOARDINGHOUSE - FILE SQL CHUẨN (GỘP): TẠO DATABASE + BẢNG + NÂNG CẤP + DỮ LIỆU
+-- Nhóm 7. Chạy MỘT file này là đủ (SSMS bấm F5, hoặc: sqlcmd -S localhost -E -C -f 65001 -I -i minihouse-full.sql).
+--   Phần 1:  tạo database MiniBoardingHouseDB và toàn bộ bảng (nội dung group-7.sql)
+--   Phần 1B: nâng cấp database đã tạo từ bản cũ: patch 01 đến 18 (chạy lại an toàn; database mới thì không làm gì)
+--   Phần 2:  dữ liệu nền: vai trò, quyền, tài khoản admin, nhóm sự cố (nội dung seed.sql)
+--   Phần 3:  bộ dữ liệu giả định dày để test (nội dung sample-data-test.sql), CHỈ nạp khi database còn trống
+-- Chạy lại nhiều lần vẫn an toàn: có bảng rồi thì bỏ qua phần tạo bảng, seed không nhân đôi, dữ liệu test không nạp lại.
+-- File này được GHÉP bằng db/tools/gen_sample_data.py: sửa ở group-7.sql, patch_NN, seed.sql rồi chạy lại script, đừng sửa riêng ở đây.
 -- Muốn tạo lại từ đầu: DROP DATABASE [MiniBoardingHouseDB] rồi chạy lại file này.
--- Tài khoản mặc định (CHỈ DÙNG DEV/DEMO): admin@minihouse.local / Admin@123
+-- Tài khoản mặc định (CHỈ DÙNG DEV/DEMO): admin@minihouse.local / Admin@123. Không nạp bản có dữ liệu test lên máy chủ công khai.
 -- ============================================================================
 
 -- ============================================================================
@@ -851,8 +852,334 @@ GO
 SET NOEXEC OFF;
 GO
 
+-- ============================================================================
+-- PHẦN 1B: NÂNG CẤP DATABASE CŨ (patch 01 đến 18), mỗi patch chạy lại an toàn
+-- ============================================================================
+
+-- ---- patch_01_users_unique.sql
+-- ============================================================================
+-- PATCH 01: cho phép nhiều user để trống email/SĐT (UNIQUE thường chỉ cho 1 NULL).
+-- Dành cho DB ĐÃ TẠO TRƯỚC ĐÓ bằng group-7.sql cũ. DB mới tạo từ group-7.sql hiện tại không cần chạy.
+-- Chạy lại nhiều lần vẫn an toàn.
+-- ============================================================================
+USE [MiniBoardingHouseDB];
+GO
+SET QUOTED_IDENTIFIER ON;
+GO
+
+DECLARE @sql NVARCHAR(MAX) = N'';
+SELECT @sql += N'ALTER TABLE [users] DROP CONSTRAINT [' + kc.name + N'];'
+FROM sys.key_constraints kc
+JOIN sys.index_columns ic ON ic.object_id = kc.parent_object_id AND ic.index_id = kc.unique_index_id
+JOIN sys.columns c ON c.object_id = ic.object_id AND c.column_id = ic.column_id
+WHERE kc.parent_object_id = OBJECT_ID(N'dbo.users') AND kc.type = 'UQ'
+  AND c.name IN (N'email', N'phone_number');
+EXEC sp_executesql @sql;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_users_email' AND object_id = OBJECT_ID(N'dbo.users'))
+    CREATE UNIQUE INDEX UX_users_email ON [users] ([email]) WHERE [email] IS NOT NULL;
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_users_phone' AND object_id = OBJECT_ID(N'dbo.users'))
+    CREATE UNIQUE INDEX UX_users_phone ON [users] ([phone_number]) WHERE [phone_number] IS NOT NULL;
+GO
+GO
+
+-- ---- patch_02_checkin_inspections.sql
+-- ============================================================================
+-- PATCH 02: thêm bảng checkin_inspections (UC124 Biên bản nhận phòng, entity CheckinInspection của Chi).
+-- Dành cho DB ĐÃ TẠO TRƯỚC ĐÓ bằng group-7.sql cũ. DB mới tạo từ group-7.sql hiện tại đã có bảng này, không cần chạy.
+-- Chạy lại nhiều lần vẫn an toàn.
+-- ============================================================================
+USE [MiniBoardingHouseDB];
+GO
+
+IF OBJECT_ID(N'dbo.checkin_inspections', N'U') IS NULL
+BEGIN
+    CREATE TABLE [checkin_inspections] (
+        [inspection_id] INT IDENTITY(1,1) PRIMARY KEY,
+        [room_id] INT NOT NULL FOREIGN KEY REFERENCES [rooms]([room_id]),
+        [tenant_id] INT NOT NULL FOREIGN KEY REFERENCES [tenants]([tenant_id]),
+        [contract_id] INT NULL FOREIGN KEY REFERENCES [rental_contracts]([contract_id]),
+        [checkin_date] DATE NOT NULL,
+        [initial_electric_meter] INT NOT NULL,
+        [initial_water_meter] INT NOT NULL,
+        [key_handed_count] INT NOT NULL DEFAULT 1,
+        [furnishings_condition] NVARCHAR(MAX) NULL,
+        [inspection_photo_url] NVARCHAR(500) NULL,
+        [notes] NVARCHAR(MAX) NULL,
+        [tenant_confirmed] BIT NOT NULL DEFAULT 1,
+        [inspected_by_name] NVARCHAR(100) NULL,
+        [created_at] DATETIME2 NOT NULL DEFAULT GETDATE()
+    );
+    PRINT N'Đã tạo bảng checkin_inspections.';
+END
+ELSE
+    PRINT N'Bảng checkin_inspections đã có, bỏ qua.';
+GO
+GO
+
+-- ---- patch_03_must_change_password.sql
+-- Mật khẩu tạm (cấp tài khoản người thuê, thêm nhân viên, cấp lại mật khẩu) bắt đổi ở lần đăng nhập đầu.
+-- Chạy lại nhiều lần an toàn. Chạy 1 lần trên mỗi máy đã có DB cũ, TRƯỚC khi chạy app bản mới.
+USE [MiniBoardingHouseDB];
+GO
+IF COL_LENGTH('dbo.users', 'must_change_password') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[users] ADD [must_change_password] BIT NOT NULL
+        CONSTRAINT [DF_users_must_change_password] DEFAULT 0;
+    PRINT N'Đã thêm cột users.must_change_password.';
+END
+ELSE
+    PRINT N'Cột users.must_change_password đã có, bỏ qua.';
+GO
+GO
+
+-- ---- patch_04_fee_per_contract.sql
+-- Phòng đổi khách giữa tháng: cho phép mỗi hợp đồng có 1 bảng tính trong cùng kỳ (trước đây 1 bảng tính / phòng / kỳ).
+-- Chạy lại nhiều lần an toàn. Chạy 1 lần trên mỗi máy đã có DB cũ, TRƯỚC khi chạy app bản mới.
+USE [MiniBoardingHouseDB];
+GO
+IF EXISTS (SELECT 1 FROM sys.key_constraints WHERE name = 'UQ_period_room_calculated'
+           AND parent_object_id = OBJECT_ID('dbo.calculated_monthly_fees'))
+BEGIN
+    ALTER TABLE [dbo].[calculated_monthly_fees] DROP CONSTRAINT [UQ_period_room_calculated];
+    PRINT N'Đã bỏ ràng buộc UQ_period_room_calculated.';
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.key_constraints WHERE name = 'UQ_period_room_contract_calculated'
+               AND parent_object_id = OBJECT_ID('dbo.calculated_monthly_fees'))
+BEGIN
+    ALTER TABLE [dbo].[calculated_monthly_fees] ADD CONSTRAINT [UQ_period_room_contract_calculated]
+        UNIQUE ([billing_period_id], [room_id], [contract_id]);
+    PRINT N'Đã thêm ràng buộc UQ_period_room_contract_calculated.';
+END
+ELSE
+    PRINT N'Ràng buộc UQ_period_room_contract_calculated đã có, bỏ qua.';
+GO
+GO
+
+-- ---- patch_05_incident_categories.sql
+-- Nạp sẵn nhóm sự cố (INCIDENT) và nhóm thiết bị (EQUIPMENT). Trước đây không có dòng nào nên nút "Báo sự cố" của người thuê
+-- luôn lỗi "Nhóm sự cố ... không tồn tại hoặc đã tắt". 7 mã INCIDENT khớp danh sách trong giao diện người thuê (me.ts).
+-- Chạy lại nhiều lần an toàn (chỉ thêm mã chưa có, không sửa mã đã có). Chạy 1 lần trên mỗi máy đã có DB cũ.
+USE [MiniBoardingHouseDB];
+GO
+INSERT INTO [incident_categories] ([category_code], [category_name], [category_type], [description], [is_active])
+SELECT v.code, v.name, v.type, v.descr, 1
+FROM (VALUES
+    ('ELECTRIC_ISSUE',  N'Điện: mất điện, chập, nhảy aptomat', 'INCIDENT',  N'Sự cố về điện trong phòng'),
+    ('WATER_ISSUE',     N'Nước: yếu, rò rỉ, tắc',              'INCIDENT',  N'Sự cố về nước trong phòng'),
+    ('AIR_CONDITIONER', N'Máy lạnh',                           'INCIDENT',  N'Máy lạnh không mát, chảy nước, kêu to'),
+    ('DOOR_LOCK',       N'Cửa, ổ khóa',                        'INCIDENT',  N'Hỏng cửa, kẹt khóa, mất chìa'),
+    ('INTERNET',        N'Mạng Internet',                      'INCIDENT',  N'Mất mạng, wifi yếu'),
+    ('METER_CHECK',     N'Nghi ngờ công tơ tính sai',          'INCIDENT',  N'Đề nghị kiểm tra đồng hồ điện, nước'),
+    ('OTHER_INCIDENT',  N'Sự cố khác',                         'INCIDENT',  N'Các sự cố không thuộc nhóm trên'),
+    ('EQ_AIR_CONDITIONER', N'Máy lạnh (thiết bị)',             'EQUIPMENT', N'Lắp thêm hoặc dùng thêm máy lạnh'),
+    ('EQ_FRIDGE',       N'Tủ lạnh',                            'EQUIPMENT', N'Lắp thêm hoặc dùng thêm tủ lạnh'),
+    ('EQ_WASHER',       N'Máy giặt',                           'EQUIPMENT', N'Lắp thêm hoặc dùng thêm máy giặt'),
+    ('EQ_WATER_HEATER', N'Bình nước nóng',                     'EQUIPMENT', N'Lắp thêm bình nước nóng'),
+    ('EQ_OTHER',        N'Thiết bị khác',                      'EQUIPMENT', N'Thiết bị khác cần tính phụ phí')
+) AS v(code, name, type, descr)
+WHERE NOT EXISTS (SELECT 1 FROM [incident_categories] c WHERE c.[category_code] = v.code);
+GO
+GO
+
+-- ---- patch_06_room_types.sql
+IF OBJECT_ID(N'room_types', N'U') IS NULL
+BEGIN
+CREATE TABLE [room_types] (
+ [room_type_id] INT IDENTITY(1,1) PRIMARY KEY,
+ [property_id] INT NOT NULL FOREIGN KEY REFERENCES [properties]([property_id]) ON DELETE CASCADE,
+ [type_name] NVARCHAR(100) NOT NULL,
+ [description] NVARCHAR(255) NULL,
+ [default_rent_price] DECIMAL(18,2) NOT NULL,
+ [default_deposit_amount] DECIMAL(18,2) NOT NULL,
+ CONSTRAINT [UQ_room_type_property_name] UNIQUE([property_id], [type_name])
+);
+END;
+GO
+
+-- ---- patch_07_assign_room_types.sql
+-- Chạy trong cơ sở dữ liệu Stayly sau patch 06.
+IF COL_LENGTH(N'dbo.rooms', N'room_type_id') IS NULL
+    ALTER TABLE dbo.rooms ADD room_type_id INT NULL;
+
+IF OBJECT_ID(N'dbo.FK_rooms_room_type', N'F') IS NULL
+    ALTER TABLE dbo.rooms ADD CONSTRAINT FK_rooms_room_type
+        FOREIGN KEY (room_type_id) REFERENCES dbo.room_types(room_type_id);
+GO
+
+-- ---- patch_08_standard_furnishings.sql
+-- Chạy trong cơ sở dữ liệu Stayly.
+SET XACT_ABORT ON;
+BEGIN TRANSACTION;
+IF OBJECT_ID(N'dbo.standard_furnishings', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.standard_furnishings (
+        standard_id INT IDENTITY(1,1) PRIMARY KEY,
+        item_name NVARCHAR(100) NOT NULL,
+        quantity INT NOT NULL CHECK (quantity > 0),
+        condition_status NVARCHAR(100) NOT NULL,
+        notes NVARCHAR(500) NULL
+    );
+    INSERT INTO dbo.standard_furnishings (item_name, quantity, condition_status, notes) VALUES
+        (N'Máy lạnh Inverter 1.5 HP', 1, N'Mới / Hoạt động tốt', N'Kèm remote điều khiển chính hãng'),
+        (N'Giường ngủ gỗ tự nhiên 1m6 x 2m', 1, N'Mới / Tốt', N'Khung giường chắc chắn, vạt phản phẳng'),
+        (N'Tủ quần áo gỗ 2 cánh', 1, N'Mới / Tốt', N'Có ngăn kéo và chìa khóa tủ'),
+        (N'Bình nóng lạnh Ariston 20L', 1, N'Mới / Hoạt động tốt', N'Có chống giật ELCB an toàn'),
+        (N'Bàn ghế làm việc / học tập', 1, N'Mới / Tốt', N'Bàn gỗ chân sắt + ghế xoay êm'),
+        (N'Tủ lạnh mini 90L', 1, N'Mới / Hoạt động tốt', N'Tiết kiệm điện năng');
+END;
+COMMIT;
+GO
+
+-- ---- patch_09_room_meter_changes.sql
+-- Chay trong co so du lieu Stayly.
+IF OBJECT_ID(N'dbo.room_meter_changes', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.room_meter_changes (
+        change_id INT IDENTITY(1,1) PRIMARY KEY,
+        room_id INT NOT NULL REFERENCES dbo.rooms(room_id),
+        meter_kind VARCHAR(10) NOT NULL CHECK (meter_kind IN ('ELECTRIC', 'WATER')),
+        installed_on DATE NOT NULL,
+        serial_number NVARCHAR(80) NOT NULL,
+        previous_reading INT NULL CHECK (previous_reading >= 0),
+        installed_reading INT NOT NULL CHECK (installed_reading >= 0),
+        CONSTRAINT UQ_room_meter_change UNIQUE (room_id, meter_kind, installed_on, serial_number)
+    );
+END;
+GO
+
+-- ---- patch_10_guest_booking_holds.sql
+IF COL_LENGTH(N'dbo.booking_requests', N'guest_name') IS NULL
+BEGIN
+    ALTER TABLE dbo.booking_requests ALTER COLUMN tenant_id INT NULL;
+    ALTER TABLE dbo.booking_requests ADD guest_name NVARCHAR(100) NULL, guest_phone VARCHAR(20) NULL, hold_until DATETIME2 NULL;
+END;
+IF COL_LENGTH(N'dbo.rooms', N'held_booking_id') IS NULL
+    ALTER TABLE dbo.rooms ADD held_booking_id INT NULL;
+IF OBJECT_ID(N'dbo.FK_rooms_held_booking', N'F') IS NULL
+    ALTER TABLE dbo.rooms ADD CONSTRAINT FK_rooms_held_booking FOREIGN KEY (held_booking_id) REFERENCES dbo.booking_requests(booking_id);
+GO
+
+-- ---- patch_11_room_cleaning_status.sql
+SET XACT_ABORT ON;
+BEGIN TRANSACTION;
+
+IF OBJECT_ID(N'dbo.CK_rooms_status', N'C') IS NULL
+BEGIN
+    DECLARE @legacy SYSNAME;
+    SELECT @legacy = name
+    FROM sys.check_constraints
+    WHERE parent_object_id = OBJECT_ID(N'dbo.rooms')
+      AND parent_column_id = COLUMNPROPERTY(OBJECT_ID(N'dbo.rooms'), N'status', 'ColumnId')
+      AND definition LIKE N'%REPAIRING%' AND definition LIKE N'%VACANT%';
+
+    IF @legacy IS NOT NULL
+    BEGIN
+        DECLARE @drop NVARCHAR(300) = N'ALTER TABLE dbo.rooms DROP CONSTRAINT ' + QUOTENAME(@legacy);
+        EXEC sys.sp_executesql @drop;
+    END;
+
+    ALTER TABLE dbo.rooms WITH CHECK ADD CONSTRAINT CK_rooms_status
+        CHECK (status IN ('VACANT', 'RENTED', 'REPAIRING', 'CLEANING', 'SUSPENDED'));
+END;
+
+COMMIT TRANSACTION;
+GO
+
+-- ---- patch_12_tenant_residence_dates.sql
+SET XACT_ABORT ON;
+BEGIN TRANSACTION;
+
+IF COL_LENGTH(N'dbo.tenants', N'residence_start_date') IS NULL
+    ALTER TABLE dbo.tenants ADD residence_start_date DATE NULL;
+IF COL_LENGTH(N'dbo.tenants', N'residence_end_date') IS NULL
+    ALTER TABLE dbo.tenants ADD residence_end_date DATE NULL;
+
+IF OBJECT_ID(N'dbo.CK_tenants_residence_dates', N'C') IS NULL
+    EXEC(N'ALTER TABLE dbo.tenants WITH CHECK ADD CONSTRAINT CK_tenants_residence_dates
+        CHECK (residence_end_date IS NULL
+            OR (residence_start_date IS NOT NULL AND residence_end_date >= residence_start_date))');
+
+COMMIT TRANSACTION;
+GO
+
+-- ---- patch_13_contract_service_terms.sql
+IF COL_LENGTH(N'dbo.rental_contracts', N'service_terms') IS NULL
+    ALTER TABLE dbo.rental_contracts ADD service_terms NVARCHAR(255) NULL;
+GO
+
+-- ---- patch_14_transfer_closing_reading.sql
+IF COL_LENGTH(N'dbo.meter_readings', N'closing_contract_id') IS NULL
+    ALTER TABLE dbo.meter_readings ADD closing_contract_id INT NULL
+        CONSTRAINT FK_meter_readings_closing_contract REFERENCES dbo.rental_contracts(contract_id);
+GO
+
+-- ---- patch_15_segmented_meter_readings.sql
+SET XACT_ABORT ON;
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.key_constraints
+    WHERE parent_object_id = OBJECT_ID(N'dbo.meter_readings')
+      AND name = N'UQ_period_room_contract_reading'
+)
+BEGIN
+    BEGIN TRANSACTION;
+    ALTER TABLE dbo.meter_readings ADD CONSTRAINT UQ_period_room_contract_reading
+        UNIQUE (period_id, room_id, closing_contract_id);
+    ALTER TABLE dbo.meter_readings DROP CONSTRAINT UQ_period_room_reading;
+    COMMIT TRANSACTION;
+END;
+GO
+
+-- ---- patch_16_job_settings.sql
+SET XACT_ABORT ON;
+
+-- UC120: lich chay cua cac tac vu tu dong, chinh duoc tren giao dien (ghi de gia tri mac dinh trong cau hinh).
+IF OBJECT_ID(N'dbo.job_settings', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.job_settings (
+        job_name    NVARCHAR(60)  NOT NULL CONSTRAINT PK_job_settings PRIMARY KEY,
+        cron        NVARCHAR(60)  NOT NULL,
+        enabled     BIT           NOT NULL CONSTRAINT DF_job_settings_enabled DEFAULT 1,
+        updated_by  INT           NULL,
+        updated_at  DATETIME2     NOT NULL CONSTRAINT DF_job_settings_updated DEFAULT SYSDATETIME()
+    );
+END;
+GO
+
+-- ---- patch_17_resident_stay_info.sql
+-- Thong tin luu tru day du cho nguoi o ghep (khong dung ten hop dong): ngay sinh, dia chi thuong tru, ngay dang ky tam tru.
+-- Chay lai an toan. Chay voi -d MiniBoardingHouseDB.
+SET XACT_ABORT ON;
+BEGIN TRANSACTION;
+
+IF COL_LENGTH(N'dbo.room_residents', N'date_of_birth') IS NULL
+    ALTER TABLE dbo.room_residents ADD date_of_birth DATE NULL;
+IF COL_LENGTH(N'dbo.room_residents', N'permanent_address') IS NULL
+    ALTER TABLE dbo.room_residents ADD permanent_address NVARCHAR(255) NULL;
+IF COL_LENGTH(N'dbo.room_residents', N'temp_residence_registered_on') IS NULL
+    ALTER TABLE dbo.room_residents ADD temp_residence_registered_on DATE NULL;
+
+COMMIT TRANSACTION;
+GO
+
+-- ---- patch_18_resident_id_card.sql
+-- Anh CCCD (mat truoc / mat sau) cua nguoi o cung. Chay lai an toan. Chay voi -d MiniBoardingHouseDB.
+SET XACT_ABORT ON;
+BEGIN TRANSACTION;
+
+IF COL_LENGTH(N'dbo.room_residents', N'id_front_image_url') IS NULL
+    ALTER TABLE dbo.room_residents ADD id_front_image_url NVARCHAR(500) NULL;
+IF COL_LENGTH(N'dbo.room_residents', N'id_back_image_url') IS NULL
+    ALTER TABLE dbo.room_residents ADD id_back_image_url NVARCHAR(500) NULL;
+
+COMMIT TRANSACTION;
+GO
+
 -- ############################################################################
--- PHẦN 2: DỮ LIỆU MẪU
+-- PHẦN 2: DỮ LIỆU NỀN
 -- ############################################################################
 
 -- ============================================================================

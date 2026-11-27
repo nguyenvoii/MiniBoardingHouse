@@ -1061,11 +1061,31 @@ sample = header + "\n".join(body) + footer
 open(os.path.join(DB, "sample-data-test.sql"), "w", encoding="utf-8-sig", newline="\n").write(sample.replace("\n", "\r\n"))
 
 # ------------------------------------------------------------------ ghép minihouse-full.sql
-full_old = open(os.path.join(DB, "minihouse-full.sql"), encoding="utf-8-sig", newline="").read().replace("\r\n", "\n")
-cut = full_old.find("-- ############################################################################\n-- PHẦN 3")
-if cut > 0:
-    full_old = full_old[:cut].rstrip("\n") + "\n"
-part3 = "\n-- ############################################################################\n-- PHẦN 3: DỮ LIỆU GIẢ ĐỊNH DÀY ĐỂ TEST (chỉ nạp khi database còn trống)\n-- ############################################################################\n\n" + sample.replace("\r\n", "\n")
-open(os.path.join(DB, "minihouse-full.sql"), "w", encoding="utf-8-sig", newline="").write((full_old + part3).replace("\n", "\r\n"))
+def rd(name):
+    return open(os.path.join(DB, name), encoding="utf-8-sig", newline="").read().replace("\r\n", "\n").rstrip("\n") + "\n"
+
+
+SEP = "-- ============================================================================\n"
+FULL_HEAD = (SEP + "-- MINIBOARDINGHOUSE - FILE SQL CHUẨN (GỘP): TẠO DATABASE + BẢNG + NÂNG CẤP + DỮ LIỆU\n"
+             "-- Nhóm 7. Chạy MỘT file này là đủ (SSMS bấm F5, hoặc: sqlcmd -S localhost -E -C -f 65001 -I -i minihouse-full.sql).\n"
+             "--   Phần 1:  tạo database MiniBoardingHouseDB và toàn bộ bảng (nội dung group-7.sql)\n"
+             "--   Phần 1B: nâng cấp database đã tạo từ bản cũ: patch 01 đến 18 (chạy lại an toàn; database mới thì không làm gì)\n"
+             "--   Phần 2:  dữ liệu nền: vai trò, quyền, tài khoản admin, nhóm sự cố (nội dung seed.sql)\n"
+             "--   Phần 3:  bộ dữ liệu giả định dày để test (nội dung sample-data-test.sql), CHỈ nạp khi database còn trống\n"
+             "-- Chạy lại nhiều lần vẫn an toàn: có bảng rồi thì bỏ qua phần tạo bảng, seed không nhân đôi, dữ liệu test không nạp lại.\n"
+             "-- File này được GHÉP bằng db/tools/gen_sample_data.py: sửa ở group-7.sql, patch_NN, seed.sql rồi chạy lại script, đừng sửa riêng ở đây.\n"
+             "-- Muốn tạo lại từ đầu: DROP DATABASE [MiniBoardingHouseDB] rồi chạy lại file này.\n"
+             "-- Tài khoản mặc định (CHỈ DÙNG DEV/DEMO): admin@minihouse.local / Admin@123. Không nạp bản có dữ liệu test lên máy chủ công khai.\n" + SEP + "\n")
+PATCHES = sorted(f for f in os.listdir(DB) if f.startswith("patch_") and f[6:8].isdigit() and f != "patch_all.sql")
+part1b = (SEP + "-- PHẦN 1B: NÂNG CẤP DATABASE CŨ (patch " + PATCHES[0][6:8] + " đến " + PATCHES[-1][6:8] + "), mỗi patch chạy lại an toàn\n" + SEP + "\n"
+          + "\n".join(f"-- ---- {f}\n{rd(f)}GO\n" for f in PATCHES))
+schema = rd("group-7.sql")
+schema = schema[schema.index(SEP + "-- DATABASE CREATION"):]
+part2 = ("-- ############################################################################\n-- PHẦN 2: DỮ LIỆU NỀN\n"
+         "-- ############################################################################\n\n" + rd("seed.sql"))
+part3 = ("\n-- ############################################################################\n-- PHẦN 3: DỮ LIỆU GIẢ ĐỊNH DÀY ĐỂ TEST (chỉ nạp khi database còn trống)\n"
+         "-- ############################################################################\n\n" + sample.replace("\r\n", "\n"))
+full = FULL_HEAD + schema + "\n" + part1b + "\n" + part2 + part3
+open(os.path.join(DB, "minihouse-full.sql"), "w", encoding="utf-8-sig", newline="").write(full.replace("\n", "\r\n"))
 
 print("OK", {t.name: len(t.rows) for t in ORDER})
