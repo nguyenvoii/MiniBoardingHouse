@@ -1,0 +1,8 @@
+target/
+frontend/node_modules/
+src/main/resources/static/
+uploads/
+backups/
+.git/
+docs/
+db/
