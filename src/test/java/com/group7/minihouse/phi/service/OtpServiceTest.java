@@ -82,6 +82,14 @@ class OtpServiceTest {
     }
 
     @Test
+    void cooldownErrorDoesNotPoisonCallerTransaction() throws Exception {
+        // Mockito khong co giao dich that, nen kiem tra cau hinh: 429 khong duoc danh dau giao dich cha rollback-only
+        var tx = OtpService.class.getMethod("issue", User.class, String.class)
+                .getAnnotation(org.springframework.transaction.annotation.Transactional.class);
+        assertTrue(List.of(tx.noRollbackFor()).contains(BusinessException.class));
+    }
+
+    @Test
     void issueAfterCooldownInvalidatesOldCode() {
         UserVerification old = row("111111", NOW.plusMinutes(5)); // cap 5 phut truoc
         when(repo.countIssuedAfter(7, "RECOVERY", COOLDOWN_EDGE)).thenReturn(0L);

@@ -41,8 +41,12 @@ public class OtpService {
         this.clock = clock;
     }
 
-    /** Tao ma moi, huy cac ma cu. Nem 429 neu vua xin ma chua du 60 giay. Tra ve ma de caller gui di. */
-    @Transactional
+    /**
+     * Tao ma moi, huy cac ma cu. Nem 429 neu vua xin ma chua du 60 giay. Tra ve ma de caller gui di.
+     * noRollbackFor: caller (quen mat khau, gui lai ma) bat 429 de im lang bo qua; neu loi nay danh dau giao dich cha
+     * la rollback-only thi luc commit se no UnexpectedRollbackException (500). 429 duoc nem truoc khi ghi gi nen an toan.
+     */
+    @Transactional(noRollbackFor = BusinessException.class)
     public String issue(User user, String type) {
         LocalDateTime now = LocalDateTime.now(clock);
         // Ma duoc cap luc (expiresAt - TTL). Co ma nao cap trong 60 giay qua (ke ca ma da bi huy) thi chua cho xin tiep:
