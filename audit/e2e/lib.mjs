@@ -1,24 +1,26 @@
 // Tiện ích chung cho các kịch bản E2E thật (UI -> API -> SQL Server QA). Không mock.
 import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
+import { adminCredentials, localBase } from './environment.mjs';
 
 export { assert };
-export const base = process.env.BASE_URL ?? 'http://127.0.0.1:5178';
+export const base = localBase();
 export const tag = String(Date.now()).slice(-6);
 export const log = (...a) => console.log('•', ...a);
 
-export async function start(role = { identifier: 'admin@minihouse.local', password: 'Admin@123' }) {
+export async function start(role = adminCredentials()) {
   const browser = await chromium.launch({ headless: true });
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
   const page = await ctx.newPage();
   await page.goto(`${base}/#/login`, { waitUntil: 'networkidle' });
+  assert.equal(new URL(page.url()).origin, base, 'Trang đăng nhập E2E phải ở máy QA');
   await page.getByLabel(/email|số điện thoại|tài khoản/i).fill(role.identifier);
   await page.getByLabel(/mật khẩu/i).fill(role.password);
   await page.getByRole('button', { name: /đăng nhập/i }).click();
   await page.waitForFunction(() => !!sessionStorage.getItem('stayly.session'));
   const token = () => page.evaluate(() => sessionStorage.getItem('stayly.session'));
   const raw = async (method, url, data, tok) => page.request.fetch(`${base}${url}`, {
-    method, headers: { Authorization: `Bearer ${tok ?? (await token())}`, 'Content-Type': 'application/json' }, data,
+    method, maxRedirects: 0, headers: { Authorization: `Bearer ${tok ?? (await token())}`, 'Content-Type': 'application/json' }, data,
   });
   const api = async (method, url, data) => {
     const res = await raw(method, url, data);
@@ -27,7 +29,7 @@ export async function start(role = { identifier: 'admin@minihouse.local', passwo
     return body.data ?? body;
   };
   const goto = async (hash) => { await page.goto(`${base}/#${hash}`); await page.waitForLoadState('networkidle'); };
-  const loginApi = async (identifier, password) => (await (await page.request.post(`${base}/api/auth/login`, { data: { identifier, password } })).json()).data;
+  const loginApi = async (identifier, password) => (await (await page.request.post(`${base}/api/auth/login`, { maxRedirects: 0, data: { identifier, password } })).json()).data;
 
   /** Tạo nhân viên theo vai trò, đổi mật khẩu tạm rồi trả về token để thử quyền. */
   const staffCache = {};

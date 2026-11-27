@@ -11,7 +11,7 @@ Tài liệu các API do Phi làm. API của Chi (`/api/chi/**`), Toàn và Việ
 | `GET /api/auth/me` | Đã đăng nhập | Thông tin người đang đăng nhập |
 | `POST /api/auth/register` | Công khai | UC1: đăng ký chủ trọ (xem mục 2) |
 | `POST /api/auth/verify-email`, `/resend-verification` | Công khai | UC2: xác thực email bằng OTP |
-| `POST /api/auth/forgot-password`, `/reset-password` | Công khai | UC4: quên mật khẩu |
+| `POST /api/auth/forgot-password`, `/verify-reset-code`, `/reset-password` | Công khai | UC4: quên mật khẩu (3 bước: xin mã, nhập mã, đặt mật khẩu mới) |
 | `POST /api/auth/password` | Đã đăng nhập | UC5: đổi mật khẩu (từ 8 ký tự, có cả chữ và số) |
 | `GET/PUT /api/auth/profile` | Đã đăng nhập | UC6: xem/sửa họ tên và SĐT |
 | `PUT/DELETE /api/auth/avatar`, `GET /api/auth/avatars/{tên}` | Đã đăng nhập (xem ảnh: công khai) | UC7: ảnh đại diện |
@@ -40,8 +40,8 @@ Ghi chú:
 
 **Đăng ký, xác thực email, quên mật khẩu (UC1, 2, 4).** Mã OTP 6 số, hiệu lực 10 phút, dùng một lần, xin lại cách nhau 60 giây, đoán sai một lần là mã bị hủy.
 - `POST /api/auth/register` (họ tên, email, mật khẩu, SĐT tùy chọn): tạo tài khoản chủ trọ ở trạng thái `INACTIVE` và gửi mã. `POST /api/auth/verify-email` (email, code): nhập đúng mã thì thành `ACTIVE`. Đăng ký lại bằng email đang chờ xác thực sẽ ghi đè tên và mật khẩu, để người chiếm email trước không giữ được mật khẩu.
-- `POST /api/auth/forgot-password` (email hoặc SĐT): luôn trả cùng một thông báo dù tài khoản có tồn tại hay không. `POST /api/auth/reset-password` (identifier, code, newPassword).
-- Gửi mã đi qua `shared/notification/NotificationSender`. Bản mặc định `LogNotificationSender` chỉ ghi nội dung ra log (tìm dòng `THONG BAO GIA LAP`). Muốn gửi thật: thêm một class `@Component @Primary` implements `NotificationSender`, không cần sửa chỗ gọi.
+- `POST /api/auth/forgot-password` (email hoặc SĐT): luôn trả cùng một thông báo dù tài khoản có tồn tại hay không. `POST /api/auth/verify-reset-code` (identifier, code): chỉ kiểm tra mã, chưa dùng hết mã, để giao diện cho sang bước nhập mật khẩu mới. `POST /api/auth/reset-password` (identifier, code, newPassword) kiểm tra lại mã rồi mới đổi mật khẩu. Mỗi mã được nhập sai tối đa 5 lần (đếm trong bộ nhớ app), sai lần thứ 5 thì mã bị hủy; xin mã mới thì mã cũ bị hủy và phải cách nhau 60 giây.
+- Gửi mã đi qua `shared/notification/NotificationSender`. Bản mặc định `LogNotificationSender` chỉ ghi nội dung ra log (tìm dòng `THONG BAO GIA LAP`). Gửi thật qua email: đặt `app.mail.enabled=true`, `spring.mail.*` và `app.mail.from` (ví dụ Brevo `smtp-relay.brevo.com:587`); thư OTP dựng ở `OtpMail` (HTML + chữ thường, tên người gửi Stayly).
 - Mã lưu ở bảng `user_verifications`; job `purge-expired-verifications` dọn mã hết hạn mỗi ngày.
 
 **Ảnh đại diện và lưu file (UC7).** Form-data, trường `file`, PNG/JPG/WebP, tối đa 2 MB. File lưu trong thư mục `app.upload.dir` (mặc định `uploads/`, đã git ignore). Chức năng khác cần upload ảnh thì dùng `FileStorage.saveImage(thưMục, byte[], tốiĐa)`: nhận dạng ảnh theo nội dung file, tên file ngẫu nhiên, chống đường dẫn lạ.

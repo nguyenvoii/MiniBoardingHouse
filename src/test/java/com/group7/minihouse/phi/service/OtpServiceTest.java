@@ -82,6 +82,14 @@ class OtpServiceTest {
     }
 
     @Test
+    void cooldownErrorDoesNotPoisonCallerTransaction() throws Exception {
+        // Mockito khong co giao dich that, nen kiem tra cau hinh: 429 khong duoc danh dau giao dich cha rollback-only
+        var tx = OtpService.class.getMethod("issue", User.class, String.class)
+                .getAnnotation(org.springframework.transaction.annotation.Transactional.class);
+        assertTrue(List.of(tx.noRollbackFor()).contains(BusinessException.class));
+    }
+
+    @Test
     void issueAfterCooldownInvalidatesOldCode() {
         UserVerification old = row("111111", NOW.plusMinutes(5)); // cap 5 phut truoc
         when(repo.countIssuedAfter(7, "RECOVERY", COOLDOWN_EDGE)).thenReturn(0L);
@@ -103,13 +111,56 @@ class OtpServiceTest {
     }
 
     @Test
-    void verifyWrongCodeBurnsOutstandingCodes() {
+    void wrongCodeKeepsCodeAliveUntilFifthMiss() {
         UserVerification v = row("123456", NOW.plusMinutes(3));
         when(repo.findActive(7, "RECOVERY", NOW)).thenReturn(List.of(v));
 
-        assertFalse(service.verify(user, "RECOVERY", "000000"));
-        assertTrue(v.getIsVerified()); // doan sai 1 lan la ma bi huy, phai xin ma moi
+        for (int i = 1; i < OtpService.MAX_WRONG; i++) {
+            assertFalse(service.verify(user, "RECOVERY", "000000"));
+            assertFalse(v.getIsVerified(), "sai lan " + i + " chua duoc huy ma");
+        }
+        assertFalse(service.verify(user, "RECOVERY", "000000")); // lan thu 5
+        assertTrue(v.getIsVerified()); // het luot doan: huy ma, phai xin ma moi
         assertEquals(NOW.plusMinutes(3), v.getExpiresAt()); // giu han de cooldown van tinh dung
+    }
+
+    @Test
+    void correctCodeAfterSomeMissesStillWorksAndResetsCounter() {
+        UserVerification v = row("123456", NOW.plusMinutes(3));
+        when(repo.findActive(7, "RECOVERY", NOW)).thenReturn(List.of(v));
+
+        for (int i = 1; i < OtpService.MAX_WRONG; i++) {
+            service.verify(user, "RECOVERY", "000000");
+        }
+        assertTrue(service.verify(user, "RECOVERY", "123456"));
+        assertTrue(v.getIsVerified());
+
+        UserVerification next = row("654321", NOW.plusMinutes(5));
+        when(repo.findActive(7, "RECOVERY", NOW)).thenReturn(List.of(next));
+        service.verify(user, "RECOVERY", "000000"); // dem lai tu 0, sai 1 lan khong huy ma
+        assertFalse(next.getIsVerified());
+    }
+
+    @Test
+    void checkAcceptsCorrectCodeWithoutConsumingIt() {
+        UserVerification v = row("123456", NOW.plusMinutes(3));
+        when(repo.findActive(7, "RECOVERY", NOW)).thenReturn(List.of(v));
+
+        assertTrue(service.check(user, "RECOVERY", "123456"));
+        assertFalse(v.getIsVerified()); // con dung duoc o buoc dat mat khau
+        assertTrue(service.verify(user, "RECOVERY", "123456"));
+        assertTrue(v.getIsVerified());
+    }
+
+    @Test
+    void checkWrongCodeCountsTowardTheSameLimit() {
+        UserVerification v = row("123456", NOW.plusMinutes(3));
+        when(repo.findActive(7, "RECOVERY", NOW)).thenReturn(List.of(v));
+
+        for (int i = 0; i < OtpService.MAX_WRONG; i++) {
+            assertFalse(service.check(user, "RECOVERY", "000000"));
+        }
+        assertTrue(v.getIsVerified());
     }
 
     @Test

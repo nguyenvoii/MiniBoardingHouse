@@ -8,6 +8,7 @@ import com.group7.minihouse.shared.security.AuthUser;
 import com.group7.minihouse.shared.security.CurrentUser;
 import com.group7.minihouse.shared.security.JwtService;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Map;
@@ -38,14 +39,14 @@ public class QrLoginController {
 
     /** Phien dang nhap bang QR dat mat khau moi, khong can mat khau tam. Phien dang nhap thuong phai dung /api/auth/password. */
     @PostMapping("/api/auth/qr-set-password")
-    public ApiResponse<Void> setPassword(@RequestBody Map<String, String> body, @AuthenticationPrincipal AuthUser user,
-                                         jakarta.servlet.http.HttpServletRequest http) {
-        String header = http.getHeader("Authorization");
-        if (header == null || !header.startsWith("Bearer ") || !jwtService.isQrSession(header.substring(7).trim())) {
+    public ApiResponse<Map<String, String>> setPassword(@RequestBody Map<String, String> body, @AuthenticationPrincipal AuthUser user,
+                                         Authentication authentication, HttpServletRequest http) {
+        if (authentication == null || !(authentication.getDetails() instanceof JwtService.Session session)
+                || !session.viaQr()) {
             throw new BusinessException(HttpStatus.FORBIDDEN, "Chi phien dang nhap bang ma QR moi dung duoc chuc nang nay");
         }
-        service.setFirstPassword(CurrentUser.requireUserId(user), body.get("newPassword"), http.getRemoteAddr());
-        return ApiResponse.ok("Da dat mat khau moi", null);
+        String hash = service.setFirstPassword(session, body.get("newPassword"), http.getRemoteAddr());
+        return ApiResponse.ok("Da dat mat khau moi", Map.of("accessToken", jwtService.generate(user, hash)));
     }
 
     /** Cong khai: khach quet QR, trang web gui token len day de lay phien dang nhap. */

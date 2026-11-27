@@ -86,7 +86,8 @@ public class QrLoginService {
         }
         AuthUser authUser = new AuthUser(user.getUserId(), user.getEmail(), user.getFullName(), roles, claims.tenantId());
         activityLogService.log(user.getUserId(), "LOGIN", "Dang nhap bang ma QR", ip);
-        return new LoginResponse(jwtService.generate(authUser, true), "Bearer", jwtService.getExpirationSeconds(), authUser, true);
+        return new LoginResponse(jwtService.generate(authUser, user.getPasswordHash(), true), "Bearer",
+                jwtService.getExpirationSeconds(), authUser, true);
     }
 
     /**
@@ -94,10 +95,14 @@ public class QrLoginService {
      * dung mat khau tam; dat xong thi ma QR cu mat hieu luc (dau van tay mat khau da doi).
      */
     @Transactional
-    public void setFirstPassword(Integer userId, String newPassword, String ip) {
-        User user = userRepository.findById(userId).orElseThrow(() -> BusinessException.notFound("Tai khoan"));
+    public String setFirstPassword(JwtService.Session session, String newPassword, String ip) {
+        Integer userId = session.user().userId();
+        User user = userRepository.findByIdForUpdate(userId).orElseThrow(() -> BusinessException.notFound("Tai khoan"));
         if (!user.isMustChangePassword()) {
             throw new BusinessException(HttpStatus.CONFLICT, "Tai khoan da co mat khau rieng, hay dung chuc nang doi mat khau");
+        }
+        if (!session.viaQr() || !jwtService.matchesPassword(session, user.getPasswordHash())) {
+            throw new BusinessException(HttpStatus.FORBIDDEN, "Phien QR khong con hieu luc");
         }
         if (!AccountService.isStrong(newPassword)) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "Mat khau moi phai co it nhat 8 ky tu, gom ca chu va so");
@@ -106,6 +111,7 @@ public class QrLoginService {
         user.setMustChangePassword(false);
         userRepository.save(user);
         activityLogService.log(userId, "CHANGE_PASSWORD", "Dat mat khau moi lan dau (vao bang ma QR)", ip);
+        return user.getPasswordHash();
     }
 
     /** Dau van tay cua mat khau hien tai: cap lai mat khau tam hoac doi mat khau thi doi theo, ma QR cu mat hieu luc. */

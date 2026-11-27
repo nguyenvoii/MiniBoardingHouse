@@ -174,3 +174,5 @@ body[data-month-aware='false'] .month-switch { visibility: hidden; }
   .me-grid { grid-template-columns: minmax(0, 1.55fr) minmax(300px, 1fr); gap: 20px; align-items: start; }
   .bill-card .amount { font-size: 48px; }
 }
+.bell-item.clickable { cursor: pointer; }
+.bell-item.clickable:hover { background: var(--primary-faint); }

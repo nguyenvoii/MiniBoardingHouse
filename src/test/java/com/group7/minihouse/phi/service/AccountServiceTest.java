@@ -64,7 +64,7 @@ class AccountServiceTest {
     @Test
     void changesPasswordAndLogsIt() {
         User u = user(5, null);
-        when(userRepository.findById(5)).thenReturn(Optional.of(u));
+        when(userRepository.findByIdForUpdate(5)).thenReturn(Optional.of(u));
 
         service.changePassword(5, "OldPass1x", "NewPass2y", "1.1.1.1");
 
@@ -76,7 +76,7 @@ class AccountServiceTest {
     @Test
     void rejectsWrongCurrentPassword() {
         User u = user(5, null);
-        when(userRepository.findById(5)).thenReturn(Optional.of(u));
+        when(userRepository.findByIdForUpdate(5)).thenReturn(Optional.of(u));
 
         BusinessException ex = fails(() -> service.changePassword(5, "sai-roi", "NewPass2y", "ip"));
 
@@ -88,7 +88,7 @@ class AccountServiceTest {
     @Test
     void rejectsWeakNewPasswords() {
         User u = user(5, null);
-        when(userRepository.findById(5)).thenReturn(Optional.of(u));
+        when(userRepository.findByIdForUpdate(5)).thenReturn(Optional.of(u));
 
         for (String weak : List.of("Ab1", "abcdefgh", "12345678", "        ")) {
             BusinessException ex = fails(() -> service.changePassword(5, "OldPass1x", weak, "ip"));
@@ -100,7 +100,7 @@ class AccountServiceTest {
     @Test
     void rejectsNewPasswordEqualToCurrent() {
         User u = user(5, null);
-        when(userRepository.findById(5)).thenReturn(Optional.of(u));
+        when(userRepository.findByIdForUpdate(5)).thenReturn(Optional.of(u));
 
         BusinessException ex = fails(() -> service.changePassword(5, "OldPass1x", "OldPass1x", "ip"));
 
@@ -110,7 +110,7 @@ class AccountServiceTest {
 
     @Test
     void changePasswordForUnknownUserIs404() {
-        when(userRepository.findById(99)).thenReturn(Optional.empty());
+        when(userRepository.findByIdForUpdate(99)).thenReturn(Optional.empty());
 
         assertEquals(HttpStatus.NOT_FOUND, fails(() -> service.changePassword(99, "a", "b", "ip")).getStatus());
     }

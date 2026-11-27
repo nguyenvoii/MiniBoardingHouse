@@ -4,6 +4,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -43,7 +47,7 @@ class AuthServiceTest {
     @BeforeEach
     void setUp() {
         service = new AuthService(userRepository, userRoleRepository, activityLogService, encoder, jwt,
-                tenantReadRepository);
+                tenantReadRepository, null);
     }
 
     @org.junit.jupiter.api.AfterEach
@@ -61,6 +65,9 @@ class AuthServiceTest {
         }
         assertEquals(HttpStatus.TOO_MANY_REQUESTS, assertThrows(BusinessException.class,
                 () -> service.login(new LoginRequest("a@x.vn", "pw"), "ip")).getStatus());
+        when(userRoleRepository.findRoleCodesByUserId(5)).thenReturn(List.of("LANDLORD"));
+        var otherNetwork = service.login(new LoginRequest("a@x.vn", "pw"), "127.0.0.2");
+        assertEquals(List.of("LANDLORD"), otherNetwork.user().roles());
     }
 
     @Test
@@ -69,6 +76,29 @@ class AuthServiceTest {
         assertEquals(HttpStatus.UNAUTHORIZED, assertThrows(BusinessException.class,
                 () -> service.login(new LoginRequest("a@x.vn", longPw), "ip")).getStatus());
         verifyNoInteractions(userRepository);
+    }
+
+    @Test
+    void unknownAccountStillRunsPasswordVerification() {
+        PasswordEncoder observedEncoder = spy(encoder);
+        var observedService = new AuthService(userRepository, userRoleRepository, activityLogService, observedEncoder,
+                jwt, tenantReadRepository, null);
+
+        assertEquals(HttpStatus.UNAUTHORIZED, assertThrows(BusinessException.class,
+                () -> observedService.login(new LoginRequest("unknown@example.test", "wrong"), "ip")).getStatus());
+        verify(observedEncoder).matches(eq("wrong"), anyString());
+    }
+
+    @Test
+    void knownDemoPasswordIsRejectedEvenWhenTheHashMatches() {
+        User demo = user("demo@example.test", null);
+        demo.setPasswordHash("$2a$10$Pc6uubpMhGt6uuP/TqMCyulqTZc2GQVvfgNqWPYx7ciLqNtJzs3uy");
+        assertTrue(encoder.matches("Admin@123", demo.getPasswordHash()));
+        when(userRepository.findByEmailOrPhoneNumber("demo@example.test", "demo@example.test")).thenReturn(Optional.of(demo));
+
+        assertEquals(HttpStatus.UNAUTHORIZED, assertThrows(BusinessException.class,
+                () -> service.login(new LoginRequest("demo@example.test", "Admin@123"), "ip")).getStatus());
+        verifyNoInteractions(userRoleRepository, activityLogService);
     }
 
     private User user(String email, String phone) {
