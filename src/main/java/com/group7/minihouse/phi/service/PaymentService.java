@@ -56,9 +56,6 @@ public class PaymentService {
     private final ActivityLogService activityLogService;
     private final Clock clock;
 
-    @org.springframework.beans.factory.annotation.Value("${app.payment.sepay.enabled:false}")
-    private boolean sepayEnabled;
-
     public PaymentService(PaymentTransactionRepository repo, InvoiceRepository invoiceRepo,
                           InvoiceBalanceCalculator calculator, InvoiceService invoiceService,
                           BankAccountService bankAccountService, EntityManager em,
@@ -134,7 +131,7 @@ public class PaymentService {
             if ("FAILED".equals(pending.getStatus()) && method.equals(pending.getPaymentMethod())
                     && pending.getAmountPaid().compareTo(amount) == 0) {
                 return new QrInfo(toResponse(pending), bank.bankName(), bank.accountNumber(), bank.accountHolder(),
-                        qrImage(bank, amount, inv.getInvoiceCode()), inv.getInvoiceCode());
+                        bank.qrImageUrl(), inv.getInvoiceCode());
             }
         }
         String code = (method.equals("QR_CODE") ? "QR-" : "GW-") + UUID.randomUUID();
@@ -142,30 +139,7 @@ public class PaymentService {
         t.setStatus("FAILED"); // cho xac nhan
         audit(actorId, "CREATE_QR_PAYMENT", "Tao giao dich " + code + " cho hoa don " + inv.getInvoiceCode(), ip);
         return new QrInfo(toResponse(t), bank.bankName(), bank.accountNumber(), bank.accountHolder(),
-                qrImage(bank, amount, inv.getInvoiceCode()), inv.getInvoiceCode());
-    }
-
-    /**
-     * Bat SePay: tra QR dong cua SePay (da nhung so tien + noi dung) de khach quet la chuyen dung, tien ve SePay bao ve.
-     * Chua bat: dung anh QR tinh ma chu tro tai len. Ten ngan hang bo khoang trang ("MB Bank" -> "MBBank") cho khop
-     * danh sach cua SePay (https://qr.sepay.vn/banks.json).
-     */
-    private String qrImage(BankAccountResponse bank, BigDecimal amount, String content) {
-        if (!sepayEnabled || isBlank(bank.accountNumber()) || isBlank(bank.bankName())) {
-            return bank.qrImageUrl();
-        }
-        return "https://qr.sepay.vn/img?acc=" + urlEncode(bank.accountNumber().trim())
-                + "&bank=" + urlEncode(bank.bankName().replaceAll("\\s+", ""))
-                + "&amount=" + amount.setScale(0, java.math.RoundingMode.HALF_UP).toPlainString()
-                + "&des=" + urlEncode(content);
-    }
-
-    private static boolean isBlank(String s) {
-        return s == null || s.isBlank();
-    }
-
-    private static String urlEncode(String s) {
-        return java.net.URLEncoder.encode(s, java.nio.charset.StandardCharsets.UTF_8);
+                bank.qrImageUrl(), inv.getInvoiceCode());
     }
 
     /** Nguoi thue tu tao giao dich QR cho hoa don CUA MINH; nguoi tiep nhan ghi la chu tro dau tien con hoat dong. */
@@ -179,91 +153,13 @@ public class PaymentService {
         if (!inv.getTenant().getTenantId().equals(tenantId)) {
             throw BusinessException.notFound("Hoa don " + req.invoiceId());
         }
-        return createQr(req, firstActiveLandlordId(), tenantUserId, ip);
-    }
-
-    private Integer firstActiveLandlordId() {
         List<Integer> landlords = em.createQuery("select ur.user.userId from UserRole ur "
                 + "where ur.role.roleCode = 'LANDLORD' and ur.user.status = 'ACTIVE' order by ur.user.userId",
                 Integer.class).setMaxResults(1).getResultList();
         if (landlords.isEmpty()) {
             throw new BusinessException(HttpStatus.CONFLICT, "Chua co chu tro dang hoat dong de nhan thanh toan");
         }
-        return landlords.get(0);
-    }
-
-    // ------------------------------------------------------------------ SePay: tien chuyen khoan ve tu dong
-
-    /**
-     * SePay bao co tien vao tai khoan: tim hoa don theo ma trong noi dung chuyen khoan va cong tien neu so tien khop.
-     * Chi tu gach khi (a) co giao dich cho cung so tien (khach da bam tra bang QR) hoac (b) dung bang so con phai tra.
-     * Cac truong hop con lai (lech tien, khong thay ma, hoa don da dong) chi ghi nhat ky de nhan vien xu ly, khong tu gach.
-     * Moi giao dich SePay chi xu ly 1 lan: ma "SEPAY-{id}" luu o transaction_code, SePay goi lai cung id thi bo qua.
-     */
-    @Transactional
-    public String confirmSepayTransfer(long sepayId, String content, BigDecimal amount, String ip) {
-        String code = "SEPAY-" + sepayId;
-        if (repo.existsByTransactionCode(code)) { // SePay goi lai: hoa don da PAID nen khong con khop duoc, bao ro la da xu ly
-            return "Da xu ly truoc do";
-        }
-        Integer receiver = firstActiveLandlordId();
-        Invoice found = invoiceFromTransferContent(content);
-        if (found == null) {
-            audit(receiver, "SEPAY_UNMATCHED", code + ": " + amount + " VND, noi dung khong co ma hoa don nao (hoac nhieu ma): "
-                    + abbreviate(content), ip);
-            return "Khong khop hoa don";
-        }
-        Invoice inv = invoiceRepo.findByIdForUpdate(found.getInvoiceId())
-                .orElseThrow(() -> BusinessException.notFound("Hoa don " + found.getInvoiceId()));
-        if (repo.existsByTransactionCode(code)) {
-            return "Da xu ly truoc do";
-        }
-        if ("PAID".equals(inv.getPaymentStatus()) || "CANCELLED".equals(inv.getPaymentStatus())) {
-            audit(receiver, "SEPAY_UNMATCHED", code + ": " + amount + " VND vao hoa don " + inv.getInvoiceCode()
-                    + " dang o trang thai " + inv.getPaymentStatus() + ", can hoan tien cho khach", ip);
-            return "Hoa don khong con cho thanh toan";
-        }
-        for (PaymentTransaction pending : repo.findPendingOfInvoice(inv.getInvoiceId())) {
-            if ("FAILED".equals(pending.getStatus()) && pending.getAmountPaid().compareTo(amount) == 0) {
-                ConfirmResult r = confirmWith(pending, amount, "SePay xac nhan chuyen khoan", false);
-                if (r.confirmed()) {
-                    pending.setTransactionCode(code); // sau confirmWith (no em.refresh) de khong bi doc de
-                }
-                audit(receiver, "SEPAY_PAYMENT", code + ": " + r.message(), ip);
-                return r.message();
-            }
-        }
-        BigDecimal remaining = calculator.remainingOf(inv);
-        if (amount.compareTo(remaining) == 0) {
-            PaymentTransaction t = newTransaction(inv, "BANK_TRANSFER", code, amount, user(receiver));
-            t.setStatus("SUCCESS");
-            applyToInvoice(t, "SePay xac nhan chuyen khoan");
-            audit(receiver, "SEPAY_PAYMENT", code + ": cong " + amount + " VND vao hoa don " + inv.getInvoiceCode(), ip);
-            return "Da cong vao hoa don " + inv.getInvoiceCode();
-        }
-        audit(receiver, "SEPAY_UNMATCHED", code + ": " + amount + " VND vao hoa don " + inv.getInvoiceCode()
-                + " lech so con phai tra " + remaining + ", cho nhan vien xu ly", ip);
-        return "Lech so tien, cho nhan vien xu ly";
-    }
-
-    /** Hoa don con phai tra co ma (bo dau gach) nam trong noi dung; nhieu ma thi lay ma dai nhat, bang nhau thi coi la mo ho. */
-    private Invoice invoiceFromTransferContent(String content) {
-        String flat = content == null ? "" : content.toLowerCase().replaceAll("[^a-z0-9]", "");
-        if (flat.isEmpty()) {
-            return null;
-        }
-        List<Invoice> hits = repo.findPayableMentionedInFlat(flat);
-        int longest = hits.stream().mapToInt(i -> flatCode(i).length()).max().orElse(0);
-        List<Invoice> best = hits.stream().filter(i -> flatCode(i).length() == longest).toList();
-        return best.size() == 1 ? best.get(0) : null;
-    }
-
-    private static String flatCode(Invoice i) {
-        return i.getInvoiceCode().toLowerCase().replace("-", "");
-    }
-
-    private static String abbreviate(String s) {
-        return s == null ? "" : s.length() <= 120 ? s : s.substring(0, 120);
+        return createQr(req, landlords.get(0), tenantUserId, ip);
     }
 
     /** Cong thanh toan goi ve: khop ma giao dich + so tien thi cong vao hoa don; lech tien thi giu nguyen cho nhan vien. */

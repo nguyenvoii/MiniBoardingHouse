@@ -55,9 +55,7 @@ public class SecurityConfig {
                             "/ui/**", "/", "/index.html", "/assets/**", "/favicon.ico", "/og-image.png").permitAll()
                         .requestMatchers(HttpMethod.GET, "/uploads/rooms/**").permitAll()
                         // cong thanh toan goi ve (tu kiem tra bi mat qua header X-Callback-Secret trong controller)
-                        // webhook SePay: tu kiem tra khoa "Authorization: Apikey ..." trong SepayWebhookController
-                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/payments/callback",
-                                "/api/payments/sepay-webhook").permitAll() // /ui/**: giao dien tinh xem thu (chi co tren may nao dat thu muc demo-ui)
+                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/payments/callback").permitAll() // /ui/**: giao dien tinh xem thu (chi co tren may nao dat thu muc demo-ui)
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/invoices/share/*").permitAll()
                         .requestMatchers("/api/auth/**").authenticated()
                         // Khu vuc nguoi thue: API cua nguoi thue DAT DUOI /api/me/** (vd /api/me/invoices)
