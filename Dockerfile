@@ -7,7 +7,7 @@ COPY frontend/ ./
 RUN npm run build
 
 # ---- Tầng 2: build backend (nhúng luôn giao diện vào JAR) ----
-FROM maven:3.9-eclipse-temurin-17 AS be
+FROM maven:3.9-eclipse-temurin-26 AS be
 WORKDIR /app
 COPY pom.xml .
 RUN mvn -B -q dependency:go-offline
