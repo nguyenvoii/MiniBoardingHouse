@@ -12,6 +12,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.transaction.annotation.Transactional;
 
 /** Danh sách khu trọ (chỉ đọc) để giao diện chọn khu đang làm việc. */
@@ -32,6 +34,7 @@ public class PropertyService {
         this.floorRepository = floorRepository;
     }
 
+    @Cacheable("properties")
     public List<PropertyDTO> getAll() {
         return propertyRepository.findAllByOrderByPropertyIdAsc().stream().map(this::toDTO).collect(Collectors.toList());
     }
@@ -43,6 +46,7 @@ public class PropertyService {
 
     /** Thêm khu trọ mới; chủ khu là người đang đăng nhập. */
     @Transactional
+    @CacheEvict(cacheNames = "properties", allEntries = true)
     public PropertyDTO create(PropertyDTO dto, Integer landlordUserId) {
         String name = dto.getPropertyName() == null ? "" : dto.getPropertyName().trim();
         String address = dto.getAddress() == null ? "" : dto.getAddress().trim();
@@ -59,6 +63,7 @@ public class PropertyService {
 
     /** UC 14: sửa thông tin khu trọ. */
     @Transactional
+    @CacheEvict(cacheNames = "properties", allEntries = true)
     public PropertyDTO update(Integer id, PropertyDTO dto) {
         Property p = propertyRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("Không tìm thấy khu trọ ID: " + id));

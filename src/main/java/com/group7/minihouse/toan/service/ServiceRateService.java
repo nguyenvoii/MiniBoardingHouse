@@ -7,6 +7,8 @@ import java.util.List;
 import java.util.Set;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.transaction.annotation.Transactional;
 import com.group7.minihouse.shared.exception.BusinessException;
 import com.group7.minihouse.toan.dto.RateDtos.*;
@@ -54,6 +56,7 @@ public class ServiceRateService {
 
     /** Tao bang gia moi; bang gia dang mo truoc do duoc dong vao ngay truoc ngay ap dung. */
     @Transactional
+    @CacheEvict(cacheNames = {"servicePlans", "serviceRates"}, allEntries = true)
     public PlanResponse createPlan(PlanRequest req) {
         validatePlan(req);
         planRepo.findFirstByEffectiveEndDateIsNullOrderByEffectiveStartDateDesc().ifPresent(open -> {
@@ -69,6 +72,7 @@ public class ServiceRateService {
     }
 
     @Transactional
+    @CacheEvict(cacheNames = {"servicePlans", "serviceRates"}, allEntries = true)
     public PlanResponse updatePlan(Integer planId, PlanRequest req) {
         return updatePlan(planId, req, null);
     }
@@ -78,6 +82,7 @@ public class ServiceRateService {
      * thong nen moi khu tro duoc ghi 1 dong "Dien"/"Nuoc"; can biet nguoi sua (actorId, lay tu token) vi changed_by bat buoc.
      */
     @Transactional
+    @CacheEvict(cacheNames = {"servicePlans", "serviceRates"}, allEntries = true)
     public PlanResponse updatePlan(Integer planId, PlanRequest req, Integer actorId) {
         validatePlan(req);
         ServiceRatePlan p = planRepo.findById(planId).orElseThrow(() -> notFound("Bang gia " + planId));
@@ -98,12 +103,14 @@ public class ServiceRateService {
         return toResponse(p);
     }
 
+    @Cacheable("servicePlans")
     @Transactional(readOnly = true)
     public List<PlanResponse> listPlans() {
         return planRepo.findAllByOrderByEffectiveStartDateDesc().stream().map(this::toResponse).toList();
     }
 
     /** Bang gia ap dung tai mot ngay (mac dinh hom nay). */
+    @Cacheable(cacheNames = "servicePlans", key = "'eff-' + #day")
     @Transactional(readOnly = true)
     public PlanResponse effectivePlan(LocalDate day) {
         LocalDate d = day == null ? LocalDate.now() : day;
@@ -114,6 +121,7 @@ public class ServiceRateService {
     // ------------------------------------------------------------------ UC 62: phi dich vu theo khu
 
     @Transactional
+    @CacheEvict(cacheNames = {"servicePlans", "serviceRates"}, allEntries = true)
     public ServiceRateResponse createServiceRate(ServiceRateRequest req) {
         validateServiceRate(req);
         PropertyServiceRate r = new PropertyServiceRate();
@@ -126,6 +134,7 @@ public class ServiceRateService {
     }
 
     @Transactional
+    @CacheEvict(cacheNames = {"servicePlans", "serviceRates"}, allEntries = true)
     public ServiceRateResponse updateServiceRate(Integer rateId, ServiceRateRequest req) {
         validateServiceRate(req);
         PropertyServiceRate r = serviceRateRepo.findById(rateId)
@@ -148,6 +157,7 @@ public class ServiceRateService {
     }
 
     @Transactional
+    @CacheEvict(cacheNames = {"servicePlans", "serviceRates"}, allEntries = true)
     public void deleteServiceRate(Integer rateId) {
         if (!serviceRateRepo.existsById(rateId)) {
             throw notFound("Phi dich vu " + rateId);
@@ -155,6 +165,7 @@ public class ServiceRateService {
         serviceRateRepo.deleteById(rateId);
     }
 
+    @Cacheable(cacheNames = "serviceRates", key = "(#propertyId ?: 0) + '-' + #activeOnly")
     @Transactional(readOnly = true)
     public List<ServiceRateResponse> listServiceRates(Integer propertyId, Boolean activeOnly) {
         var list = Boolean.TRUE.equals(activeOnly)

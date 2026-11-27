@@ -8,6 +8,7 @@ import com.group7.minihouse.shared.entity.Property;
 import com.group7.minihouse.shared.entity.PropertyFloor;
 import com.group7.minihouse.shared.exception.BusinessException;
 import org.springframework.stereotype.Service;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -39,6 +40,7 @@ public class PropertyFloorService {
     }
 
     @Transactional
+    @CacheEvict(cacheNames = "properties", allEntries = true)
     public PropertyFloorDTO.Response createFloor(PropertyFloorDTO.CreateRequest req) {
         if (req == null || req.getFloorNumber() == null) {
             throw new BusinessException("Số tầng không được để trống!");
@@ -65,6 +67,7 @@ public class PropertyFloorService {
     }
 
     @Transactional
+    @CacheEvict(cacheNames = "properties", allEntries = true)
     public PropertyFloorDTO.Response updateFloor(Integer floorId, PropertyFloorDTO.UpdateRequest req) {
         PropertyFloor floor = floorRepository.findById(floorId)
                 .orElseThrow(() -> new BusinessException("Không tìm thấy tầng với ID: " + floorId));
@@ -86,6 +89,7 @@ public class PropertyFloorService {
     }
 
     @Transactional
+    @CacheEvict(cacheNames = "properties", allEntries = true)
     public void deleteFloor(Integer floorId) {
         PropertyFloor floor = floorRepository.findById(floorId)
                 .orElseThrow(() -> new BusinessException("Không tìm thấy tầng với ID: " + floorId));

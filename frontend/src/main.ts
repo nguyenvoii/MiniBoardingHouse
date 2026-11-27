@@ -28,6 +28,7 @@ import { tenantsPage } from './pages/tenants';
 import { reportsPage } from './pages/reports';
 import { staffPage } from './pages/staff';
 import { activityPage } from './pages/activity';
+import { statusPage } from './pages/status';
 import { profilePage } from './pages/profile';
 import { meHomePage, meInvoicesPage, meContractsPage, meNotificationsPage, meSupportPage } from './pages/me';
 import { metersPage } from './pages/meters';
@@ -40,7 +41,7 @@ import { maintenancePage } from './pages/maintenance';
 const TITLES: Record<string, string> = {
   '/': 'Tổng quan', '/meters': 'Chỉ số điện nước', '/billing': 'Tính tiền tháng', '/invoices': 'Hóa đơn', '/payments': 'Thanh toán', '/debts': 'Công nợ',
   '/maintenance': 'Sửa chữa', '/contracts': 'Hợp đồng', '/checkin': 'Nhận khách thuê phòng', '/checkout': 'Trả phòng', '/rooms': 'Phòng', '/tenants': 'Khách hàng', '/reports': 'Doanh thu và chi phí', '/expenses': 'Chi phí vận hành',
-  '/staff': 'Nhân viên', '/settings': 'Cài đặt', '/activity': 'Nhật ký thao tác', '/profile': 'Tài khoản của tôi', '/login': 'Đăng nhập',
+  '/staff': 'Nhân viên', '/settings': 'Cài đặt', '/activity': 'Nhật ký thao tác', '/status': 'Trạng thái server', '/profile': 'Tài khoản của tôi', '/login': 'Đăng nhập',
   '/me': 'Trang chủ', '/me/invoices': 'Hóa đơn của tôi', '/me/contracts': 'Hợp đồng của tôi', '/me/support': 'Hỗ trợ', '/me/notifications': 'Thông báo',
 };
 const ROUTE_PAGES: Record<string, number> = { '/meters': 0, '/billing': 1, '/invoices': 3, '/payments': 4, '/debts': 4 };
@@ -51,7 +52,7 @@ const PATH_ROLES: Record<string, Array<(typeof STAFF_ROLES)[number]>> = {
   '/invoices': ['LANDLORD', 'MANAGER', 'CASHIER'], '/payments': ['LANDLORD', 'MANAGER', 'CASHIER'], '/debts': ['LANDLORD', 'MANAGER', 'CASHIER'],
   '/checkin': ['LANDLORD', 'MANAGER'], '/contracts': ['LANDLORD', 'MANAGER'], '/checkout': ['LANDLORD', 'MANAGER'], '/rooms': ['LANDLORD', 'MANAGER'],
   '/tenants': ['LANDLORD', 'MANAGER'], '/maintenance': ['LANDLORD', 'MANAGER'], '/reports': ['LANDLORD', 'MANAGER'], '/expenses': ['LANDLORD', 'MANAGER'],
-  '/staff': ['LANDLORD', 'MANAGER'], '/settings': ['LANDLORD', 'MANAGER'], '/activity': ['LANDLORD'],
+  '/staff': ['LANDLORD', 'MANAGER'], '/settings': ['LANDLORD', 'MANAGER'], '/activity': ['LANDLORD'], '/status': ['LANDLORD'],
 };
 
 route('/', 'staff', dashboardPage);
@@ -67,6 +68,7 @@ route('/tenants', 'staff', tenantsPage);
 route('/reports', 'staff', reportsPage);
 route('/staff', 'staff', staffPage);
 route('/activity', 'staff', activityPage);
+route('/status', 'staff', statusPage);
 route('/profile', 'staff', profilePage);
 route('/meters', 'staff', metersPage);
 route('/settings', 'staff', settingsPage);

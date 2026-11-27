@@ -55,6 +55,7 @@ const GROUPS: Array<{ title: string; open: boolean; items: NavItem[] }> = [
       { href: '#/staff', label: 'Nhân viên', icon: 'user', roles: ['LANDLORD', 'MANAGER'] },
       { href: '#/settings', label: 'Cài đặt', icon: 'settings', roles: ['LANDLORD', 'MANAGER'] },
       { href: '#/activity', label: 'Nhật ký thao tác', icon: 'history', roles: ['LANDLORD'] },
+      { href: '#/status', label: 'Trạng thái server', icon: 'zap', roles: ['LANDLORD'] },
       { href: '#/profile', label: 'Tài khoản của tôi', icon: 'key' },
     ],
   },

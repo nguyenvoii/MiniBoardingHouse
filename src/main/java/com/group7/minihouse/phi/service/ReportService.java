@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -41,6 +42,7 @@ public class ReportService {
         this.clock = clock;
     }
 
+    @Cacheable(cacheNames = "dashboard", key = "#propertyId ?: 0")
     @Transactional(readOnly = true)
     public Dashboard dashboard(Integer propertyId) {
         int p = propertyId == null ? 0 : propertyId;
@@ -106,6 +108,7 @@ public class ReportService {
                 billed, expense, outstanding, unpaid, overdue, expiring, ending);
     }
 
+    @Cacheable(cacheNames = "revenue", key = "(#propertyId ?: 0) + '-' + (#year ?: 0)")
     @Transactional(readOnly = true)
     public RevenueReport revenueReport(Integer propertyId, Integer year) {
         int y = year == null ? LocalDate.now(clock).getYear() : year;

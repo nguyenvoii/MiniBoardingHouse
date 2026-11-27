@@ -19,7 +19,7 @@ const ACTIONS: Record<string, string> = {
   ADD_VEHICLE: 'Đăng ký xe', UPDATE_VEHICLE: 'Sửa xe', REMOVE_VEHICLE: 'Bỏ xe', ADD_RESIDENT: 'Thêm người ở cùng', UPDATE_RESIDENT: 'Sửa người ở cùng',
   REMOVE_RESIDENT: 'Người ở cùng rời phòng', BACKUP_DB: 'Sao lưu cơ sở dữ liệu', DEACTIVATE_BANK_ACCOUNT: 'Ngừng dùng tài khoản ngân hàng',
   SET_DEFAULT_BANK_ACCOUNT: 'Đặt tài khoản mặc định', UPDATE_BANK_QR: 'Cập nhật mã QR', UPDATE_AVATAR: 'Cập nhật ảnh đại diện', REMOVE_AVATAR: 'Gỡ ảnh đại diện',
-  RESET_PASSWORD: 'Đặt lại mật khẩu', VERIFY_EMAIL: 'Xác thực email',
+  RESET_PASSWORD: 'Đặt lại mật khẩu', VERIFY_EMAIL: 'Xác thực email', CLEAR_CACHE: 'Xóa bộ nhớ đệm',
 };
 
 /** Số tiền thô trong mô tả (vd 3876500.00) đọc không nổi: chèn dấu chấm ngăn cách hàng nghìn. */

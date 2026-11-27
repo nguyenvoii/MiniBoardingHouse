@@ -10,6 +10,7 @@ import com.group7.minihouse.shared.entity.RoomType;
 import com.group7.minihouse.shared.exception.BusinessException;
 import jakarta.persistence.EntityManager;
 import org.springframework.stereotype.Service;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -87,6 +88,7 @@ public class RoomService {
     }
 
     @Transactional
+@CacheEvict(cacheNames = "properties", allEntries = true)
     public RoomDTO createRoom(RoomDTO dto) {
         if (dto == null || dto.getFloorId() == null) {
             throw new BusinessException("Chưa chọn tầng");
