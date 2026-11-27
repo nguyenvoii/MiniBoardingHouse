@@ -16,7 +16,7 @@ COPY --from=fe /app/src/main/resources/static ./src/main/resources/static
 RUN mvn -B -q -DskipTests package
 
 # ---- Tầng 3: image chạy thật ----
-FROM eclipse-temurin:17-jre
+FROM eclipse-temurin:25-jre
 # Font DejaVu để xuất PDF có dấu tiếng Việt (TableExporter tự tìm /usr/share/fonts/truetype/dejavu)
 RUN apt-get update && apt-get install -y --no-install-recommends fonts-dejavu-core tzdata curl \
     && groupadd --gid 10001 stayly \
