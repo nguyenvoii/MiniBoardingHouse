@@ -261,4 +261,52 @@ class RegistrationServiceTest {
         service.resendVerification("chu@x.vn");
         verify(sender, never()).sendHtml(anyString(), anyString(), anyString(), anyString());
     }
+
+    // ---------- UC2 qua eOTP (Zalo) ----------
+
+    @Test
+    void requestPhoneVerificationUsesEotpWhenOn() {
+        ExternalOtpService ext = org.mockito.Mockito.mock(ExternalOtpService.class);
+        service.external = ext;
+        User u = pending();
+        u.setPhoneNumber("0901234567");
+        when(userRepository.findById(9)).thenReturn(Optional.of(u));
+
+        service.requestPhoneVerification(9, "0901234567");
+
+        verify(ext).send(u, "PHONE", "0901234567");
+        verify(otpService, never()).issue(any(), anyString());
+        verify(sender, never()).send(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void verifyPhoneUsesEotpWhenItHoldsTheCode() {
+        ExternalOtpService ext = org.mockito.Mockito.mock(ExternalOtpService.class);
+        service.external = ext;
+        User u = pending();
+        u.setPhoneNumber("0901234567");
+        when(userRepository.findById(9)).thenReturn(Optional.of(u));
+        when(ext.handles(u, "PHONE")).thenReturn(true);
+        when(ext.verify(u, "PHONE", "000000")).thenReturn(true);
+
+        service.verifyPhone(9, "0901234567", "000000", "1.1.1.1");
+
+        verify(activityLogService).log(9, "VERIFY_PHONE", "Xac thuc so dien thoai", "1.1.1.1");
+        verify(otpService, never()).verify(any(), anyString(), anyString());
+    }
+
+    @Test
+    void verifyPhoneWrongEotpCodeIsRejected() {
+        ExternalOtpService ext = org.mockito.Mockito.mock(ExternalOtpService.class);
+        service.external = ext;
+        User u = pending();
+        u.setPhoneNumber("0901234567");
+        when(userRepository.findById(9)).thenReturn(Optional.of(u));
+        when(ext.handles(u, "PHONE")).thenReturn(true);
+        when(ext.verify(u, "PHONE", "111111")).thenReturn(false);
+
+        assertThrows(BusinessException.class, () -> service.verifyPhone(9, "0901234567", "111111", "ip"));
+        verify(activityLogService, never()).log(any(), anyString(), anyString(), anyString());
+    }
+
 }

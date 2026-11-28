@@ -225,4 +225,104 @@ class PasswordRecoveryServiceTest {
         assertEquals(HttpStatus.BAD_REQUEST, e.getStatus());
         verify(otpService, never()).verify(any(), anyString(), anyString());
     }
+
+    // ---------- eOTP (Zalo) ----------
+
+    private ExternalOtpService zalo() {
+        ExternalOtpService ext = org.mockito.Mockito.mock(ExternalOtpService.class);
+        service.external = ext;
+        return ext;
+    }
+
+    @Test
+    void forgotByPhoneSendsZaloWhenEotpIsOn() {
+        ExternalOtpService ext = zalo();
+        User u = user("ACTIVE");
+        when(userRepository.findByEmailOrPhoneNumber("0901234567", "0901234567")).thenReturn(Optional.of(u));
+
+        service.forgotPassword("0901234567", "1.1.1.1");
+
+        verify(ext).send(u, "RECOVERY", "0901234567");
+        verify(otpService, never()).issue(any(), anyString());
+        verify(sender, never()).sendHtml(anyString(), anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void forgotByEmailStillUsesEmailWhenEotpIsOn() {
+        ExternalOtpService ext = zalo();
+        User u = user("ACTIVE");
+        when(userRepository.findByEmailOrPhoneNumber("a@x.vn", "a@x.vn")).thenReturn(Optional.of(u));
+        when(otpService.issue(u, "RECOVERY")).thenReturn("654321");
+
+        service.forgotPassword("a@x.vn", "1.1.1.1");
+
+        verify(sender).sendHtml(eq("a@x.vn"), anyString(), anyString(), anyString());
+        verify(ext, never()).send(any(), anyString(), anyString());
+    }
+
+    @Test
+    void zaloFailureIsSwallowedSoResponseDoesNotLeakAccountExistence() {
+        ExternalOtpService ext = zalo();
+        User u = user("ACTIVE");
+        when(userRepository.findByEmailOrPhoneNumber("0901234567", "0901234567")).thenReturn(Optional.of(u));
+        org.mockito.Mockito.doThrow(new BusinessException(HttpStatus.BAD_GATEWAY, "loi"))
+                .when(ext).send(any(), anyString(), anyString());
+
+        service.forgotPassword("0901234567", "1.1.1.1"); // khong nem loi
+    }
+
+    @Test
+    void verifyCodeAsksEotpWhenItHoldsTheCode() {
+        ExternalOtpService ext = zalo();
+        User u = user("ACTIVE");
+        when(userRepository.findByEmailOrPhoneNumber("0901234567", "0901234567")).thenReturn(Optional.of(u));
+        when(ext.handles(u, "RECOVERY")).thenReturn(true);
+        when(ext.verify(u, "RECOVERY", "000000")).thenReturn(true);
+
+        service.verifyCode("0901234567", "000000");
+
+        verify(otpService, never()).check(any(), anyString(), anyString());
+    }
+
+    @Test
+    void verifyCodeWrongZaloCodeIsBadRequest() {
+        ExternalOtpService ext = zalo();
+        User u = user("ACTIVE");
+        when(userRepository.findByEmailOrPhoneNumber("0901234567", "0901234567")).thenReturn(Optional.of(u));
+        when(ext.handles(u, "RECOVERY")).thenReturn(true);
+        when(ext.verify(u, "RECOVERY", "111111")).thenReturn(false);
+
+        BusinessException e = assertThrows(BusinessException.class, () -> service.verifyCode("0901234567", "111111"));
+
+        assertEquals(HttpStatus.BAD_REQUEST, e.getStatus());
+    }
+
+    @Test
+    void resetUsesTheGrantFromStepTwoInsteadOfAskingEotpAgain() {
+        ExternalOtpService ext = zalo();
+        User u = user("ACTIVE");
+        when(userRepository.findByEmailOrPhoneNumber("0901234567", "0901234567")).thenReturn(Optional.of(u));
+        when(ext.handles(u, "RECOVERY")).thenReturn(true);
+        when(ext.consume(u, "RECOVERY", "000000")).thenReturn(true);
+
+        service.resetPassword("0901234567", "000000", "NewPass2y", "1.1.1.1");
+
+        assertTrue(encoder.matches("NewPass2y", u.getPasswordHash()));
+        verify(otpService, never()).verify(any(), anyString(), anyString());
+    }
+
+    @Test
+    void resetWithoutGrantIsRejectedAndPasswordKept() {
+        ExternalOtpService ext = zalo();
+        User u = user("ACTIVE");
+        when(userRepository.findByEmailOrPhoneNumber("0901234567", "0901234567")).thenReturn(Optional.of(u));
+        when(ext.handles(u, "RECOVERY")).thenReturn(true);
+        when(ext.consume(u, "RECOVERY", "000000")).thenReturn(false);
+
+        assertThrows(BusinessException.class, () -> service.resetPassword("0901234567", "000000", "NewPass2y", "ip"));
+
+        assertTrue(encoder.matches("OldPass1x", u.getPasswordHash()));
+        verify(userRepository, never()).save(any());
+    }
+
 }

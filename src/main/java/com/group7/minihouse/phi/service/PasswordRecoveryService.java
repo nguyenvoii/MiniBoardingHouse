@@ -17,6 +17,12 @@ public class PasswordRecoveryService {
     private static final String TYPE = "RECOVERY";
     private static final String BAD_CODE = "Mã xác thực không đúng hoặc đã hết hạn";
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(PasswordRecoveryService.class);
+
+    /** Co khi app.otp.provider=eotp: nguoi dung nhap SO DIEN THOAI thi ma gui qua Zalo (eOTP), nhap email thi gui email nhu cu. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    ExternalOtpService external;
+
     private final UserRepository userRepository;
     private final OtpService otpService;
     private final NotificationSender sender;
@@ -44,6 +50,15 @@ public class PasswordRecoveryService {
         if (user == null) {
             return;
         }
+        if (external != null && user.getPhoneNumber() != null && id.equals(user.getPhoneNumber())) {
+            try {
+                external.send(user, TYPE, user.getPhoneNumber());
+            } catch (BusinessException e) {
+                // vua gui ma hoac dich vu gui loi: im lang (khong de lo tai khoan ton tai), chi ghi log
+                log.warn("Khong gui duoc ma Zalo cho tai khoan {}: {}", user.getUserId(), e.getMessage());
+            }
+            return;
+        }
         String code;
         try {
             code = otpService.issue(user, TYPE);
@@ -65,7 +80,9 @@ public class PasswordRecoveryService {
         User user = userRepository.findByEmailOrPhoneNumber(id, id)
                 .filter(u -> "ACTIVE".equals(u.getStatus()))
                 .orElseThrow(() -> new BusinessException(HttpStatus.BAD_REQUEST, BAD_CODE));
-        if (!otpService.check(user, TYPE, code)) {
+        boolean ok = external != null && external.handles(user, TYPE)
+                ? external.verify(user, TYPE, code) : otpService.check(user, TYPE, code);
+        if (!ok) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, BAD_CODE);
         }
     }
@@ -81,7 +98,10 @@ public class PasswordRecoveryService {
         User user = userRepository.findByEmailOrPhoneNumber(id, id)
                 .filter(u -> "ACTIVE".equals(u.getStatus()))
                 .orElseThrow(() -> new BusinessException(HttpStatus.BAD_REQUEST, BAD_CODE));
-        if (!otpService.verify(user, TYPE, code)) {
+        // luong eOTP: ma da duoc kiem o buoc 2 (eOTP chi cho kiem 1 lan) nen o day dung "giay phep" cua buoc 2
+        boolean ok = external != null && external.handles(user, TYPE)
+                ? external.consume(user, TYPE, code) : otpService.verify(user, TYPE, code);
+        if (!ok) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, BAD_CODE);
         }
         user.setPasswordHash(passwordEncoder.encode(newPassword));

@@ -57,7 +57,7 @@ export function renderLogin(root: HTMLElement, onDone: () => void): void {
       const next = h('button', { class: 'btn' }, 'Tiếp tục');
       message.replaceChildren();
       dialog.body.replaceChildren(message, field('Email hoặc số điện thoại', identifier), send,
-        field('Mã xác nhận', code, 'Mã 6 số, có hiệu lực 10 phút. Nhập sai tối đa 5 lần.'));
+        field('Mã xác nhận', code, 'Nhập mã vừa nhận. Mã chỉ có hiệu lực vài phút, nhập sai tối đa 5 lần.'));
       dialog.foot.replaceChildren(cancel, next);
       send.addEventListener('click', () => busy(send, async () => {
         if (!identifier.value.trim()) {
@@ -66,7 +66,7 @@ export function renderLogin(root: HTMLElement, onDone: () => void): void {
         }
         try {
           await api.post('/api/auth/forgot-password', { identifier: identifier.value.trim() });
-          message.textContent = 'Nếu tài khoản tồn tại, mã xác nhận đã được gửi.';
+          message.textContent = 'Nếu tài khoản tồn tại, mã xác nhận đã được gửi (qua Zalo nếu bạn nhập số điện thoại, qua email nếu bạn nhập email).';
           code.focus();
         } catch (e) { message.replaceChildren(formError(errText(e))); }
       }));

@@ -30,6 +30,10 @@ public class RegistrationService {
     private static final Pattern PHONE = Pattern.compile("\\+?[0-9]{9,15}");
     private static final Pattern EMAIL = Pattern.compile("[^@\\s]+@[^@\\s]+\\.[^@\\s]+");
 
+    /** Co khi app.otp.provider=eotp: ma xac thuc SO DIEN THOAI gui qua Zalo (eOTP) thay vi ma noi bo. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    ExternalOtpService external;
+
     private final UserRepository userRepository;
     private final UserRoleRepository userRoleRepository;
     private final RoleRepository roleRepository;
@@ -121,6 +125,10 @@ public class RegistrationService {
         User user = userRepository.findById(actorId)
                 .filter(account -> phone != null && phone.trim().equals(account.getPhoneNumber()))
                 .orElseThrow(() -> new BusinessException(HttpStatus.BAD_REQUEST, BAD_CODE));
+        if (external != null) {
+            external.send(user, "PHONE", user.getPhoneNumber());
+            return;
+        }
         String code = otpService.issue(user, "PHONE");
         sender.send(user.getPhoneNumber(), "Ma xac thuc so dien thoai MiniBoardingHouse",
                 "Ma xac thuc cua ban la " + code + ". Ma co hieu luc 10 phut, khong chia se ma nay cho ai.");
@@ -132,7 +140,9 @@ public class RegistrationService {
         User user = userRepository.findById(actorId)
                 .filter(account -> phone != null && phone.trim().equals(account.getPhoneNumber()))
                 .orElseThrow(() -> new BusinessException(HttpStatus.BAD_REQUEST, BAD_CODE));
-        if (!otpService.verify(user, "PHONE", code)) {
+        boolean ok = external != null && external.handles(user, "PHONE")
+                ? external.verify(user, "PHONE", code) : otpService.verify(user, "PHONE", code);
+        if (!ok) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, BAD_CODE);
         }
         activityLogService.log(user.getUserId(), "VERIFY_PHONE", "Xac thuc so dien thoai", ip);
