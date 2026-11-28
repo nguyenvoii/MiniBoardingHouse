@@ -50,6 +50,10 @@ class SecurityRulesTest {
         @org.springframework.web.bind.annotation.PostMapping("/api/auth/verify-reset-code") String verifyReset() { return "ok"; }
         @org.springframework.web.bind.annotation.PostMapping("/api/auth/qr-login") String qr() { return "ok"; }
         @org.springframework.web.bind.annotation.PostMapping("/api/payments/sepay-webhook") String sepay() { return "ok"; }
+        @GetMapping("/privacy") String privacy() { return "ok"; }
+        @GetMapping("/terms") String terms() { return "ok"; }
+        @GetMapping("/pricing") String pricing() { return "ok"; }
+        @GetMapping("/contact") String contact() { return "ok"; }
         @org.springframework.web.bind.annotation.PostMapping("/api/auth/register") String register() { return "ok"; }
         @org.springframework.web.bind.annotation.PostMapping("/api/auth/verify-email") String verify() { return "ok"; }
         @org.springframework.web.bind.annotation.PostMapping("/api/auth/resend-verification") String resend() { return "ok"; }
@@ -74,6 +78,14 @@ class SecurityRulesTest {
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/auth/reset-password"))
                 .andExpect(status().isOk());
         mvc.perform(get("/api/auth/probe")).andExpect(status().isUnauthorized());
+    }
+
+    /** Trang phap ly phai mo duoc khi chua dang nhap (nguoi dung va don vi duyet dich vu ben thu ba phai doc duoc). */
+    @Test
+    void legalPagesArePublic() throws Exception {
+        for (String path : List.of("/privacy", "/terms", "/pricing", "/contact")) {
+            mvc.perform(get(path)).andExpect(status().isOk());
+        }
     }
 
     /** Khach quet QR chua co phien dang nhap nen API doi ma QR phai cong khai (tu kiem tra ma ben trong). */

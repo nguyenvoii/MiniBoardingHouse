@@ -50,7 +50,9 @@ public class SecurityConfig {
                     auth.requestMatchers("/api/auth/login", "/api/auth/forgot-password",
                             "/api/auth/verify-reset-code", "/api/auth/reset-password", "/api/auth/qr-login", "/api/ping",
                             "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html",
-                            "/ui/**", "/", "/index.html", "/assets/**", "/favicon.ico", "/og-image.png").permitAll()
+                            "/ui/**", "/", "/index.html", "/assets/**", "/favicon.ico", "/og-image.png",
+                            // trang phap ly cong khai (PublicPagesController): nguoi dung va don vi duyet dich vu phai mo duoc
+                            "/privacy", "/terms", "/pricing", "/contact").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/uploads/rooms/**", "/api/auth/avatars/*", "/api/bank-accounts/qr/*", "/api/contracts/signatures/*").permitAll()
                         // cong thanh toan goi ve (tu kiem tra bi mat qua header X-Callback-Secret trong controller)
                         // webhook SePay: tu kiem tra khoa "Authorization: Apikey ..." trong SepayWebhookController

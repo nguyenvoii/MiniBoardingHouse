@@ -37,3 +37,17 @@ GIOI HAN CAN BIET
 - request_id giu trong bo nho app: khoi dong lai app giua luc dang cho ma thi nguoi dung xin ma moi (cach nhau 60 giay).
 - Neu eOTP loi hoac het tien, app khong bao loi chi tiet ra ngoai (tranh lo tai khoan ton tai), chi ghi log; nguoi dung co the dung email.
 - Twilio SMS cu van con trong code nhung nen de tat (app.sms.enabled=false).
+
+GUI DUYET DU AN TREN EOTP (neu bi tu choi)
+eOTP duyet tu dong, yeu cau trang web phai cong khai du 4 thu sau. Stayly da co san, chi can cau hinh thong tin lien he:
+1. Ai chiu trach nhiem (ten + lien he): hien o chan trang chu va moi trang phap ly. Dat tren server (CapRover, Environment Variables):
+     APP_PUBLIC_OWNER_NAME=<ten don vi/ca nhan chiu trach nhiem>
+     APP_PUBLIC_OWNER_EMAIL=<email lien he>
+     APP_PUBLIC_OWNER_PHONE=<so dien thoai lien he>
+     APP_PUBLIC_OWNER_ADDRESS=<dia chi, tuy chon>
+   Khong ghi gia tri that vao file trong repo (repo cong khai).
+2. Bang gia va hoan tien: https://stayly.io.vn/pricing (hien ghi Mien phi; sua noi dung o src/main/resources/public-pages/pricing.html neu doi chinh sach).
+3. Chinh sach bao mat: https://stayly.io.vn/privacy  va  Dieu khoan: https://stayly.io.vn/terms (la van ban that, co noi ro OTP qua email Brevo hoac Zalo eOTP).
+4. Mo ta du an (dan vao o Project description roi Resubmit):
+   Stayly (stayly.io.vn) la phan mem quan ly nha tro cho chu tro va nguoi thue: quan ly phong, khach thue, hop dong, ghi dien nuoc, tinh tien, xuat hoa don va doi soat tien thue. OTP duoc dung o hai buoc: (1) Quen mat khau: nguoi dung nhap so dien thoai da dang ky, he thong gui ma OTP 6 so qua Zalo de xac nhan danh tinh roi cho dat mat khau moi; (2) Xac thuc so dien thoai cua tai khoan sau khi dang nhap. Ma chi gui khi nguoi dung chu dong yeu cau, co hieu luc vai phut, sai toi da 5 lan, khong dung cho quang cao. Dich vu hien mien phi. Chinh sach bao mat, dieu khoan, bang gia va thong tin lien he cong khai tai stayly.io.vn/privacy, /terms, /pricing, /contact.
+Chi bam Resubmit SAU KHI ban co trang chu moi da deploy len stayly.io.vn va da dat 3-4 bien APP_PUBLIC_OWNER_* (eOTP chi con 2 lan duyet tu dong).
