@@ -49,28 +49,38 @@
 
             <div class="hero__stage home-stage" data-enter data-visual>
               <div class="home-stage-grid" aria-hidden="true"></div>
-              <div class="home-app-frame app-frame">
+              <div id="home-demo" class="home-app-frame app-frame" role="region" aria-label="Dùng thử Stayly với dữ liệu mẫu">
                 <div class="home-frame-bar">
                   <span class="home-frame-brand"><span class="home-logo" aria-hidden="true"></span>Stayly</span>
                   <span class="home-sample">Dữ liệu mẫu</span>
                 </div>
                 <div class="home-frame-body">
-                  <div class="home-frame-rail" aria-hidden="true">
-                    <span class="home-frame-active">Tổng quan</span><span>Chỉ số điện nước</span><span>Tính tiền tháng</span><span>Hóa đơn</span><span>Thanh toán</span><span>Hợp đồng</span>
-                  </div>
+                  <nav class="home-frame-rail" aria-label="Các màn hình dùng thử">
+                    <button type="button" data-demo-view="overview" aria-pressed="true" aria-controls="home-demo-panel" disabled>Tổng quan</button>
+                    <button type="button" data-demo-view="meters" aria-pressed="false" aria-controls="home-demo-panel" disabled>Chỉ số điện nước</button>
+                    <button type="button" data-demo-view="billing" aria-pressed="false" aria-controls="home-demo-panel" disabled>Tính tiền tháng</button>
+                    <button type="button" data-demo-view="invoices" aria-pressed="false" aria-controls="home-demo-panel" disabled>Hóa đơn</button>
+                    <button type="button" data-demo-view="payments" aria-pressed="false" aria-controls="home-demo-panel" disabled>Thanh toán</button>
+                    <button type="button" data-demo-view="contracts" aria-pressed="false" aria-controls="home-demo-panel" disabled>Hợp đồng</button>
+                  </nav>
                   <div class="home-dashboard">
-                    <div class="home-dash-heading"><strong>Tổng quan</strong><span>Tháng 11</span></div>
+                    <div class="home-dash-heading">
+                      <strong id="home-demo-heading">Tổng quan</strong>
+                      <select id="home-demo-month" aria-label="Chọn tháng dùng thử" disabled>
+                        <option value="10">Tháng 10</option><option value="11" selected>Tháng 11</option><option value="12">Tháng 12</option>
+                      </select>
+                    </div>
                     <div class="home-dash-route">
                       <strong>Tuyến tháng</strong>
                       <ol aria-label="Các chặng chốt tiền tháng">
-                        <li><span>1</span><small>Chốt số</small></li>
-                        <li><span>2</span><small>Tính tiền</small></li>
-                        <li><span>3</span><small>Duyệt kỳ</small></li>
-                        <li aria-current="step"><span>4</span><small>Phát hành</small></li>
-                        <li><span>5</span><small>Thu tiền</small></li>
+                        <li><button type="button" aria-pressed="false" aria-controls="home-demo-panel" disabled><span>1</span><small>Chốt số</small></button></li>
+                        <li><button type="button" aria-pressed="false" aria-controls="home-demo-panel" disabled><span>2</span><small>Tính tiền</small></button></li>
+                        <li><button type="button" aria-pressed="false" aria-controls="home-demo-panel" disabled><span>3</span><small>Duyệt kỳ</small></button></li>
+                        <li><button type="button" aria-pressed="true" aria-controls="home-demo-panel" disabled><span>4</span><small>Phát hành</small></button></li>
+                        <li><button type="button" aria-pressed="false" aria-controls="home-demo-panel" disabled><span>5</span><small>Thu tiền</small></button></li>
                       </ol>
                     </div>
-                    <div class="home-dash-ledger">
+                    <div class="home-dash-ledger" id="home-demo-panel">
                       <strong>Hóa đơn cần theo dõi</strong>
                       <table aria-label="Hóa đơn mẫu">
                         <thead><tr><th scope="col">Phòng</th><th scope="col">Còn phải thu</th><th scope="col">Trạng thái</th></tr></thead>
@@ -81,6 +91,7 @@
                         </tbody>
                       </table>
                     </div>
+                    <p id="home-demo-message" class="sr-only" role="status"></p>
                   </div>
                 </div>
               </div>

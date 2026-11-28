@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.regex.Pattern;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
@@ -22,58 +23,49 @@ import org.springframework.web.bind.annotation.GetMapping;
 public class PublicPagesController {
 
     private static final String OWNER_SLOT = "<!--stayly:site-owner-->";
+    private static final Pattern LEGAL_HEADING = Pattern.compile("<h2 id=\"([a-z0-9-]+)\">([^<]+)</h2>");
 
     private static final String[][] NAV = {
             {"/privacy", "Chính sách bảo mật"}, {"/terms", "Điều khoản sử dụng"},
             {"/pricing", "Bảng giá và hoàn tiền"}, {"/contact", "Liên hệ"}};
 
-    private static final String LAYOUT = """
-            <!doctype html>
-            <html lang="vi"><head><meta charset="utf-8">
-            <meta name="viewport" content="width=device-width,initial-scale=1">
-            <title>{{title}} | Stayly</title>
-            <meta name="description" content="{{title}} của Stayly, phần mềm quản lý nhà trọ.">
-            <style>
-            body{margin:0;background:#f1f5f1;color:#14231c;font:16px/1.65 'Segoe UI',system-ui,-apple-system,Roboto,Arial,sans-serif}
-            header{background:#0e6b4a;color:#fff;padding:14px 20px}
-            header a{color:#fff;text-decoration:none;font-weight:700;font-size:20px}
-            nav{max-width:780px;margin:0 auto;padding:12px 20px 0;font-size:14px}
-            nav a{color:#0e6b4a;margin-right:14px}
-            main{max-width:780px;margin:12px auto;background:#fff;border-radius:12px;padding:8px 28px 24px}
-            h1{font-size:26px;margin:20px 0 4px}h2{font-size:19px;margin:24px 0 4px;color:#0e6b4a}
-            p,li{color:#2d3f35}a{color:#0e6b4a}
-            .note{font-size:13px;color:#596b61}
-            footer{max-width:780px;margin:0 auto;padding:8px 20px 32px;font-size:13px;color:#596b61;text-align:center}
-            </style></head><body>
-            <header><a href="/">Stayly</a></header>
-            <nav>{{nav}}</nav>
-            <main>{{body}}</main>
-            <footer>{{footer}}</footer>
-            </body></html>
-            """;
-
     private final Map<String, String> pages = new LinkedHashMap<>();
     private final String home;
 
     public PublicPagesController(SitePublicInfo info, @Value("classpath:static/index.html") Resource index) throws IOException {
-        String nav = navLinks();
-        String footer = info.contactInline() + "<br>" + navLinks();
+        String legalLayout = read(new ClassPathResource("public-pages/legal-layout.html"));
         for (String[] n : NAV) {
             String name = n[0].substring(1);
-            String body = read(new ClassPathResource("public-pages/" + name + ".html"))
-                    .replace("{{contact}}", info.contactLines());
-            pages.put(n[0], LAYOUT.replace("{{title}}", n[1]).replace("{{nav}}", nav)
-                    .replace("{{body}}", body).replace("{{footer}}", footer));
+            String body = read(new ClassPathResource("public-pages/" + name + ".html"));
+            pages.put(n[0], legalLayout.replace("{{kind}}", name).replace("{{title}}", n[1])
+                    .replace("{{nav}}", navLinks(n[0])).replace("{{contents}}", tableOfContents(body))
+                    .replace("{{owner}}", info.contactInline()).replace("{{body}}", body.replace("{{contact}}", info.contactLines())));
         }
         this.home = index.exists() ? injectFooter(read(index), info) : null;
     }
 
     private static String navLinks() {
+        return navLinks(null);
+    }
+
+    private static String navLinks(String current) {
         StringBuilder b = new StringBuilder();
         for (String[] n : NAV) {
-            b.append("<a href=\"").append(n[0]).append("\">").append(n[1]).append("</a> ");
+            b.append("<a href=\"").append(n[0]).append('"');
+            if (n[0].equals(current)) b.append(" aria-current=\"page\"");
+            b.append('>').append(n[1]).append("</a> ");
         }
         return b.toString().trim();
+    }
+
+    private static String tableOfContents(String body) {
+        var headings = LEGAL_HEADING.matcher(body);
+        StringBuilder links = new StringBuilder();
+        while (headings.find()) {
+            links.append("<li><a href=\"#").append(headings.group(1)).append("\">")
+                    .append(headings.group(2)).append("</a></li>\n");
+        }
+        return links.toString();
     }
 
     private static String injectFooter(String html, SitePublicInfo info) {

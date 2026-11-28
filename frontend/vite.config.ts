@@ -8,7 +8,11 @@ export default defineConfig({
   base: './',
   server: {
     port: 5173,
-    proxy: { '/api': backend, '^/(privacy|terms|pricing|contact)$': backend },
+    proxy: {
+      '/api': backend,
+      '^/(privacy|terms|pricing|contact)$': backend,
+      '^/assets/stayly-(legal\\.(css|js)$|mark\\.svg$|font/)': backend,
+    },
   },
   build: {
     outDir: '../src/main/resources/static',

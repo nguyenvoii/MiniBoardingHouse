@@ -1,10 +1,14 @@
 import './styles/tokens.css';
 import './styles/base.css';
 import './styles/home.css';
+import { initHomeDemo } from './home-demo';
+import { initMotionPref } from './lib/motion';
 
+initMotionPref(); // hiệu ứng luôn bật, kể cả máy tắt Animation effects (chủ dự án yêu cầu)
 const home = document.getElementById('stayly-home')!;
 const app = document.getElementById('app')!;
 const homeTitle = document.title;
+initHomeDemo(document.getElementById('home-demo')!);
 
 // Các liên kết QR được phát trước đây có thể chỉ mang query ?qr=…
 if (new URLSearchParams(location.search).has('qr') && !location.hash.startsWith('#/')) {
@@ -79,11 +83,20 @@ stops.forEach((button, index) => {
 });
 
 const track = home.querySelector<HTMLElement>('.home-track')!;
-if ('IntersectionObserver' in window && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+if ('IntersectionObserver' in window) {
   const observer = new IntersectionObserver(([entry]) => {
     if (!entry.isIntersecting) return;
     track.classList.add('is-seen');
     observer.disconnect();
   }, { threshold: .45 });
   observer.observe(track);
+}
+
+// Hiện dần khi cuộn tới (giữ nguyên nội dung nếu trình duyệt không có IntersectionObserver)
+if ('IntersectionObserver' in window) {
+  const targets = home.querySelectorAll<HTMLElement>('.home-section-head, .home-track, .home-features-copy > *, .home-mobile-stage, .home-faq-heading, .home-questions details, .home-close-inner');
+  const io = new IntersectionObserver((entries) => entries.forEach((e) => {
+    if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+  }), { threshold: .15 });
+  targets.forEach((el, i) => { el.setAttribute('data-reveal', ''); el.style.setProperty('--reveal-delay', `${(i % 3) * 120}ms`); io.observe(el); });
 }

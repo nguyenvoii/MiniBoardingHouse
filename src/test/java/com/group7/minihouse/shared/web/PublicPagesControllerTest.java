@@ -35,7 +35,7 @@ class PublicPagesControllerTest {
     void everyLegalPageOpensAndShowsWhoIsResponsible() throws Exception {
         MockMvc mvc = mvc(new SitePublicInfo("Nguyễn Văn A", "lienhe@example.com", "0901 234 567", "Hà Nội"), INDEX);
         String[][] pages = {{"/privacy", "Chính sách bảo mật"}, {"/terms", "Điều khoản sử dụng"},
-                {"/pricing", "Bảng giá và chính sách hoàn tiền"}, {"/contact", "Liên hệ"}};
+                {"/pricing", "Bảng giá và hoàn tiền"}, {"/contact", "Liên hệ"}};
         for (String[] p : pages) {
             String html = body(mvc, p[0]);
             assertTrue(html.contains(p[1]), p[0] + " thieu tieu de");
@@ -43,6 +43,7 @@ class PublicPagesControllerTest {
             assertTrue(html.contains("lienhe@example.com"), p[0] + " thieu email");
             assertTrue(html.contains("0901 234 567"), p[0] + " thieu dien thoai");
             assertFalse(html.contains("{{"), p[0] + " con sot cho trong mau");
+            assertTrue(html.contains("href=\"/assets/stayly-legal.css\""), p[0] + " chua dung giao dien trang phap ly moi");
         }
     }
 
@@ -53,6 +54,20 @@ class PublicPagesControllerTest {
         assertTrue(privacy.contains("email") && privacy.contains("Brevo") && privacy.contains("SePay"));
         String pricing = body(mvc, "/pricing");
         assertTrue(pricing.contains("Miễn phí") && pricing.contains("hoàn tiền"));
+    }
+
+    @Test
+    void termsAndPrivacyRenderLinkedContentsWithoutJavascript() throws Exception {
+        MockMvc mvc = mvc(new SitePublicInfo("Stayly", "", "", ""), INDEX);
+        String[][] pages = {{"/terms", "chap-nhan-dieu-khoan"}, {"/privacy", "du-lieu-thu-thap"}};
+        for (String[] page : pages) {
+            String html = body(mvc, page[0]);
+            assertTrue(html.contains("href=\"/assets/stayly-legal.css\""));
+            assertTrue(html.contains("<a href=\"#" + page[1] + "\">"));
+            assertTrue(html.contains("<h2 id=\"" + page[1] + "\">"));
+            assertTrue(html.contains("href=\"" + page[0] + "\" aria-current=\"page\""));
+            assertEquals(10, html.split("<li><a href=\"#").length - 1);
+        }
     }
 
     @Test
