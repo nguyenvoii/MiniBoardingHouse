@@ -66,7 +66,7 @@ export function renderLogin(root: HTMLElement, onDone: () => void): void {
         }
         try {
           await api.post('/api/auth/forgot-password', { identifier: identifier.value.trim() });
-          message.textContent = 'Nếu tài khoản tồn tại, mã xác nhận đã được gửi (qua SMS nếu bạn nhập số điện thoại, qua email nếu bạn nhập email).';
+          message.textContent = 'Nếu tài khoản tồn tại, mã xác nhận đã được gửi (qua email của tài khoản).';
           code.focus();
         } catch (e) { message.replaceChildren(formError(errText(e))); }
       }));

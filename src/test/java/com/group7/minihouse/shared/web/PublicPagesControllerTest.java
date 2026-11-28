@@ -49,7 +49,7 @@ class PublicPagesControllerTest {
     void policyExplainsOtpChannelsAndPricingStatesFreeAndRefund() throws Exception {
         MockMvc mvc = mvc(new SitePublicInfo("A", "", "", ""), INDEX);
         String privacy = body(mvc, "/privacy");
-        assertTrue(privacy.contains("SMS") && privacy.contains("SpeedSMS") && privacy.contains("Brevo") && privacy.contains("SePay"));
+        assertTrue(privacy.contains("email") && privacy.contains("Brevo") && privacy.contains("SePay"));
         String pricing = body(mvc, "/pricing");
         assertTrue(pricing.contains("Miễn phí") && pricing.contains("hoàn tiền"));
     }
