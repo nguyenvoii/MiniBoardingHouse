@@ -1,9 +1,11 @@
 <!doctype html>
-<html lang="vi">
+<html lang="vi" data-type="software">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#0B5B40" />
+    <meta name="page-type" content="software" />
+    <meta name="site-kind" content="software" />
     <title>Stayly – Phần mềm quản lý nhà trọ</title>
     <meta name="description" content="Ghi điện nước, tính tiền, phát hành hóa đơn và thu tiền từng phòng." />
     <meta property="og:type" content="website" />
@@ -18,7 +20,164 @@
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M32 5 58 25.5V52a7 7 0 0 1-7 7H13a7 7 0 0 1-7-7V25.5Z' fill='%23F4C20D' stroke='%23F4C20D' stroke-width='5' stroke-linejoin='round'/%3E%3Cpath d='M43 31H29a5.5 5.5 0 0 0 0 11h6a5.5 5.5 0 0 1 0 11H21' fill='none' stroke='%2316231D' stroke-width='5' stroke-linecap='round'/%3E%3Ccircle cx='43' cy='31' r='4.6' fill='%2316231D'/%3E%3Ccircle cx='43' cy='31' r='1.9' fill='%23F4C20D'/%3E%3Ccircle cx='21' cy='53' r='4.6' fill='%2316231D'/%3E%3Ccircle cx='21' cy='53' r='1.9' fill='%23F4C20D'/%3E%3C/svg%3E" />
   </head>
   <body>
-    <div id="app"></div>
-    <script type="module" src="/src/main.ts"></script>
+    <div id="stayly-home" class="home">
+      <a class="home-skip" href="#noi-dung">Bỏ qua đến nội dung</a>
+      <header class="nav home-header">
+        <div class="wrap home-header-inner">
+          <a class="home-wordmark" href="/" aria-label="Stayly, trang chủ"><span class="home-logo" aria-hidden="true"></span>Stayly</a>
+          <nav class="home-nav" aria-label="Điều hướng chính">
+            <a href="#tuyen-thang">Cách hoạt động</a>
+            <a href="#tinh-nang">Tính năng</a>
+            <a href="#hoi-dap">Hỏi đáp</a>
+          </nav>
+          <a class="home-button home-button-outline" href="#/login">Đăng nhập <span class="home-arrow" aria-hidden="true"></span></a>
+        </div>
+      </header>
+
+      <main id="noi-dung" tabindex="-1">
+        <section class="home-hero" aria-labelledby="home-title">
+          <div class="wrap home-hero-grid">
+            <div class="home-hero-copy" data-enter>
+              <h1 id="home-title">Phần mềm quản lý nhà trọ</h1>
+              <p>Ghi điện nước, lập hóa đơn và theo dõi tiền thuê từng phòng.</p>
+              <div class="home-hero-actions">
+                <a class="home-button home-button-main" href="#/login">Vào Stayly <span class="home-arrow" aria-hidden="true"></span></a>
+                <a class="home-text-link" href="#tuyen-thang">Xem cách hoạt động <span class="home-arrow home-arrow-down" aria-hidden="true"></span></a>
+              </div>
+              <a class="home-plan" href="/pricing"><span aria-hidden="true"></span>Gói hiện tại miễn phí</a>
+            </div>
+
+            <div class="hero__stage home-stage" data-enter data-visual>
+              <div class="home-stage-grid" aria-hidden="true"></div>
+              <div class="home-app-frame app-frame">
+                <div class="home-frame-bar">
+                  <span class="home-frame-brand"><span class="home-logo" aria-hidden="true"></span>Stayly</span>
+                  <span class="home-sample">Dữ liệu mẫu</span>
+                </div>
+                <div class="home-frame-body">
+                  <div class="home-frame-rail" aria-hidden="true">
+                    <span class="home-frame-active">Tổng quan</span><span>Chỉ số điện nước</span><span>Tính tiền tháng</span><span>Hóa đơn</span><span>Thanh toán</span><span>Hợp đồng</span>
+                  </div>
+                  <div class="home-dashboard">
+                    <div class="home-dash-heading"><strong>Tổng quan</strong><span>Tháng 11</span></div>
+                    <div class="home-dash-route">
+                      <strong>Tuyến tháng</strong>
+                      <ol aria-label="Các chặng chốt tiền tháng">
+                        <li><span>1</span><small>Chốt số</small></li>
+                        <li><span>2</span><small>Tính tiền</small></li>
+                        <li><span>3</span><small>Duyệt kỳ</small></li>
+                        <li aria-current="step"><span>4</span><small>Phát hành</small></li>
+                        <li><span>5</span><small>Thu tiền</small></li>
+                      </ol>
+                    </div>
+                    <div class="home-dash-ledger">
+                      <strong>Hóa đơn cần theo dõi</strong>
+                      <table aria-label="Hóa đơn mẫu">
+                        <thead><tr><th scope="col">Phòng</th><th scope="col">Còn phải thu</th><th scope="col">Trạng thái</th></tr></thead>
+                        <tbody>
+                          <tr><th scope="row"><span class="home-plate">P.203</span></th><td>2.590.000 ₫</td><td><span class="home-status home-status-pending">Chưa trả</span></td></tr>
+                          <tr><th scope="row"><span class="home-plate">P.204</span></th><td>1.200.000 ₫</td><td><span class="home-status home-status-partial">Trả một phần</span></td></tr>
+                          <tr><th scope="row"><span class="home-plate">P.305</span></th><td>0 ₫</td><td><span class="home-status home-status-paid">Đã trả</span></td></tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="tuyen-thang" class="home-workflow" aria-labelledby="workflow-title">
+          <div class="wrap">
+            <div class="home-section-head">
+              <h2 id="workflow-title">Chốt tiền tháng qua 5 chặng</h2>
+              <p>Biết kỳ tính tiền đang ở bước nào và phòng nào còn phải thu.</p>
+            </div>
+            <div class="home-track" data-moment="word-highlight">
+              <div class="home-stops" role="group" aria-label="Khám phá các chặng chốt tiền tháng">
+                <button type="button" aria-pressed="true" aria-controls="home-step"><span>01</span>Chốt chỉ số</button>
+                <button type="button" aria-pressed="false" aria-controls="home-step"><span>02</span>Tính tiền</button>
+                <button type="button" aria-pressed="false" aria-controls="home-step"><span>03</span>Duyệt kỳ</button>
+                <button type="button" aria-pressed="false" aria-controls="home-step"><span>04</span>Phát hành</button>
+                <button type="button" aria-pressed="false" aria-controls="home-step"><span>05</span>Thu tiền</button>
+              </div>
+              <div id="home-step" class="home-step" aria-live="polite">
+                <div class="home-step-copy">
+                  <h3 id="home-step-title">Chốt chỉ số điện nước</h3>
+                  <p id="home-step-copy">Nhập chỉ số đầu kỳ và cuối kỳ theo phòng để xác định lượng điện, nước sử dụng trong tháng.</p>
+                </div>
+                <div class="home-step-preview" data-visual>
+                  <div><span class="home-plate">P.203</span><span class="home-sample">Dữ liệu mẫu</span></div>
+                  <dl><div><dt>Chỉ số điện đầu kỳ</dt><dd>328 kWh</dd></div><div><dt>Chỉ số điện cuối kỳ</dt><dd>374 kWh</dd></div><div><dt>Điện tiêu thụ</dt><dd>46 kWh</dd></div></dl>
+                </div>
+              </div>
+              <noscript><p>Tính tiền theo hợp đồng, duyệt kỳ, phát hành hóa đơn và ghi nhận thanh toán của từng phòng.</p></noscript>
+            </div>
+          </div>
+        </section>
+
+        <section id="tinh-nang" class="home-features" aria-labelledby="features-title">
+          <div class="wrap home-features-grid">
+            <div class="home-features-copy">
+              <h2 id="features-title">Từ quản lý khu trọ đến thanh toán tiền phòng</h2>
+              <div class="home-audience">
+                <h3>Dành cho chủ trọ và nhân viên</h3>
+                <p>Quản lý phòng, khách thuê, hợp đồng và sửa chữa. Theo dõi các khoản đã thu, công nợ và báo cáo thu chi.</p>
+              </div>
+              <div class="home-audience">
+                <h3>Dành cho người thuê</h3>
+                <p>Xem từng khoản trên hóa đơn, lấy mã QR chuyển khoản, ký hợp đồng và gửi báo sự cố từ điện thoại.</p>
+              </div>
+            </div>
+            <div class="home-mobile-stage" data-visual>
+              <div class="frame home-phone">
+                <div class="home-phone-top"><span class="home-frame-brand"><span class="home-logo" aria-hidden="true"></span>Stayly</span><span class="home-plate">P.203</span></div>
+                <div class="home-phone-content">
+                  <div class="home-phone-label"><strong>Hóa đơn tháng 11</strong><span class="home-sample">Dữ liệu mẫu</span></div>
+                  <div class="home-phone-total"><span>Còn phải trả</span><strong>2.590.000 <small>₫</small></strong><span>Hạn thanh toán 05/12</span></div>
+                  <dl class="home-phone-lines"><div><dt>Tiền phòng</dt><dd>2.300.000 ₫</dd></div><div><dt>Điện và nước</dt><dd>190.000 ₫</dd></div><div><dt>Phí dịch vụ</dt><dd>100.000 ₫</dd></div></dl>
+                  <div class="home-phone-qr"><span class="home-qr-mark" aria-hidden="true"></span>Thanh toán bằng QR</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="hoi-dap" class="home-faq" aria-labelledby="faq-title">
+          <div class="wrap home-faq-grid">
+            <div class="home-section-head home-faq-heading">
+              <h2 id="faq-title">Câu hỏi thường gặp</h2>
+              <a class="home-text-link" href="/contact">Liên hệ Stayly <span class="home-arrow" aria-hidden="true"></span></a>
+            </div>
+            <div class="home-questions">
+              <details open><summary>Stayly có thu phí sử dụng không?</summary><p>Gói Stayly hiện tại miễn phí. Tiền phòng, điện nước và các khoản thuê vẫn do chủ trọ và người thuê thỏa thuận. <a href="/pricing">Xem bảng giá và chính sách hoàn tiền</a>.</p></details>
+              <details><summary>Người thuê đăng nhập bằng cách nào?</summary><p>Dùng email hoặc số điện thoại đã đăng ký với khu trọ. Nếu chưa có tài khoản, hãy liên hệ chủ trọ hoặc quản lý khu trọ.</p></details>
+              <details><summary>Tôi xem số tiền phải trả ở đâu?</summary><p>Sau khi đăng nhập, mở mục Hóa đơn để xem từng khoản phí, hạn thanh toán và số tiền còn phải trả.</p></details>
+              <details><summary>Quên mật khẩu thì làm gì?</summary><p>Chọn Quên mật khẩu trên màn hình <a href="#/login">Đăng nhập</a>, rồi làm theo hướng dẫn để nhận mã xác thực và đặt mật khẩu mới.</p></details>
+            </div>
+          </div>
+        </section>
+
+      </main>
+
+      <footer id="site-legal" class="home-footer">
+        <div class="home-close">
+          <div class="wrap home-close-inner">
+            <div><h2 id="close-title">Khu trọ của bạn trên Stayly</h2><p>Đăng nhập bằng tài khoản của khu trọ để tiếp tục công việc hoặc xem hóa đơn của bạn.</p></div>
+            <a class="home-button home-button-main" href="#/login">Vào Stayly <span class="home-arrow" aria-hidden="true"></span></a>
+          </div>
+        </div>
+        <div class="wrap home-footer-content">
+          <div class="home-footer-main">
+            <div><a class="home-wordmark" href="/" aria-label="Stayly, trang chủ"><span class="home-logo" aria-hidden="true"></span>Stayly</a><p>Phần mềm quản lý nhà trọ</p></div>
+            <nav aria-label="Thông tin pháp lý và liên hệ"><a href="/terms">Điều khoản sử dụng</a><a href="/privacy">Chính sách bảo mật</a><a href="/pricing">Bảng giá và hoàn tiền</a><a href="/contact">Liên hệ</a></nav>
+          </div>
+          <div class="home-footer-meta"><small>© Stayly</small><div class="home-responsibility"><!--stayly:site-owner--></div></div>
+        </div>
+      </footer>
+    </div>
+    <div id="app" hidden></div>
+    <script type="module" src="/src/entry.ts"></script>
   </body>
 </html>

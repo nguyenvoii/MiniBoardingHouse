@@ -1,5 +1,3 @@
-import './styles/tokens.css';
-import './styles/base.css';
 import './styles/layout.css';
 import './styles/components.css';
 import './styles/motion.css';
@@ -13,7 +11,7 @@ import type { Period } from './data/types';
 import { enterView, initMotionPref } from './lib/motion';
 import { monthRouteBar } from './ui/monthRoute';
 import { buildStaffShell, buildTenantShell, StaffShell, TenantShell } from './ui/shell';
-import { errorState, skeletonRows } from './ui/kit';
+import { closeAppDialogs, errorState, skeletonRows } from './ui/kit';
 import { renderLogin, forcePasswordChange } from './pages/login';
 
 import { dashboardPage } from './pages/dashboard';
@@ -88,6 +86,10 @@ let shellKind: 'staff' | 'tenant' | null = null;
 let offMonth: (() => void) | null = null;
 let routeObserver: MutationObserver | null = null;
 
+function workspacePath(session: ReturnType<typeof loadSession>): string {
+  return isTenant(session) ? '/me' : isMeterReaderOnly(session) ? '/meters' : '/';
+}
+
 /** Thanh «Tuyến tháng» thu gọn ở đầu các màn chốt tháng; chèn lại nếu trang tự vẽ lại sau một thao tác. */
 function keepMonthRoute(view: HTMLElement, path: string): void {
   routeObserver?.disconnect();
@@ -110,6 +112,14 @@ function keepMonthRoute(view: HTMLElement, path: string): void {
 }
 
 async function render(): Promise<void> {
+  if (!location.hash.startsWith('#/')) {
+    closeAppDialogs();
+    offMonth?.();
+    offMonth = null;
+    routeObserver?.disconnect();
+    routeObserver = null;
+    return;
+  }
   const s = loadSession();
   const { path } = current();
   const shareMatch = /^\/share\/([\w-]+)$/.exec(path);
@@ -117,16 +127,22 @@ async function render(): Promise<void> {
   if (!s) {
     shell = null;
     shellKind = null;
+    document.title = 'Đăng nhập · Stayly';
     if (path !== '/login') history.replaceState(null, '', '#/login');
     renderLogin(app, () => {
-      history.replaceState(null, '', isTenant(loadSession()) ? '#/me' : isMeterReaderOnly(loadSession()) ? '#/meters' : '#/');
+      if (!location.hash.startsWith('#/')) return;
+      history.replaceState(null, '', `#${workspacePath(loadSession())}`);
       void render();
     });
     return;
   }
   const tenant = isTenant(s);
   const inTenantArea = path === '/me' || path.startsWith('/me/');
-  if (path === '/login' || (tenant && !inTenantArea) || (!tenant && inTenantArea)) {
+  if (path === '/login') {
+    history.replaceState(null, '', `#${workspacePath(s)}`);
+    return render();
+  }
+  if ((tenant && !inTenantArea) || (!tenant && inTenantArea)) {
     navigate(tenant ? '/me' : '/');
     return;
   }
@@ -176,7 +192,7 @@ async function render(): Promise<void> {
     v.replaceChildren(skeletonRows(6));
     try {
       await m.route.handler(v, m.params, current().query);
-      if (!v.isConnected) return;
+      if (!v.isConnected || current().path !== path) return;
       enterView(v);
       keepMonthRoute(v, path);
     } catch (e) {

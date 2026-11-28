@@ -140,7 +140,10 @@ export function forcePasswordChange(): void {
   if (forceOpen) return;
   forceOpen = true;
   const qr = viaQrSession(); // vào bằng mã QR: chưa biết mật khẩu tạm, đặt thẳng mật khẩu mới
-  const d = openDialog(qr ? 'Đặt mật khẩu mới' : 'Đổi mật khẩu trước khi làm việc', { locked: true });
+  const d = openDialog(qr ? 'Đặt mật khẩu mới' : 'Đổi mật khẩu trước khi làm việc', {
+    locked: true,
+    onClose: () => { forceOpen = false; },
+  });
   const err = h('div');
   const cur = input({ type: 'password', autocomplete: 'current-password' });
   const nw = input({ type: 'password', autocomplete: 'new-password' });
@@ -151,7 +154,7 @@ export function forcePasswordChange(): void {
     ...(qr ? [field('Nhập lại mật khẩu mới', again)] : []));
   const ok = h('button', { class: 'btn' }, 'Đổi mật khẩu');
   const out = h('button', { class: 'btn secondary' }, 'Đăng xuất');
-  out.addEventListener('click', () => { d.close(); forceOpen = false; logout(); });
+  out.addEventListener('click', () => { d.close(); logout(); });
   d.foot.append(out, ok);
   ok.addEventListener('click', async () => {
     err.replaceChildren();
@@ -163,7 +166,6 @@ export function forcePasswordChange(): void {
       else await api.post('/api/auth/password', { currentPassword: cur.value, newPassword: nw.value });
       clearMustChangePassword();
       d.close();
-      forceOpen = false;
       toast(qr ? 'Đã đặt mật khẩu mới' : 'Đã đổi mật khẩu');
     } catch (e) {
       err.append(formError(errText(e)));

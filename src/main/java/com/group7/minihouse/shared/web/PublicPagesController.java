@@ -21,6 +21,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 @Controller
 public class PublicPagesController {
 
+    private static final String OWNER_SLOT = "<!--stayly:site-owner-->";
+
     private static final String[][] NAV = {
             {"/privacy", "Chính sách bảo mật"}, {"/terms", "Điều khoản sử dụng"},
             {"/pricing", "Bảng giá và hoàn tiền"}, {"/contact", "Liên hệ"}};
@@ -75,6 +77,9 @@ public class PublicPagesController {
     }
 
     private static String injectFooter(String html, SitePublicInfo info) {
+        if (html.contains(OWNER_SLOT)) {
+            return html.replace(OWNER_SLOT, info.contactInline());
+        }
         String footer = "<footer id=\"site-legal\" style=\"max-width:780px;margin:0 auto;padding:16px 20px 28px;"
                 + "font:13px/1.7 'Segoe UI',system-ui,Arial,sans-serif;color:#596b61;text-align:center\">"
                 + "<div>Stayly là phần mềm quản lý nhà trọ: phòng, khách thuê, hợp đồng, điện nước, hóa đơn và thu tiền.</div>"

@@ -25,6 +25,11 @@ export interface DialogHandle {
 }
 
 let dialogSequence = 0;
+const activeDialogs = new Set<() => void>();
+
+export function closeAppDialogs(): void {
+  activeDialogs.forEach((close) => close());
+}
 
 export function openDialog(title: string, opts: { drawer?: boolean; width?: number; locked?: boolean; onClose?: () => void } = {}): DialogHandle {
   const titleId = 'dlg-title-' + ++dialogSequence;
@@ -39,6 +44,7 @@ export function openDialog(title: string, opts: { drawer?: boolean; width?: numb
     const done = () => {
       dlg.close();
       dlg.remove();
+      activeDialogs.delete(close);
       opts.onClose?.();
     };
     if (reducedMotion()) return done();
@@ -59,6 +65,7 @@ export function openDialog(title: string, opts: { drawer?: boolean; width?: numb
   });
   document.body.appendChild(dlg);
   dlg.showModal();
+  activeDialogs.add(close);
   return { close, body, foot };
 }
 

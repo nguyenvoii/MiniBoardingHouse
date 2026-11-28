@@ -1,5 +1,6 @@
 package com.group7.minihouse.shared.web;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -76,6 +77,20 @@ class PublicPagesControllerTest {
             assertTrue(html.contains("id=\"site-legal\"") && html.contains("Nguyễn Văn A") && html.contains("href=\"/privacy\""));
             assertTrue(html.indexOf("site-legal") > html.indexOf("id=\"root\""), "chan trang phai nam sau giao dien");
         }
+    }
+
+    @Test
+    void homeFillsTheDesignedFooterWithoutAddingAnotherFooter() throws Exception {
+        Resource index = new ByteArrayResource("""
+                <html><body><main>Quản lý nhà trọ</main>
+                <footer id="site-legal"><div><!--stayly:site-owner--></div><a href="/privacy">Bảo mật</a></footer>
+                <div id="app" hidden></div></body></html>
+                """.getBytes(StandardCharsets.UTF_8));
+        String html = body(mvc(new SitePublicInfo("Nhóm <Stayly>", "", "", ""), index), "/");
+        String footer = html.substring(html.indexOf("<footer"), html.indexOf("</footer>"));
+        assertTrue(footer.contains("&lt;Stayly&gt;") && footer.contains("href=\"/privacy\""));
+        assertFalse(html.contains("<!--stayly:site-owner-->"));
+        assertEquals(html.indexOf("<footer"), html.lastIndexOf("<footer"));
     }
 
     @Test
