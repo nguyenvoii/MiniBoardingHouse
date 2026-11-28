@@ -288,5 +288,3 @@
 .home-track.is-seen .home-stops button > span { animation: home-stop-pop 700ms var(--ease) both; animation-delay: calc(var(--stop-order, 0) * 140ms); }
 @keyframes home-stop-pop { from { opacity: 0; transform: scale(.4) translateY(14px); } 60% { opacity: 1; transform: scale(1.12); } to { opacity: 1; transform: none; } }
 
-/* Bấm menu thì cuộn mượt tới mục (chỉ khi đang ở trang chủ) */
-html:has(#stayly-home:not([hidden])) { scroll-behavior: smooth; }

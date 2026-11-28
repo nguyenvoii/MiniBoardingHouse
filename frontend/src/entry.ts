@@ -100,3 +100,25 @@ if ('IntersectionObserver' in window) {
   }), { threshold: .15 });
   targets.forEach((el, i) => { el.setAttribute('data-reveal', ''); el.style.setProperty('--reveal-delay', `${(i % 3) * 120}ms`); io.observe(el); });
 }
+
+// Bấm liên kết trong trang thì trượt tới mục (tự chạy bằng JS vì Chrome bỏ cuộn mượt của CSS khi Windows tắt hiệu ứng)
+home.addEventListener('click', (e) => {
+  const link = (e.target as Element).closest<HTMLAnchorElement>('a[href^="#"]');
+  const hash = link?.getAttribute('href') ?? '';
+  if (!link || hash.startsWith('#/') || hash.length < 2 || e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+  const target = document.getElementById(hash.slice(1));
+  if (!target) return;
+  e.preventDefault();
+  const margin = parseFloat(getComputedStyle(target).scrollMarginTop) || 0;
+  const from = scrollY;
+  const to = Math.max(0, Math.min(target.getBoundingClientRect().top + from - margin, document.documentElement.scrollHeight - innerHeight));
+  const start = performance.now();
+  const duration = Math.min(1100, 450 + Math.abs(to - from) * 0.25);
+  const step = (now: number) => {
+    const t = Math.min(1, (now - start) / duration);
+    scrollTo({ top: from + (to - from) * (t < .5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2), behavior: 'instant' });
+    if (t < 1) requestAnimationFrame(step);
+    else { history.pushState(null, '', hash); target.focus({ preventScroll: true }); }
+  };
+  requestAnimationFrame(step);
+});
