@@ -56,7 +56,7 @@ export function renderLogin(root: HTMLElement, onDone: () => void): void {
       const send = h('button', { class: 'btn secondary' }, 'Gửi mã xác nhận');
       const next = h('button', { class: 'btn' }, 'Tiếp tục');
       message.replaceChildren();
-      dialog.body.replaceChildren(message, field('Email hoặc số điện thoại', identifier), send,
+      dialog.body.replaceChildren(message, field('Email hoặc số điện thoại', identifier, 'Mã chỉ gửi qua email của tài khoản. Nhận mã qua SMS: không khả dụng.'), send,
         field('Mã xác nhận', code, 'Nhập mã vừa nhận. Mã chỉ có hiệu lực vài phút, nhập sai tối đa 5 lần.'));
       dialog.foot.replaceChildren(cancel, next);
       send.addEventListener('click', () => busy(send, async () => {

@@ -46,7 +46,7 @@ export async function profilePage(view: HTMLElement): Promise<void> {
         p.avatarUrl ? h('img', { src: p.avatarUrl, alt: 'Ảnh đại diện hiện tại', width: 64, height: 64, style: 'object-fit:cover;border-radius:50%' }) : null,
         field('Ảnh đại diện', avatar, 'Tối đa 2 MB'), h('div', { class: 'form-actions' }, upload),
         field('Họ tên', name), field('Số điện thoại', phone), h('div', { class: 'form-actions' }, save))),
-      panel('Xác thực số điện thoại', phoneVerifyBox(p.phoneNumber)),
+      panel('Xác thực số điện thoại (không khả dụng)', phoneVerifyBox(p.phoneNumber)),
       panel('Đổi mật khẩu', h('div', { class: 'panel-body stack' }, err2, field('Mật khẩu hiện tại', cur), field('Mật khẩu mới', nw, 'Từ 8 ký tự, có cả chữ và số'), h('div', { class: 'form-actions' }, chg))),
     ),
   );
@@ -69,5 +69,9 @@ function phoneVerifyBox(current: string | null): HTMLElement {
     if (!phone.value.trim() || !code.value.trim()) { err.replaceChildren(formError('Nhập số điện thoại và mã SMS.')); return; }
     try { await api.post('/api/auth/verify-phone', { phone: phone.value.trim(), code: code.value.trim() }); toast('Đã xác thực số điện thoại'); code.value = ''; } catch (e) { err.replaceChildren(formError(errText(e))); }
   }));
-  return h('div', { class: 'panel-body stack' }, err, field('Số điện thoại', phone, 'Mã gửi qua SMS; cần chủ hệ thống cấu hình nhà cung cấp SMS'), h('div', { class: 'form-actions' }, send), field('Mã SMS', code), h('div', { class: 'form-actions' }, ok));
+  // Tạm tắt SMS OTP: làm mờ cả khối, bỏ khỏi thứ tự Tab. Bật lại khi có nhà cung cấp SMS (xóa dòng dưới và bỏ aria-disabled).
+  for (const el of [phone, code, send, ok]) el.setAttribute('disabled', '');
+  return h('div', { class: 'panel-body stack', 'aria-disabled': 'true', style: 'opacity:.55' }, err,
+    h('p', { class: 'muted' }, 'Không khả dụng: xác thực số điện thoại bằng SMS tạm thời chưa hoạt động.'),
+    field('Số điện thoại', phone), h('div', { class: 'form-actions' }, send), field('Mã SMS', code), h('div', { class: 'form-actions' }, ok));
 }
