@@ -26,7 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class RegistrationService {
 
     private static final String TYPE = "EMAIL";
-    private static final String BAD_CODE = "Ma xac thuc khong dung hoac da het han";
+    private static final String BAD_CODE = "Mã xác thực không đúng hoặc đã hết hạn";
     private static final Pattern PHONE = Pattern.compile("\\+?[0-9]{9,15}");
     private static final Pattern EMAIL = Pattern.compile("[^@\\s]+@[^@\\s]+\\.[^@\\s]+");
 
@@ -54,30 +54,30 @@ public class RegistrationService {
     public void register(RegisterRequest req, String ip) {
         String name = req.fullName() == null ? "" : req.fullName().trim();
         if (name.isEmpty() || name.length() > 100) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "Ho ten khong duoc de trong va toi da 100 ky tu");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Họ tên không được để trống và tối đa 100 ký tự");
         }
         String email = blankToNull(req.email());
         if (email != null) {
             email = email.toLowerCase();
         }
         if (email == null || email.length() > 255 || !EMAIL.matcher(email).matches()) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "Email khong hop le");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Email không hợp lệ");
         }
         String phone = blankToNull(req.phoneNumber());
         if (phone != null && !PHONE.matcher(phone).matches()) {
             throw new BusinessException(HttpStatus.BAD_REQUEST,
-                    "So dien thoai chi gom 9-15 chu so (co the bat dau bang +), khong co dau cach");
+                    "Số điện thoại chỉ gồm 9-15 chữ số (có thể bắt đầu bằng +), không có dấu cách");
         }
         if (!AccountService.isStrong(req.password())) {
             throw new BusinessException(HttpStatus.BAD_REQUEST,
-                    "Mat khau phai co it nhat 8 ky tu, gom ca chu va so");
+                    "Mật khẩu phải có ít nhất 8 ký tự, gồm cả chữ và số");
         }
 
         User existing = userRepository.findByEmailOrPhoneNumber(email, email).orElse(null);
         User user;
         if (existing == null) {
             if (phone != null && userRepository.existsByPhoneNumber(phone)) {
-                throw conflict("So dien thoai da duoc tai khoan khac su dung");
+                throw conflict("Số điện thoại đã được tài khoản khác sử dụng");
             }
             user = new User();
             user.setEmail(email);
@@ -85,11 +85,11 @@ public class RegistrationService {
         } else if (isPending(existing)) {
             // Dang ky lai tren tai khoan chua xac thuc: ghi de, de nguoi chiem email truoc khong giu duoc mat khau
             if (phone != null && userRepository.existsByPhoneNumberAndUserIdNot(phone, existing.getUserId())) {
-                throw conflict("So dien thoai da duoc tai khoan khac su dung");
+                throw conflict("Số điện thoại đã được tài khoản khác sử dụng");
             }
             user = existing;
         } else {
-            throw conflict("Email da duoc tai khoan khac su dung");
+            throw conflict("Email đã được tài khoản khác sử dụng");
         }
         user.setFullName(name);
         user.setPhoneNumber(phone);
@@ -169,7 +169,7 @@ public class RegistrationService {
 
     private Role landlordRole() {
         return roleRepository.findByRoleCode("LANDLORD").orElseThrow(() ->
-                new BusinessException(HttpStatus.INTERNAL_SERVER_ERROR, "Chua nap role LANDLORD, chay db/seed.sql"));
+                new BusinessException(HttpStatus.INTERNAL_SERVER_ERROR, "Chưa nạp role LANDLORD, chạy db/seed.sql"));
     }
 
     private static UserRole newUserRole(User user, Role role) {

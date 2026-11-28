@@ -24,7 +24,7 @@ public class PurgeExpiredVerificationsJob implements ScheduledJob {
 
     @Override public String name() { return "purge-expired-verifications"; }
 
-    @Override public String description() { return "Xoa ma OTP het han qua 1 ngay"; }
+    @Override public String description() { return "Xóa mã OTP hết hạn quá 1 ngày"; }
 
     @Override public String defaultCron() { return "0 0 3 * * *"; }
 

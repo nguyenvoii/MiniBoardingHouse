@@ -35,6 +35,6 @@ class CurrentUserTest {
         AuthUser staff = new AuthUser(3, "m@x.vn", "Manager", List.of("MANAGER"), null);
         BusinessException ex = assertThrows(BusinessException.class, () -> CurrentUser.requireTenantId(staff));
         assertEquals(HttpStatus.FORBIDDEN, ex.getStatus());
-        assertTrue(ex.getMessage().contains("nguoi thue"));
+        assertTrue(ex.getMessage().contains("người thuê"));
     }
 }

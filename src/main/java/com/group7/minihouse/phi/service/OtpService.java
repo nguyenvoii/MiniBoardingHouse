@@ -53,7 +53,7 @@ public class OtpService {
         // neu khong, ke tan cong co the lap "xin ma -> doan sai -> xin ma" khong gioi han.
         if (repo.countIssuedAfter(user.getUserId(), type, now.minus(COOLDOWN).plus(TTL)) > 0) {
             throw new BusinessException(HttpStatus.TOO_MANY_REQUESTS,
-                    "Vua gui ma xac thuc, vui long doi 1 phut roi thu lai");
+                    "Vừa gửi mã xác thực, vui lòng đợi 1 phút rồi thử lại");
         }
         // Huy ma cu bang is_verified = true (giu nguyen expires_at de con tinh duoc thoi diem cap)
         repo.findActive(user.getUserId(), type, now).forEach(v -> v.setIsVerified(true));

@@ -79,11 +79,11 @@ public class PaymentService {
     @Transactional
     public PaymentResponse record(PaymentRequest req, Integer actorId, String ip) {
         if (req == null || req.invoiceId() == null || req.method() == null) {
-            throw bad("Can invoiceId, method (CASH hoac BANK_TRANSFER), amount");
+            throw bad("Cần invoiceId, method (CASH hoặc BANK_TRANSFER), amount");
         }
         String method = req.method().trim().toUpperCase();
         if (!STAFF_METHODS.contains(method)) {
-            throw bad("method phai la CASH hoac BANK_TRANSFER (QR/cong dien tu dung /api/payments/qr)");
+            throw bad("method phải là CASH hoặc BANK_TRANSFER (QR/cổng điện tử dùng /api/payments/qr)");
         }
         Invoice inv = payableInvoice(req.invoiceId());
         BigDecimal amount = checkAmount(inv, req.amount());
@@ -93,7 +93,7 @@ public class PaymentService {
             for (PaymentTransaction pending : repo.findPendingOfInvoice(inv.getInvoiceId())) {
                 if (pending.getAmountPaid().compareTo(amount) == 0) {
                     pending.setReceivedByUser(user(actorId));
-                    ConfirmResult r = confirmWith(pending, amount, "Nhan vien doi chieu chuyen khoan", false);
+                    ConfirmResult r = confirmWith(pending, amount, "Nhân viên đối chiếu chuyển khoản", false);
                     if (!r.confirmed()) {
                         throw new BusinessException(HttpStatus.CONFLICT, r.message());
                     }
@@ -105,7 +105,7 @@ public class PaymentService {
         }
         PaymentTransaction t = newTransaction(inv, method, cleanCode(req.transactionCode()), amount, user(actorId));
         t.setStatus("SUCCESS");
-        applyToInvoice(t, "Da nhan " + method);
+        applyToInvoice(t, "Đã nhận " + method);
         audit(actorId, "RECORD_PAYMENT", "Ghi nhan thanh toan " + amount + " cho hoa don " + inv.getInvoiceCode(), ip);
         return toResponse(t);
     }
@@ -116,11 +116,11 @@ public class PaymentService {
     @Transactional
     public QrInfo createQr(QrRequest req, Integer receiverId, Integer actorId, String ip) {
         if (req == null || req.invoiceId() == null) {
-            throw bad("Can invoiceId");
+            throw bad("Cần invoiceId");
         }
         String method = req.method() == null ? "QR_CODE" : req.method().trim().toUpperCase();
         if (!Set.of("QR_CODE", "GATEWAY").contains(method)) {
-            throw bad("method phai la QR_CODE hoac GATEWAY");
+            throw bad("method phải là QR_CODE hoặc GATEWAY");
         }
         Invoice inv = payableInvoice(req.invoiceId());
         BigDecimal amount = req.amount() == null ? calculator.remainingOf(inv) : checkAmount(inv, req.amount());
@@ -128,7 +128,7 @@ public class PaymentService {
         BankAccountResponse bank = bankAccountService.list(propertyId).stream()
                 .filter(BankAccountResponse::isDefault).findFirst()
                 .orElseThrow(() -> new BusinessException(HttpStatus.CONFLICT,
-                        "Khu tro chua co tai khoan ngan hang mac dinh (UC119)"));
+                        "Khu trọ chưa có tài khoản ngân hàng mặc định (UC119)"));
         // L13: da co giao dich cho cung hoa don, cung cach, cung so tien thi dung lai, khong sinh them giao dich cho moi lan bam
         for (PaymentTransaction pending : repo.findPendingOfInvoice(inv.getInvoiceId())) {
             if ("FAILED".equals(pending.getStatus()) && method.equals(pending.getPaymentMethod())
@@ -172,12 +172,12 @@ public class PaymentService {
     @Transactional
     public QrInfo createQrForTenant(QrRequest req, Integer tenantId, Integer tenantUserId, String ip) {
         if (req == null || req.invoiceId() == null) {
-            throw bad("Can invoiceId");
+            throw bad("Cần invoiceId");
         }
         Invoice inv = invoiceRepo.findById(req.invoiceId())
-                .orElseThrow(() -> BusinessException.notFound("Hoa don " + req.invoiceId()));
+                .orElseThrow(() -> BusinessException.notFound("Hóa đơn " + req.invoiceId()));
         if (!inv.getTenant().getTenantId().equals(tenantId)) {
-            throw BusinessException.notFound("Hoa don " + req.invoiceId());
+            throw BusinessException.notFound("Hóa đơn " + req.invoiceId());
         }
         return createQr(req, firstActiveLandlordId(), tenantUserId, ip);
     }
@@ -187,7 +187,7 @@ public class PaymentService {
                 + "where ur.role.roleCode = 'LANDLORD' and ur.user.status = 'ACTIVE' order by ur.user.userId",
                 Integer.class).setMaxResults(1).getResultList();
         if (landlords.isEmpty()) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Chua co chu tro dang hoat dong de nhan thanh toan");
+            throw new BusinessException(HttpStatus.CONFLICT, "Chưa có chủ trọ đang hoạt động để nhận thanh toán");
         }
         return landlords.get(0);
     }
@@ -204,28 +204,28 @@ public class PaymentService {
     public String confirmSepayTransfer(long sepayId, String content, BigDecimal amount, String ip) {
         String code = "SEPAY-" + sepayId;
         if (repo.existsByTransactionCode(code)) { // SePay goi lai: hoa don da PAID nen khong con khop duoc, bao ro la da xu ly
-            return "Da xu ly truoc do";
+            return "Đã xử lý trước đó";
         }
         Integer receiver = firstActiveLandlordId();
         Invoice found = invoiceFromTransferContent(content);
         if (found == null) {
-            audit(receiver, "SEPAY_UNMATCHED", code + ": " + amount + " VND, noi dung khong co ma hoa don nao (hoac nhieu ma): "
+            audit(receiver, "SEPAY_UNMATCHED", code + ": " + amount + " VND, nội dung không có mã hóa đơn nào (hoặc nhiều mã): "
                     + abbreviate(content), ip);
-            return "Khong khop hoa don";
+            return "Không khớp hóa đơn";
         }
         Invoice inv = invoiceRepo.findByIdForUpdate(found.getInvoiceId())
-                .orElseThrow(() -> BusinessException.notFound("Hoa don " + found.getInvoiceId()));
+                .orElseThrow(() -> BusinessException.notFound("Hóa đơn " + found.getInvoiceId()));
         if (repo.existsByTransactionCode(code)) {
-            return "Da xu ly truoc do";
+            return "Đã xử lý trước đó";
         }
         if ("PAID".equals(inv.getPaymentStatus()) || "CANCELLED".equals(inv.getPaymentStatus())) {
-            audit(receiver, "SEPAY_UNMATCHED", code + ": " + amount + " VND vao hoa don " + inv.getInvoiceCode()
-                    + " dang o trang thai " + inv.getPaymentStatus() + ", can hoan tien cho khach", ip);
-            return "Hoa don khong con cho thanh toan";
+            audit(receiver, "SEPAY_UNMATCHED", code + ": " + amount + " VND vào hóa đơn " + inv.getInvoiceCode()
+                    + " dang o trang thai " + inv.getPaymentStatus() + ", cần hoàn tiền cho khách", ip);
+            return "Hóa đơn không còn chờ thanh toán";
         }
         for (PaymentTransaction pending : repo.findPendingOfInvoice(inv.getInvoiceId())) {
             if ("FAILED".equals(pending.getStatus()) && pending.getAmountPaid().compareTo(amount) == 0) {
-                ConfirmResult r = confirmWith(pending, amount, "SePay xac nhan chuyen khoan", false);
+                ConfirmResult r = confirmWith(pending, amount, "SePay xác nhận chuyển khoản", false);
                 if (r.confirmed()) {
                     pending.setTransactionCode(code); // sau confirmWith (no em.refresh) de khong bi doc de
                 }
@@ -237,13 +237,13 @@ public class PaymentService {
         if (amount.compareTo(remaining) == 0) {
             PaymentTransaction t = newTransaction(inv, "BANK_TRANSFER", code, amount, user(receiver));
             t.setStatus("SUCCESS");
-            applyToInvoice(t, "SePay xac nhan chuyen khoan");
-            audit(receiver, "SEPAY_PAYMENT", code + ": cong " + amount + " VND vao hoa don " + inv.getInvoiceCode(), ip);
-            return "Da cong vao hoa don " + inv.getInvoiceCode();
+            applyToInvoice(t, "SePay xác nhận chuyển khoản");
+            audit(receiver, "SEPAY_PAYMENT", code + ": cộng " + amount + " VND vào hóa đơn " + inv.getInvoiceCode(), ip);
+            return "Đã cộng vào hóa đơn " + inv.getInvoiceCode();
         }
-        audit(receiver, "SEPAY_UNMATCHED", code + ": " + amount + " VND vao hoa don " + inv.getInvoiceCode()
-                + " lech so con phai tra " + remaining + ", cho nhan vien xu ly", ip);
-        return "Lech so tien, cho nhan vien xu ly";
+        audit(receiver, "SEPAY_UNMATCHED", code + ": " + amount + " VND vào hóa đơn " + inv.getInvoiceCode()
+                + " lệch số còn phải trả " + remaining + ", chờ nhân viên xử lý", ip);
+        return "Lệch số tiền, chờ nhân viên xử lý";
     }
 
     /** Hoa don con phai tra co ma (bo dau gach) nam trong noi dung; nhieu ma thi lay ma dai nhat, bang nhau thi coi la mo ho. */
@@ -270,11 +270,11 @@ public class PaymentService {
     @Transactional
     public ConfirmResult callback(CallbackRequest req) {
         if (req == null || req.transactionCode() == null || req.amount() == null) {
-            throw bad("Can transactionCode va amount");
+            throw bad("Cần transactionCode và amount");
         }
         PaymentTransaction t = repo.findByTransactionCode(req.transactionCode().trim())
-                .orElseThrow(() -> BusinessException.notFound("Giao dich " + req.transactionCode()));
-        return confirmWith(t, req.amount(), "Cong thanh toan xac nhan", true);
+                .orElseThrow(() -> BusinessException.notFound("Giao dịch " + req.transactionCode()));
+        return confirmWith(t, req.amount(), "Cổng thanh toán xác nhận", true);
     }
 
     @Transactional(readOnly = true)
@@ -284,13 +284,13 @@ public class PaymentService {
 
     @Transactional
     public ConfirmResult reconcileGatewayPayment(Integer transactionId, Integer tenantId, BigDecimal settledAmount) {
-        return confirmWith(ownedGatewayPayment(transactionId, tenantId), settledAmount, "payOS xac nhan", true);
+        return confirmWith(ownedGatewayPayment(transactionId, tenantId), settledAmount, "payOS xác nhận", true);
     }
 
     private static final String GATEWAY_PREFIX = "PAYOS-";
 
     /**
-     * Ma don payOS cho 1 lan thanh toan: 1e9 + id*1000 + lan thu. Moi lan bam "Thanh toan online" cho cung giao dich
+     * Ma don payOS cho 1 lan thanh toan: 1e9 + id*1000 + lan thu. Moi lan bam "Thanh toán online" cho cung giao dich
      * dung ma don moi (payOS tu choi ma don trung); ma hien tai luu o transactionCode de doi soat sau do.
      */
     @Transactional
@@ -302,7 +302,7 @@ public class PaymentService {
             attempt = Long.parseLong(code.substring(GATEWAY_PREFIX.length())) % 1000 + 1;
         }
         if (attempt > 999) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Qua nhieu lan thu thanh toan, hay tao giao dich moi");
+            throw new BusinessException(HttpStatus.CONFLICT, "Quá nhiều lần thử thanh toán, hãy tạo giao dịch mới");
         }
         long order = 1_000_000_000L + transactionId * 1000L + attempt;
         p.setTransactionCode(GATEWAY_PREFIX + order);
@@ -322,7 +322,7 @@ public class PaymentService {
         PaymentTransaction payment = load(transactionId);
         if (!"GATEWAY".equals(payment.getPaymentMethod())
                 || !tenantId.equals(payment.getInvoice().getTenant().getTenantId())) {
-            throw BusinessException.notFound("Giao dich cong thanh toan");
+            throw BusinessException.notFound("Giao dịch cổng thanh toán");
         }
         return payment;
     }
@@ -333,7 +333,7 @@ public class PaymentService {
     @Transactional(readOnly = true)
     public MatchResult match(String content) {
         if (content == null || content.isBlank()) {
-            throw bad("Can noi dung chuyen khoan");
+            throw bad("Cần nội dung chuyển khoản");
         }
         List<InvoiceMatch> matches = repo.findPayableMentionedIn(content).stream()
                 .filter(i -> mentions(content, i.getInvoiceCode()))
@@ -346,10 +346,10 @@ public class PaymentService {
     @Transactional
     public ConfirmResult confirm(Integer transactionId, ConfirmRequest req, Integer actorId, String ip) {
         if (req == null || req.amountReceived() == null) {
-            throw bad("Can amountReceived (so tien thuc nhan tren sao ke)");
+            throw bad("Cần amountReceived (số tiền thực nhận trên sao kê)");
         }
         PaymentTransaction t = load(transactionId);
-        ConfirmResult r = confirmWith(t, req.amountReceived(), "Nhan vien xac nhan chuyen khoan", false);
+        ConfirmResult r = confirmWith(t, req.amountReceived(), "Nhân viên xác nhận chuyển khoản", false);
         audit(actorId, "CONFIRM_PAYMENT", "Xac nhan giao dich " + t.getTransactionCode() + ": " + r.message(), ip);
         return r;
     }
@@ -361,7 +361,7 @@ public class PaymentService {
         invoiceRepo.findByIdForUpdate(t.getInvoice().getInvoiceId());
         em.refresh(t);
         if (!PENDING_METHODS.contains(t.getPaymentMethod()) || !"FAILED".equals(t.getStatus())) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Chi dong duoc giao dich dang cho xac nhan");
+            throw new BusinessException(HttpStatus.CONFLICT, "Chỉ đóng được giao dịch đang chờ xác nhận");
         }
         t.setStatus("REVERSED");
         audit(actorId, "CANCEL_PENDING_PAYMENT", "Dong giao dich cho " + t.getTransactionCode() + " cua hoa don "
@@ -375,7 +375,7 @@ public class PaymentService {
     public PageResponse<PaymentResponse> search(Integer invoiceId, String keyword, String status, int page, int size) {
         String st = status == null ? "" : status.trim().toUpperCase();
         if (!st.isEmpty() && !STATUSES.contains(st)) {
-            throw bad("status phai la SUCCESS, FAILED hoac REVERSED");
+            throw bad("status phải là SUCCESS, FAILED hoặc REVERSED");
         }
         int s = size < 1 ? 20 : Math.min(size, 100);
         PageRequest pageable = PageRequest.of(Math.min(Math.max(page, 0), 100_000), s,
@@ -393,38 +393,38 @@ public class PaymentService {
 
     private ConfirmResult confirmWith(PaymentTransaction t, BigDecimal received, String note, boolean replayAllowed) {
         if (!PENDING_METHODS.contains(t.getPaymentMethod())) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Giao dich tien mat khong can xac nhan");
+            throw new BusinessException(HttpStatus.CONFLICT, "Giao dịch tiền mặt không cần xác nhận");
         }
         // khoa hoa don roi doc lai giao dich: hai lan xac nhan dong thoi (callback + nhan vien) khong cong doi
         invoiceRepo.findByIdForUpdate(t.getInvoice().getInvoiceId());
         em.refresh(t);
         if (replayAllowed && "SUCCESS".equals(t.getStatus()) && received.compareTo(t.getAmountPaid()) == 0) {
-            return new ConfirmResult(true, "Giao dich da duoc xac nhan", toResponse(t));
+            return new ConfirmResult(true, "Giao dịch đã được xác nhận", toResponse(t));
         }
         if (!"FAILED".equals(t.getStatus())) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Giao dich dang o trang thai " + t.getStatus()
-                    + ", chi xac nhan duoc giao dich dang cho");
+            throw new BusinessException(HttpStatus.CONFLICT, "Giao dịch đang ở trạng thái " + t.getStatus()
+                    + ", chỉ xác nhận được giao dịch đang chờ");
         }
         String invStatus = t.getInvoice().getPaymentStatus();
         if ("CANCELLED".equals(invStatus) || "PAID".equals(invStatus)) {
-            return new ConfirmResult(false, "Hoa don " + t.getInvoice().getInvoiceCode() + " dang o trang thai "
-                    + invStatus + ", khong cong tien vao duoc. Dong giao dich cho va hoan tien cho khach neu da chuyen",
+            return new ConfirmResult(false, "Hóa đơn " + t.getInvoice().getInvoiceCode() + " dang o trang thai "
+                    + invStatus + ", không cộng tiền vào được. Đóng giao dịch chờ và hoàn tiền cho khách nếu đã chuyển",
                     toResponse(t));
         }
         if (received.compareTo(t.getAmountPaid()) != 0) {
-            return new ConfirmResult(false, "So tien thuc nhan " + received + " khac so tien giao dich "
-                    + t.getAmountPaid() + ", chua cong vao hoa don", toResponse(t));
+            return new ConfirmResult(false, "Số tiền thực nhận " + received + " khác số tiền giao dịch "
+                    + t.getAmountPaid() + ", chưa cộng vào hóa đơn", toResponse(t));
         }
         Invoice inv = t.getInvoice();
         if (calculator.remainingOf(inv).compareTo(t.getAmountPaid()) < 0) {
-            return new ConfirmResult(false, "Hoa don khong con du so phai tra (con "
-                    + calculator.remainingOf(inv) + "), co the da thanh toan bang cach khac", toResponse(t));
+            return new ConfirmResult(false, "Hóa đơn không còn đủ số phải trả (còn "
+                    + calculator.remainingOf(inv) + "), có thể đã thanh toán bằng cách khác", toResponse(t));
         }
         t.setStatus("SUCCESS");
         // L6: giu ngay luc khach tao giao dich/chuyen tien (paymentDate luc tao), khong doi thanh gio xac nhan,
         // de doanh thu khong rot sang thang sau chi vi nhan vien xac nhan tre
         applyToInvoice(t, note);
-        return new ConfirmResult(true, "Da xac nhan va cong vao hoa don " + inv.getInvoiceCode(), toResponse(t));
+        return new ConfirmResult(true, "Đã xác nhận và cộng vào hóa đơn " + inv.getInvoiceCode(), toResponse(t));
     }
 
     private void applyToInvoice(PaymentTransaction t, String note) {
@@ -443,7 +443,7 @@ public class PaymentService {
 
     private PaymentTransaction newTransaction(Invoice inv, String method, String code, BigDecimal amount, User by) {
         if (code != null && repo.existsByTransactionCode(code)) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Ma giao dich " + code + " da ton tai");
+            throw new BusinessException(HttpStatus.CONFLICT, "Mã giao dịch " + code + " đã tồn tại");
         }
         PaymentTransaction t = new PaymentTransaction();
         t.setInvoice(inv);
@@ -456,10 +456,10 @@ public class PaymentService {
     }
 
     private Invoice payableInvoice(Integer id) {
-        Invoice inv = invoiceRepo.findByIdForUpdate(id).orElseThrow(() -> BusinessException.notFound("Hoa don " + id));
+        Invoice inv = invoiceRepo.findByIdForUpdate(id).orElseThrow(() -> BusinessException.notFound("Hóa đơn " + id));
         String st = inv.getPaymentStatus();
         if ("PAID".equals(st) || "CANCELLED".equals(st)) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Hoa don " + inv.getInvoiceCode() + " dang o trang thai "
+            throw new BusinessException(HttpStatus.CONFLICT, "Hóa đơn " + inv.getInvoiceCode() + " đang ở trạng thái "
                     + st);
         }
         return inv;
@@ -467,12 +467,12 @@ public class PaymentService {
 
     private BigDecimal checkAmount(Invoice inv, BigDecimal amount) {
         if (amount == null || amount.signum() <= 0) {
-            throw bad("So tien phai lon hon 0");
+            throw bad("Số tiền phải lớn hơn 0");
         }
         BigDecimal remaining = calculator.remainingOf(inv);
         if (amount.compareTo(remaining) > 0) {
-            throw bad("So tien lon hon so con phai tra (" + remaining
-                    + "). Phan thua xu ly o chuc nang thanh toan du");
+            throw bad("Số tiền lớn hơn số còn phải trả (" + remaining
+                    + "). Phần thừa xử lý ở chức năng thanh toán dư");
         }
         return amount;
     }
@@ -480,13 +480,13 @@ public class PaymentService {
     private User user(Integer id) {
         if (id == null) {
             throw new BusinessException(HttpStatus.UNAUTHORIZED,
-                    "Can dang nhap de ghi nhan nguoi tiep nhan (bat app.security.enabled=true va dang nhap)");
+                    "Cần đăng nhập để ghi nhận người tiếp nhận (bật app.security.enabled=true và đăng nhập)");
         }
         return em.getReference(User.class, id);
     }
 
     private PaymentTransaction load(Integer id) {
-        return repo.findById(id).orElseThrow(() -> BusinessException.notFound("Giao dich " + id));
+        return repo.findById(id).orElseThrow(() -> BusinessException.notFound("Giao dịch " + id));
     }
 
     static boolean mentions(String content, String invoiceCode) {
@@ -500,7 +500,7 @@ public class PaymentService {
         }
         String c = code.trim();
         if (c.length() > 100) {
-            throw bad("Ma giao dich toi da 100 ky tu");
+            throw bad("Mã giao dịch tối đa 100 ký tự");
         }
         return c;
     }

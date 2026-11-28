@@ -83,7 +83,7 @@ public class TenantController {
         String back = body.getOrDefault("backUrl", "");
         if ((front != null && front.startsWith("/api/chi/tenants/"))
                 || (back != null && back.startsWith("/api/chi/tenants/"))) {
-            throw new BusinessException("Hay tai tep anh can cuoc qua multipart");
+            throw new BusinessException("Hãy tải tệp ảnh căn cước qua multipart");
         }
         tenantService.saveIdCard(id, front, back);
         return ApiResponse.ok(null);

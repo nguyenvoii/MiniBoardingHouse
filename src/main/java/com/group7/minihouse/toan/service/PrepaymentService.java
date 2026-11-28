@@ -80,13 +80,13 @@ public class PrepaymentService {
     @Transactional
     public PrepaymentResponse moveOverpaymentToBalance(Integer invoiceId, Integer actorId, String ip) {
         Invoice inv = invoiceRepo.findByIdForUpdate(invoiceId)
-                .orElseThrow(() -> notFound("Hoa don " + invoiceId));
+                .orElseThrow(() -> notFound("Hóa đơn " + invoiceId));
         if ("CANCELLED".equals(inv.getPaymentStatus())) {
             throw new BusinessException(HttpStatus.CONFLICT, "Không thể chuyển tiền dư từ hóa đơn đã hủy");
         }
         BigDecimal excess = calculator.paidOf(inv).subtract(inv.getTotalAmount());
         if (excess.signum() <= 0) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Hoa don khong co tien tra thua");
+            throw new BusinessException(HttpStatus.CONFLICT, "Hóa đơn không có tiền trả thừa");
         }
         TenantPrepayment pre = getOrCreate(inv.getTenant().getTenantId());
         pre.setExcessBalance(pre.getExcessBalance().add(excess));
@@ -107,15 +107,15 @@ public class PrepaymentService {
     public DeductionResponse deduct(DeductRequest req, Integer actorId, String ip) {
         if (req.tenantId() == null || req.targetInvoiceId() == null || req.amount() == null
                 || req.amount().signum() <= 0) {
-            throw bad("Can tenantId, targetInvoiceId, amount > 0");
+            throw bad("Cần tenantId, targetInvoiceId, amount > 0");
         }
         Invoice inv = invoiceRepo.findByIdForUpdate(req.targetInvoiceId())
-                .orElseThrow(() -> notFound("Hoa don " + req.targetInvoiceId()));
+                .orElseThrow(() -> notFound("Hóa đơn " + req.targetInvoiceId()));
         if (!inv.getTenant().getTenantId().equals(req.tenantId())) {
-            throw bad("Hoa don khong thuoc khach thue nay");
+            throw bad("Hóa đơn không thuộc khách thuê này");
         }
         TenantPrepayment pre = prepaymentRepo.findByTenantIdForUpdate(req.tenantId())
-                .orElseThrow(() -> new BusinessException(HttpStatus.CONFLICT, "Khach khong co tien du"));
+                .orElseThrow(() -> new BusinessException(HttpStatus.CONFLICT, "Khách không có tiền dư"));
         DeductionResponse res = toResponse(applyDeduction(pre, inv, req.amount()));
         activity.log(actorId, "PREPAYMENT_DEDUCT", "Cấn trừ " + req.amount() + " từ số dư khách vào hóa đơn "
                 + inv.getInvoiceCode(), ip);
@@ -144,13 +144,13 @@ public class PrepaymentService {
     @Transactional
     public PrepaymentResponse undoDeduction(Integer deductionId, Integer actorId, String ip) {
         PrepaymentDeduction original = deductionRepo.findById(deductionId)
-                .orElseThrow(() -> notFound("Lan can tru " + deductionId));
+                .orElseThrow(() -> notFound("Lần cấn trừ " + deductionId));
         Invoice inv = invoiceRepo.findByIdForUpdate(original.getTargetInvoice().getInvoiceId())
-                .orElseThrow(() -> notFound("Hoa don"));
+                .orElseThrow(() -> notFound("Hóa đơn"));
         PrepaymentDeduction d = deductionRepo.findByIdForUpdate(deductionId)
-                .orElseThrow(() -> notFound("Lan can tru " + deductionId));
+                .orElseThrow(() -> notFound("Lần cấn trừ " + deductionId));
         TenantPrepayment pre = prepaymentRepo.findByTenantIdForUpdate(d.getPrepayment().getTenant().getTenantId())
-                .orElseThrow(() -> notFound("So du tra truoc"));
+                .orElseThrow(() -> notFound("Số dư trả trước"));
         pre.setExcessBalance(pre.getExcessBalance().add(d.getDeductedAmount()));
         pre.setUpdatedAt(LocalDateTime.now());
         calculator.setPaid(inv, calculator.paidOf(inv).subtract(d.getDeductedAmount()).max(BigDecimal.ZERO),
@@ -171,12 +171,12 @@ public class PrepaymentService {
     @Transactional
     public PrepaymentResponse refund(RefundRequest req, Integer actorUserId, String ipAddress) {
         if (req.tenantId() == null || req.amount() == null || req.amount().signum() <= 0) {
-            throw bad("Can tenantId, amount > 0");
+            throw bad("Cần tenantId, amount > 0");
         }
         TenantPrepayment pre = prepaymentRepo.findByTenantIdForUpdate(req.tenantId())
-                .orElseThrow(() -> new BusinessException(HttpStatus.CONFLICT, "Khach khong co tien du"));
+                .orElseThrow(() -> new BusinessException(HttpStatus.CONFLICT, "Khách không có tiền dư"));
         if (pre.getExcessBalance().compareTo(req.amount()) < 0) {
-            throw bad("So tien hoan lon hon so du hien co (" + pre.getExcessBalance() + ")");
+            throw bad("Số tiền hoàn lớn hơn số dư hiện có (" + pre.getExcessBalance() + ")");
         }
         pre.setExcessBalance(pre.getExcessBalance().subtract(req.amount()));
         pre.setUpdatedAt(LocalDateTime.now());
@@ -204,18 +204,18 @@ public class PrepaymentService {
     public void reverseTransaction(Integer transactionId, Integer actorUserId, String ipAddress) {
         PaymentTransaction t = em.find(PaymentTransaction.class, transactionId);
         if (t == null) {
-            throw notFound("Giao dich " + transactionId);
+            throw notFound("Giao dịch " + transactionId);
         }
         if ("REVERSED".equals(t.getStatus())) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Giao dich da duoc huy truoc do");
+            throw new BusinessException(HttpStatus.CONFLICT, "Giao dịch đã được hủy trước đó");
         }
         if (!"SUCCESS".equals(t.getStatus())) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Chi huy duoc giao dich SUCCESS");
+            throw new BusinessException(HttpStatus.CONFLICT, "Chỉ hủy được giao dịch SUCCESS");
         }
         Invoice inv = invoiceRepo.findByIdForUpdate(t.getInvoice().getInvoiceId()).orElse(t.getInvoice());
         em.refresh(t); // doc lai trang thai sau khi da khoa hoa don, tranh dao hai lan cung luc
         if (!"SUCCESS".equals(t.getStatus())) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Giao dich da duoc huy truoc do");
+            throw new BusinessException(HttpStatus.CONFLICT, "Giao dịch đã được hủy trước đó");
         }
         t.setStatus("REVERSED");
         calculator.setPaid(inv, calculator.paidOf(inv).subtract(t.getAmountPaid()).max(BigDecimal.ZERO),
@@ -237,14 +237,14 @@ public class PrepaymentService {
 
     private PrepaymentDeduction applyDeduction(TenantPrepayment pre, Invoice inv, BigDecimal amount) {
         if ("CANCELLED".equals(inv.getPaymentStatus()) || "PAID".equals(inv.getPaymentStatus())) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Hoa don dang o trang thai " + inv.getPaymentStatus()
-                    + ", khong can tru duoc");
+            throw new BusinessException(HttpStatus.CONFLICT, "Hóa đơn đang ở trạng thái " + inv.getPaymentStatus()
+                    + ", không cấn trừ được");
         }
         if (pre.getExcessBalance().compareTo(amount) < 0) {
-            throw bad("Tien du khong du (con " + pre.getExcessBalance() + ")");
+            throw bad("Tiền dư không đủ (còn " + pre.getExcessBalance() + ")");
         }
         if (amount.compareTo(calculator.remainingOf(inv)) > 0) {
-            throw bad("So tien can tru lon hon so con phai tra cua hoa don");
+            throw bad("Số tiền cấn trừ lớn hơn số còn phải trả của hóa đơn");
         }
         pre.setExcessBalance(pre.getExcessBalance().subtract(amount));
         pre.setUpdatedAt(LocalDateTime.now());
@@ -268,7 +268,7 @@ public class PrepaymentService {
     }
 
     private Invoice findInvoice(Integer id) {
-        return invoiceRepo.findById(id).orElseThrow(() -> notFound("Hoa don " + id));
+        return invoiceRepo.findById(id).orElseThrow(() -> notFound("Hóa đơn " + id));
     }
 
     private PrepaymentResponse toResponse(TenantPrepayment p) {
@@ -286,6 +286,6 @@ public class PrepaymentService {
     }
 
     private static BusinessException notFound(String what) {
-        return new BusinessException(HttpStatus.NOT_FOUND, "Khong tim thay " + what);
+        return new BusinessException(HttpStatus.NOT_FOUND, "Không tìm thấy " + what);
     }
 }

@@ -164,7 +164,7 @@ public class TableExporter {
     private static void checkSize(TableData data) {
         if (data.rows().size() > MAX_ROWS) {
             throw new BusinessException(HttpStatus.BAD_REQUEST,
-                    "Qua nhieu dong de xuat (toi da " + MAX_ROWS + "), hay loc bot du lieu");
+                    "Quá nhiều dòng đề xuất (tối đa " + MAX_ROWS + "), hãy lọc bớt dữ liệu");
         }
     }
 

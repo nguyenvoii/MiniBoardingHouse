@@ -105,12 +105,12 @@ public class CashierPaymentController {
                                                @RequestHeader(value = "X-Callback-Secret", required = false)
                                                String secret) {
         if (callbackSecret.isEmpty()) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "Chua cau hinh app.payment.callback-secret");
+            throw new BusinessException(HttpStatus.FORBIDDEN, "Chưa cấu hình app.payment.callback-secret");
         }
         boolean ok = secret != null && MessageDigest.isEqual(secret.getBytes(StandardCharsets.UTF_8),
                 callbackSecret.getBytes(StandardCharsets.UTF_8));
         if (!ok) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "Sai bi mat cong thanh toan");
+            throw new BusinessException(HttpStatus.FORBIDDEN, "Sai bí mật cổng thanh toán");
         }
         return ApiResponse.ok(service.callback(req));
     }

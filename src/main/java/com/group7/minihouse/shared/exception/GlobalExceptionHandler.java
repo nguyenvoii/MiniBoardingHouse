@@ -33,7 +33,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(org.springframework.web.server.ResponseStatusException.class)
     public ResponseEntity<ApiResponse<Void>> handleResponseStatus(
             org.springframework.web.server.ResponseStatusException ex) {
-        String msg = ex.getReason() == null ? "Yeu cau khong hop le" : ex.getReason();
+        String msg = ex.getReason() == null ? "Yêu cầu không hợp lệ" : ex.getReason();
         return ResponseEntity.status(ex.getStatusCode()).body(ApiResponse.error(msg));
     }
 
@@ -43,37 +43,37 @@ public class GlobalExceptionHandler {
         String msg = ex.getBindingResult().getFieldErrors().stream()
                 .map(f -> f.getField() + ": " + f.getDefaultMessage())
                 .collect(Collectors.joining("; "));
-        return ResponseEntity.badRequest().body(ApiResponse.error(msg.isEmpty() ? "Du lieu khong hop le" : msg));
+        return ResponseEntity.badRequest().body(ApiResponse.error(msg.isEmpty() ? "Dữ liệu không hợp lệ" : msg));
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiResponse<Void>> handleUnreadable(HttpMessageNotReadableException ex) {
-        return ResponseEntity.badRequest().body(ApiResponse.error("Noi dung request khong hop le"));
+        return ResponseEntity.badRequest().body(ApiResponse.error("Nội dung request không hợp lệ"));
     }
 
     /** Goi sai phuong thuc HTTP (vd PATCH vao API chi nhan PUT): loi cua nguoi goi, khong phai loi he thong. */
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<ApiResponse<Void>> handleMethodNotSupported(HttpRequestMethodNotSupportedException ex) {
         return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
-                .body(ApiResponse.error("Phuong thuc HTTP khong duoc ho tro cho duong dan nay"));
+                .body(ApiResponse.error("Phương thức HTTP không được hỗ trợ cho đường dẫn này"));
     }
 
     @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
     public ResponseEntity<ApiResponse<Void>> handleMediaTypeNotSupported(HttpMediaTypeNotSupportedException ex) {
         return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
-                .body(ApiResponse.error("Kieu noi dung khong duoc ho tro (dung application/json)"));
+                .body(ApiResponse.error("Kiểu nội dung không được hỗ trợ (dùng application/json)"));
     }
 
     /** Thieu tham so bat buoc hoac sai kieu (vd size=abc). */
     @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
     public ResponseEntity<ApiResponse<Void>> handleTooLarge(Exception ex) {
-        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(ApiResponse.error("File qua lon, toi da 5 MB"));
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(ApiResponse.error("File quá lớn, tối đa 5 MB"));
     }
 
     @ExceptionHandler({MissingServletRequestParameterException.class, MethodArgumentTypeMismatchException.class,
             org.springframework.web.multipart.support.MissingServletRequestPartException.class})
     public ResponseEntity<ApiResponse<Void>> handleBadParameter(Exception ex) {
-        return ResponseEntity.badRequest().body(ApiResponse.error("Tham so khong hop le hoac thieu"));
+        return ResponseEntity.badRequest().body(ApiResponse.error("Tham số không hợp lệ hoặc thiếu"));
     }
 
     /** Vi pham unique/khoa ngoai o DB (vd 2 request cung luc them trung email): xung dot du lieu, khong phai loi he thong. */
@@ -81,24 +81,24 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleDataIntegrity(DataIntegrityViolationException ex) {
         log.warn("Vi pham rang buoc du lieu: {}", ex.getMostSpecificCause().getMessage());
         return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(ApiResponse.error("Du lieu bi trung hoac vi pham rang buoc, vui long kiem tra lai"));
+                .body(ApiResponse.error("Dữ liệu bị trùng hoặc vi phạm ràng buộc, vui lòng kiểm tra lại"));
     }
 
     /** @PreAuthorize that bai (dang nhap roi nhung thieu vai tro). */
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiResponse<Void>> handleDenied(AccessDeniedException ex) {
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.error("Khong co quyen thuc hien"));
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.error("Bạn không có quyền thực hiện thao tác này"));
     }
 
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<ApiResponse<Void>> handleNotFound(NoResourceFoundException ex) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.error("Khong tim thay duong dan"));
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.error("Không tìm thấy đường dẫn"));
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleOther(Exception ex) {
         log.error("Loi khong xac dinh", ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.error("Loi he thong"));
+                .body(ApiResponse.error("Lỗi hệ thống, thử lại sau hoặc báo quản trị"));
     }
 }

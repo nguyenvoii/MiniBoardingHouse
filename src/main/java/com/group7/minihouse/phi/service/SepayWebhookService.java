@@ -24,10 +24,10 @@ public class SepayWebhookService {
 
     public String handle(SepayWebhook w, String ip) {
         if (w == null || w.id() == null || w.transferAmount() == null || w.transferAmount().signum() <= 0) {
-            return "Bo qua: thieu id hoac so tien";
+            return "Bỏ qua: thiếu id hoặc số tiền";
         }
         if (!"in".equalsIgnoreCase(w.transferType())) {
-            return "Bo qua: khong phai tien vao";
+            return "Bỏ qua: không phải tiền vào";
         }
         try {
             String result = paymentService.confirmSepayTransfer(w.id(), w.content(), w.transferAmount(), ip);
@@ -35,7 +35,7 @@ public class SepayWebhookService {
             return result;
         } catch (BusinessException e) {
             log.warn("SePay {} {} VND bo qua: {}", w.id(), w.transferAmount(), e.getMessage());
-            return "Bo qua: " + e.getMessage();
+            return "Bỏ qua: " + e.getMessage();
         }
     }
 }

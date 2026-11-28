@@ -65,9 +65,9 @@ class SepayWebhookControllerTest {
     @Test
     void moneyOutAndBadPayloadAreIgnoredWithoutError() {
         var out = new SepayWebhook(6L, "MBBank", null, null, null, "HD202611P101", "out", new BigDecimal("500"), null, null);
-        assertEquals("Bo qua: khong phai tien vao", service.handle(out, "ip"));
-        assertEquals("Bo qua: thieu id hoac so tien", service.handle(in(7, "0"), "ip"));
-        assertEquals("Bo qua: thieu id hoac so tien", service.handle(null, "ip"));
+        assertEquals("Bỏ qua: không phải tiền vào", service.handle(out, "ip"));
+        assertEquals("Bỏ qua: thiếu id hoặc số tiền", service.handle(in(7, "0"), "ip"));
+        assertEquals("Bỏ qua: thiếu id hoặc số tiền", service.handle(null, "ip"));
         verify(payments, never()).confirmSepayTransfer(org.mockito.ArgumentMatchers.anyLong(), any(), any(), any());
     }
 
@@ -75,7 +75,7 @@ class SepayWebhookControllerTest {
     void businessErrorsAreSwallowedSoSepayDoesNotRetryForever() {
         when(payments.confirmSepayTransfer(eq(8L), any(), any(), any()))
                 .thenThrow(new BusinessException(HttpStatus.CONFLICT, "Chua co chu tro dang hoat dong"));
-        assertEquals("Bo qua: Chua co chu tro dang hoat dong", service.handle(in(8, "1000"), "ip"));
+        assertEquals("Bỏ qua: Chua co chu tro dang hoat dong", service.handle(in(8, "1000"), "ip"));
     }
 
     @Test

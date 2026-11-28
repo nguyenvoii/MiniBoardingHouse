@@ -17,17 +17,17 @@ public final class CurrentUser {
     /** Cho API dung chung moi nguoi da dang nhap (/api/auth/**): lay id nguoi dung hoac 401 neu chua dang nhap. */
     public static Integer requireUserId(AuthUser user) {
         if (user == null) {
-            throw new BusinessException(HttpStatus.UNAUTHORIZED, "Chua dang nhap hoac token het han");
+            throw new BusinessException(HttpStatus.UNAUTHORIZED, "Chưa đăng nhập hoặc phiên đã hết hạn");
         }
         return user.userId();
     }
 
     public static Integer requireTenantId(AuthUser user) {
         if (user == null) {
-            throw new BusinessException(HttpStatus.UNAUTHORIZED, "Chua dang nhap hoac token het han");
+            throw new BusinessException(HttpStatus.UNAUTHORIZED, "Chưa đăng nhập hoặc phiên đã hết hạn");
         }
         if (user.tenantId() == null) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "Chi danh cho nguoi thue");
+            throw new BusinessException(HttpStatus.FORBIDDEN, "Chỉ dành cho người thuê");
         }
         return user.tenantId();
     }

@@ -46,7 +46,7 @@ public class ReportController {
                                          @RequestParam(defaultValue = "xlsx") String format) {
         boolean pdf = "pdf".equalsIgnoreCase(format);
         if (!pdf && !"xlsx".equalsIgnoreCase(format)) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "format chi nhan xlsx hoac pdf");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "format chỉ nhận xlsx hoặc pdf");
         }
         RevenueReport r = service.revenueReport(propertyId, year);
         var table = ReportService.toTable(r);

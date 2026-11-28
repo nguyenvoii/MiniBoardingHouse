@@ -41,16 +41,16 @@ public class DepositService {
     public DepositStatus collect(Integer contractId, BigDecimal amount, Integer actorId, String ip) {
         RentalContract c = load(contractId);
         if (!LIVE.contains(c.getStatus())) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Hop dong khong con hieu luc, khong thu coc them duoc");
+            throw new BusinessException(HttpStatus.CONFLICT, "Hợp đồng không còn hiệu lực, không thu cọc thêm được");
         }
         if (amount == null || amount.signum() <= 0) {
-            throw new BusinessException("So tien coc thu phai lon hon 0");
+            throw new BusinessException("Số tiền cọc thu phải lớn hơn 0");
         }
         BigDecimal collected = DepositLedger.collected(em, c.getContractCode());
         BigDecimal required = c.getDepositAmount() == null ? BigDecimal.ZERO : c.getDepositAmount();
         if (collected.add(amount).compareTo(required) > 0) {
-            throw new BusinessException("Thu vuot tien coc cua hop dong: can " + required.toBigInteger()
-                    + ", da thu " + collected.toBigInteger());
+            throw new BusinessException("Thu vượt tiền cọc của hợp đồng: cần " + required.toBigInteger()
+                    + ", đã thu " + collected.toBigInteger());
         }
         receipts.create(new ReceiptRequest(null, "DEPOSIT", amount,
                 DepositLedger.note(c.getContractCode(), c.getRoom().getRoomCode())));
@@ -64,7 +64,7 @@ public class DepositService {
     private RentalContract load(Integer id) {
         RentalContract c = em.find(RentalContract.class, id);
         if (c == null) {
-            throw BusinessException.notFound("Hop dong " + id);
+            throw BusinessException.notFound("Hợp đồng " + id);
         }
         return c;
     }

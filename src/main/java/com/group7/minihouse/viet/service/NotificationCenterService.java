@@ -58,6 +58,6 @@ public class NotificationCenterService {
     }
 
     private UserNotification findOwned(Integer userId, Integer id) {
-        return repository.findOwned(id, userId).orElseThrow(() -> BusinessException.notFound("Thong bao"));
+        return repository.findOwned(id, userId).orElseThrow(() -> BusinessException.notFound("Thông báo"));
     }
 }

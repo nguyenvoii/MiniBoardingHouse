@@ -203,7 +203,7 @@ public class TenantService {
         LocalDate end = request.getResidenceEndDate() == null
                 ? tenant.getResidenceEndDate() : request.getResidenceEndDate();
         if (end != null && (start == null || end.isBefore(start))) {
-            throw new BusinessException("Ngay ket thuc cu tru phai tu ngay bat dau tro di");
+            throw new BusinessException("Ngày kết thúc cư trú phải từ ngày bắt đầu trở đi");
         }
         tenant.setResidenceStartDate(start);
         tenant.setResidenceEndDate(end);

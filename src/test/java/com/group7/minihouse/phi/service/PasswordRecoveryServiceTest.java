@@ -204,7 +204,7 @@ class PasswordRecoveryServiceTest {
                 () -> service.resetPassword("no@x.vn", "123456", "NewPass2y", "1.1.1.1"));
 
         assertEquals(HttpStatus.BAD_REQUEST, e.getStatus());
-        assertEquals("Ma xac thuc khong dung hoac da het han", e.getMessage());
+        assertEquals("Mã xác thực không đúng hoặc đã hết hạn", e.getMessage());
     }
 
     @Test

@@ -90,7 +90,7 @@ public class RoomAddonFeeService {
             RoomEquipmentRequest eq = equipmentRequestRepository.findById(req.getEquipmentRequestId())
                     .orElseThrow(() -> BusinessException.notFound("Yêu cầu thiết bị #" + req.getEquipmentRequestId()));
             if (!room.getRoomId().equals(eq.getRoom().getRoomId())) {
-                throw new BusinessException("Yeu cau thiet bi khong thuoc phong da chon");
+                throw new BusinessException("Yêu cầu thiết bị không thuộc phòng đã chọn");
             }
             entity.setEquipmentRequest(eq);
         }

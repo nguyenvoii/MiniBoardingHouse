@@ -79,7 +79,7 @@ public class BankAccountService {
     public BankAccountResponse setDefault(Integer id, Integer actorId, String ip) {
         BankAccount b = load(id);
         if (!Boolean.TRUE.equals(b.getIsActive())) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "Tai khoan da ngung dung, khong dat lam mac dinh duoc");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Tài khoản đã ngừng dùng, không đặt làm mặc định được");
         }
         for (BankAccount other : repo.findActiveByProperty(b.getProperty().getPropertyId())) {
             other.setIsDefault(other.getBankAccountId().equals(id));
@@ -127,13 +127,13 @@ public class BankAccountService {
     private Property property(Integer propertyId) {
         Property p = em.find(Property.class, propertyId);
         if (p == null) {
-            throw BusinessException.notFound("Khu tro");
+            throw BusinessException.notFound("Khu trọ");
         }
         return p;
     }
 
     private BankAccount load(Integer id) {
-        return repo.findById(id).orElseThrow(() -> BusinessException.notFound("Tai khoan ngan hang"));
+        return repo.findById(id).orElseThrow(() -> BusinessException.notFound("Tài khoản ngân hàng"));
     }
 
     private static Fields validate(BankAccountRequest req) {
@@ -141,14 +141,14 @@ public class BankAccountService {
         String number = req.accountNumber() == null ? "" : req.accountNumber().trim();
         String holder = req.accountHolder() == null ? "" : req.accountHolder().trim();
         if (bank.isEmpty() || bank.length() > 100) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "Ten ngan hang khong duoc de trong va toi da 100 ky tu");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Tên ngân hàng không được để trống và tối đa 100 ký tự");
         }
         if (!NUMBER.matcher(number).matches()) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "So tai khoan chi gom 6-30 chu so");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Số tài khoản chỉ gồm 6-30 chữ số");
         }
         if (holder.isEmpty() || holder.length() > 100) {
             throw new BusinessException(HttpStatus.BAD_REQUEST,
-                    "Ten chu tai khoan khong duoc de trong va toi da 100 ky tu");
+                    "Tên chủ tài khoản không được để trống và tối đa 100 ký tự");
         }
         return new Fields(bank, number, holder);
     }
@@ -157,7 +157,7 @@ public class BankAccountService {
         boolean dup = active.stream().anyMatch(o -> !o.getBankAccountId().equals(selfId)
                 && o.getBankName().equalsIgnoreCase(f.bank()) && o.getAccountNumber().equals(f.number()));
         if (dup) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Khu tro da co tai khoan nay");
+            throw new BusinessException(HttpStatus.CONFLICT, "Khu trọ đã có tài khoản này");
         }
     }
 

@@ -34,7 +34,7 @@ public class PayOsCheckoutController {
                                                        @AuthenticationPrincipal AuthUser actor) {
         var payment = payments.gatewayPaymentForTenant(id, CurrentUser.requireTenantId(actor));
         if (!"FAILED".equals(payment.status())) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Giao dich khong con cho thanh toan");
+            throw new BusinessException(HttpStatus.CONFLICT, "Giao dịch không còn chờ thanh toán");
         }
         return ApiResponse.ok(client.create(payments.nextGatewayOrder(id, CurrentUser.requireTenantId(actor)), amount(payment)));
     }
@@ -44,7 +44,7 @@ public class PayOsCheckoutController {
         Integer tenantId = CurrentUser.requireTenantId(actor);
         var payment = payments.gatewayPaymentForTenant(id, tenantId);
         if (!client.paid(payments.currentGatewayOrder(id, tenantId), amount(payment))) {
-            return ApiResponse.ok(new ConfirmResult(false, "payOS chua xac nhan da thu du so tien", payment));
+            return ApiResponse.ok(new ConfirmResult(false, "payOS chưa xác nhận đã thu đủ số tiền", payment));
         }
         return ApiResponse.ok(payments.reconcileGatewayPayment(id, tenantId, payment.amountPaid()));
     }
@@ -53,7 +53,7 @@ public class PayOsCheckoutController {
         try {
             return payment.amountPaid().longValueExact();
         } catch (ArithmeticException ex) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "So tien payOS phai la so nguyen VND");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Số tiền payOS phải là số nguyên VND");
         }
     }
 }

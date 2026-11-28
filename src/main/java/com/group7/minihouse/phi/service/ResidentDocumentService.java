@@ -48,7 +48,7 @@ public class ResidentDocumentService {
         boolean hasFront = front != null && front.length > 0;
         boolean hasBack = back != null && back.length > 0;
         if (!hasFront && !hasBack) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "Chon it nhat mot anh can cuoc");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Chọn ít nhất một ảnh căn cước");
         }
         RoomResident r = resident(residentId);
         String oldFront = r.getIdFrontImageUrl();
@@ -117,7 +117,7 @@ public class ResidentDocumentService {
     private RoomResident resident(Integer id) {
         RoomResident r = em.find(RoomResident.class, id);
         if (r == null) {
-            throw BusinessException.notFound("Nguoi o cung");
+            throw BusinessException.notFound("Người ở cùng");
         }
         return r;
     }

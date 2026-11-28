@@ -140,7 +140,7 @@ public class DebtService {
                         + " where i.invoiceId = :invoice and i.tenant.tenantId = :tenant", Integer.class)
                 .setParameter("invoice", invoiceId).setParameter("tenant", tenantId).getResultList();
         if (owned.isEmpty()) {
-            throw BusinessException.notFound("Hoa don");
+            throw BusinessException.notFound("Hóa đơn");
         }
 
         var payments = new ArrayList<PaymentHistoryItem>();
@@ -218,7 +218,7 @@ public class DebtService {
             wb.write(out);
             return out.toByteArray();
         } catch (IOException e) {
-            throw new BusinessException(HttpStatus.INTERNAL_SERVER_ERROR, "Khong xuat duoc file Excel");
+            throw new BusinessException(HttpStatus.INTERNAL_SERVER_ERROR, "Không xuất được file Excel");
         }
     }
 
@@ -424,10 +424,10 @@ public class DebtService {
         TenantDebt d = find(debtId);
         if (req == null || (req.promisedPaymentDate() == null && VietSupport.blankToNull(req.delayReason()) == null
                 && VietSupport.blankToNull(req.staffNote()) == null)) {
-            throw new BusinessException("Can it nhat 1 thong tin: ngay hen tra, ly do cham hoac ghi chu");
+            throw new BusinessException("Cần ít nhất 1 thông tin: ngày hẹn trả, lý do chậm hoặc ghi chú");
         }
         if (req.promisedPaymentDate() != null && req.promisedPaymentDate().isBefore(LocalDate.now())) {
-            throw new BusinessException("Ngay hen tra khong duoc o qua khu");
+            throw new BusinessException("Ngày hẹn trả không được ở quá khứ");
         }
         DebtProcessingLog log = new DebtProcessingLog();
         log.setDebt(d);
@@ -447,6 +447,6 @@ public class DebtService {
     }
 
     private TenantDebt find(Integer debtId) {
-        return debtRepository.findById(debtId).orElseThrow(() -> BusinessException.notFound("Cong no"));
+        return debtRepository.findById(debtId).orElseThrow(() -> BusinessException.notFound("Công nợ"));
     }
 }

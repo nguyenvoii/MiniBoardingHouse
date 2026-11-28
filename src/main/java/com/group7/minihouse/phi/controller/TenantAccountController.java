@@ -28,7 +28,7 @@ public class TenantAccountController {
     public ApiResponse<Void> setAccountStatus(@PathVariable Integer tenantId, @RequestBody UpdateStatusRequest req,
                                               @AuthenticationPrincipal AuthUser actor, HttpServletRequest http) {
         service.setAccountStatus(tenantId, req.status(), actor == null ? null : actor.userId(), http.getRemoteAddr());
-        return ApiResponse.ok("Da cap nhat trang thai tai khoan", null);
+        return ApiResponse.ok("Đã cập nhật trạng thái tài khoản", null);
     }
 
     private final TenantAccountService service;

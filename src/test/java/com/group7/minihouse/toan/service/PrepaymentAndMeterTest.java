@@ -176,10 +176,10 @@ class PrepaymentAndMeterTest {
         BusinessException lowElectric = assertThrows(BusinessException.class, () -> meters.recordReading(
                 new ReadingRequest(4, 8, null, 90, null, 60, 1, null, null)));
         assertEquals(HttpStatus.BAD_REQUEST, lowElectric.getStatus());
-        assertTrue(lowElectric.getMessage().contains("dien"));
+        assertTrue(lowElectric.getMessage().contains("điện"));
         BusinessException lowWater = assertThrows(BusinessException.class, () -> meters.recordReading(
                 new ReadingRequest(4, 8, null, 120, null, 40, 1, null, null)));
-        assertTrue(lowWater.getMessage().contains("nuoc"));
+        assertTrue(lowWater.getMessage().contains("nước"));
         org.mockito.Mockito.verify(readingRepo, org.mockito.Mockito.never()).save(any());
 
         period.setIsClosed(true);

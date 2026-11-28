@@ -52,7 +52,7 @@ public class ActivityLogService {
     private PageResponse<ActivityLogResponse> query(Integer userId, String actionType, LocalDateTime from,
                                                     LocalDateTime to, int page, int s) {
         if (from != null && to != null && from.isAfter(to)) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "Thoi diem bat dau phai truoc thoi diem ket thuc");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Thời điểm bắt đầu phải trước thời điểm kết thúc");
         }
         PageRequest pageable = PageRequest.of(Math.max(page, 0), s,
                 Sort.by(Sort.Direction.DESC, "createdAt", "logId"));
@@ -70,7 +70,7 @@ public class ActivityLogService {
     @Transactional(readOnly = true)
     public PageResponse<ActivityLogResponse> mine(Integer userId, int page, int size) {
         if (userId == null) { // null o search() nghia la "khong loc" = tra nhat ky cua TAT CA nguoi dung: tuyet doi khong
-            throw new BusinessException(HttpStatus.UNAUTHORIZED, "Chua dang nhap hoac token het han");
+            throw new BusinessException(HttpStatus.UNAUTHORIZED, "Chưa đăng nhập hoặc phiên đã hết hạn");
         }
         return search(userId, null, null, null, page, size);
     }

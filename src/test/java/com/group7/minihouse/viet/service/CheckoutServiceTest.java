@@ -136,11 +136,11 @@ class CheckoutServiceTest {
 
     @Test
     void finalMeterBelowPreviousPeriodIsRejectedAtInspection() {
-        doThrow(new BusinessException("Chi so dien cuoi (90) nho hon chi so ky truoc (100)"))
+        doThrow(new BusinessException("Chỉ số điện cuối (90) nhỏ hơn chỉ số kỳ trước (100)"))
                 .when(meterService).validateFinalReading(eq(7), any(LocalDate.class), eq(90), eq(20));
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> service.recordInspection(50, new InspectionRequest(90, 20, List.of(), null), 5));
-        assertTrue(ex.getMessage().contains("nho hon"));
+        assertTrue(ex.getMessage().contains("nhỏ hơn"));
         verify(inspectionRepo, never()).save(any());
         verify(meterService, never()).recordFinalReading(anyInt(), any(), anyInt(), anyInt(), anyInt());
     }

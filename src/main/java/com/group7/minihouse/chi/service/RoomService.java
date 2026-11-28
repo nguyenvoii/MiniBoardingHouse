@@ -230,9 +230,9 @@ public class RoomService {
     @Transactional
     public RoomDTO confirmCleanedAndAvailable(Integer roomId) {
         Room room = roomRepository.findById(roomId)
-                .orElseThrow(() -> BusinessException.notFound("Phong"));
+                .orElseThrow(() -> BusinessException.notFound("Phòng"));
         if (!"CLEANING".equals(room.getStatus())) {
-            throw new BusinessException("Chi xac nhan ve sinh cho phong dang cho ve sinh");
+            throw new BusinessException("Chỉ xác nhận vệ sinh cho phòng đang chờ vệ sinh");
         }
         return updateRoomStatus(roomId, "VACANT");
     }

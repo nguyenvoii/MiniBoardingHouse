@@ -34,18 +34,18 @@ public class IncidentCategoryService {
     @Transactional
     public CategoryResponse create(CategoryRequest req) {
         if (req == null) {
-            throw new BusinessException("Thieu du lieu");
+            throw new BusinessException("Thiếu dữ liệu");
         }
-        String code = VietSupport.requireText(req.categoryCode(), "ma nhom").toUpperCase(Locale.ROOT);
+        String code = VietSupport.requireText(req.categoryCode(), "mã nhóm").toUpperCase(Locale.ROOT);
         if (!CODE.matcher(code).matches()) {
-            throw new BusinessException("Ma nhom chi gom chu hoa, so, dau gach duoi (2-50 ky tu)");
+            throw new BusinessException("Mã nhóm chỉ gồm chữ hoa, số, dấu gạch dưới (2-50 ký tự)");
         }
         if (repository.findByCategoryCode(code).isPresent()) {
-            throw new BusinessException("Ma nhom \"" + code + "\" da ton tai");
+            throw new BusinessException("Mã nhóm \"" + code + "\" đã tồn tại");
         }
         String type = VietSupport.enumOrNull(req.categoryType(), TYPES, "categoryType");
         if (type == null) {
-            throw new BusinessException("Thieu categoryType (INCIDENT hoac EQUIPMENT)");
+            throw new BusinessException("Thiếu categoryType (INCIDENT hoặc EQUIPMENT)");
         }
         IncidentCategory c = new IncidentCategory();
         c.setCategoryCode(code);
@@ -60,13 +60,13 @@ public class IncidentCategoryService {
     public CategoryResponse update(Integer id, CategoryRequest req) {
         IncidentCategory c = find(id);
         if (req == null) {
-            throw new BusinessException("Thieu du lieu");
+            throw new BusinessException("Thiếu dữ liệu");
         }
         String code = VietSupport.blankToNull(req.categoryCode());
         String type = VietSupport.blankToNull(req.categoryType());
         if ((code != null && !c.getCategoryCode().equalsIgnoreCase(code))
                 || (type != null && !c.getCategoryType().equalsIgnoreCase(type))) {
-            throw new BusinessException("Khong duoc doi ma hoac loai nhom");
+            throw new BusinessException("Không được đổi mã hoặc loại nhóm");
         }
         applyDescription(c, req);
         return CategoryResponse.from(repository.save(c));
@@ -75,7 +75,7 @@ public class IncidentCategoryService {
     @Transactional
     public CategoryResponse setActive(Integer id, Boolean active) {
         if (active == null) {
-            throw new BusinessException("Thieu active (true/false)");
+            throw new BusinessException("Thiếu active (true/false)");
         }
         IncidentCategory c = find(id);
         c.setIsActive(active);
@@ -86,13 +86,13 @@ public class IncidentCategoryService {
         String name = VietSupport.requireText(request.categoryName(), "ten nhom");
         String description = VietSupport.blankToNull(request.description());
         if (name.length() > 100 || (description != null && description.length() > 255)) {
-            throw new BusinessException("Ten nhom toi da 100 ky tu, mo ta toi da 255 ky tu");
+            throw new BusinessException("Tên nhóm tối đa 100 ký tự, mô tả tối đa 255 ký tự");
         }
         category.setCategoryName(name);
         category.setDescription(description);
     }
 
     private IncidentCategory find(Integer id) {
-        return repository.findById(id).orElseThrow(() -> BusinessException.notFound("Nhom su co/thiet bi"));
+        return repository.findById(id).orElseThrow(() -> BusinessException.notFound("Nhóm sự cố/thiết bị"));
     }
 }

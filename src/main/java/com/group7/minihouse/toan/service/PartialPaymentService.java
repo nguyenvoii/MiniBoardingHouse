@@ -44,14 +44,14 @@ public class PartialPaymentService {
         Invoice inv = lockInvoice(invoiceId);
         if ("CANCELLED".equals(inv.getPaymentStatus()) || "PAID".equals(inv.getPaymentStatus())) {
             throw new BusinessException(HttpStatus.CONFLICT,
-                    "Hoa don dang o trang thai " + inv.getPaymentStatus());
+                    "Hóa đơn đang ở trạng thái " + inv.getPaymentStatus());
         }
         if (req.amount() == null || req.amount().signum() <= 0) {
-            throw bad("So tien phai lon hon 0");
+            throw bad("Số tiền phải lớn hơn 0");
         }
         if (req.amount().compareTo(calculator.remainingOf(inv)) > 0) {
-            throw bad("So tien lon hon so con phai tra (" + calculator.remainingOf(inv)
-                    + "). Phan thua xu ly o chuc nang thanh toan du");
+            throw bad("Số tiền lớn hơn số còn phải trả (" + calculator.remainingOf(inv)
+                    + "). Phần thừa xử lý ở chức năng thanh toán dư");
         }
         PartialPaymentLog log = new PartialPaymentLog();
         log.setInvoice(inv);
@@ -73,18 +73,18 @@ public class PartialPaymentService {
 
     @Transactional
     public PartialPaymentResponse update(Integer logId, PartialPaymentRequest req, Integer actorId, String ip) {
-        PartialPaymentLog log = logRepo.findById(logId).orElseThrow(() -> notFound("Dot thanh toan " + logId));
+        PartialPaymentLog log = logRepo.findById(logId).orElseThrow(() -> notFound("Đợt thanh toán " + logId));
         if (req.amount() == null || req.amount().signum() <= 0) {
-            throw bad("So tien phai lon hon 0");
+            throw bad("Số tiền phải lớn hơn 0");
         }
         Invoice inv = lockInvoice(log.getInvoice().getInvoiceId());
         if ("CANCELLED".equals(inv.getPaymentStatus())) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Hoa don da huy, khong sua duoc dot thanh toan");
+            throw new BusinessException(HttpStatus.CONFLICT, "Hóa đơn đã hủy, không sửa được đợt thanh toán");
         }
         BigDecimal oldAmount = log.getAmount();
         BigDecimal newPaid = calculator.paidOf(inv).subtract(oldAmount).add(req.amount());
         if (newPaid.compareTo(inv.getTotalAmount()) > 0) {
-            throw bad("Tong da tra vuot qua tong hoa don");
+            throw bad("Tổng đã trả vượt quá tổng hóa đơn");
         }
         log.setAmount(req.amount());
         if (req.paidDate() != null) {
@@ -107,11 +107,11 @@ public class PartialPaymentService {
     }
 
     private Invoice lockInvoice(Integer id) {
-        return invoiceRepo.findByIdForUpdate(id).orElseThrow(() -> notFound("Hoa don " + id));
+        return invoiceRepo.findByIdForUpdate(id).orElseThrow(() -> notFound("Hóa đơn " + id));
     }
 
     private Invoice findInvoice(Integer id) {
-        return invoiceRepo.findById(id).orElseThrow(() -> notFound("Hoa don " + id));
+        return invoiceRepo.findById(id).orElseThrow(() -> notFound("Hóa đơn " + id));
     }
 
     private PartialPaymentResponse toResponse(PartialPaymentLog l) {
@@ -124,6 +124,6 @@ public class PartialPaymentService {
     }
 
     private static BusinessException notFound(String what) {
-        return new BusinessException(HttpStatus.NOT_FOUND, "Khong tim thay " + what);
+        return new BusinessException(HttpStatus.NOT_FOUND, "Không tìm thấy " + what);
     }
 }

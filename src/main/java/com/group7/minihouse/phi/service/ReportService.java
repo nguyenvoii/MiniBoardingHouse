@@ -113,7 +113,7 @@ public class ReportService {
     public RevenueReport revenueReport(Integer propertyId, Integer year) {
         int y = year == null ? LocalDate.now(clock).getYear() : year;
         if (y < 2000 || y > 2100) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "Nam khong hop le");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Năm không hợp lệ");
         }
         int p = propertyId == null ? 0 : propertyId;
         Map<Integer, BigDecimal> revenue = byMonth("select month(t.paymentDate), sum(t.amountPaid) "

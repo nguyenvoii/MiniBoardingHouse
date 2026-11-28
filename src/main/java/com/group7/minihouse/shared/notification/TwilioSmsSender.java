@@ -40,7 +40,7 @@ public class TwilioSmsSender {
             number = "+84" + number.substring(1);
         }
         if (!number.matches("[+][1-9][0-9]{7,14}")) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "So dien thoai khong hop le");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Số điện thoại không hợp lệ");
         }
         var form = new LinkedMultiValueMap<String, String>();
         form.add("From", from);
@@ -50,7 +50,7 @@ public class TwilioSmsSender {
             client.post().uri("/Messages.json").contentType(MediaType.APPLICATION_FORM_URLENCODED)
                     .body(form).retrieve().toBodilessEntity();
         } catch (RestClientException ex) {
-            throw new BusinessException(HttpStatus.SERVICE_UNAVAILABLE, "Tam thoi khong gui duoc SMS");
+            throw new BusinessException(HttpStatus.SERVICE_UNAVAILABLE, "Tạm thời không gửi được SMS");
         }
     }
 }

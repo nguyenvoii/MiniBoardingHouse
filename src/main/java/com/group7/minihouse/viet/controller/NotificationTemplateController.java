@@ -43,7 +43,7 @@ public class NotificationTemplateController {
         return ApiResponse.ok(service.get(id));
     }
 
-    /** Noi dung mau dung bien dang {{ten_bien}}, vi du "Phong {{room}} con no {{amount}}". */
+    /** Noi dung mau dung bien dang {{ten_bien}}, vi du "Phòng {{room}} còn nợ {{amount}}". */
     @PostMapping
     public ApiResponse<TemplateResponse> create(@RequestBody TemplateRequest req) {
         return ApiResponse.ok(service.create(req));

@@ -168,7 +168,7 @@ class BillingContractsTest {
         CalculationResult r = service.calculate(10, null, "ip");
         FeeItemDetail rent = itemNamed(BillingService.ITEM_RENT);
         assertEquals(0, new BigDecimal("1800000").compareTo(rent.getSubtotal()), rent.getSubtotal().toPlainString());
-        assertTrue(r.warnings().stream().anyMatch(w -> w.message().contains("het han")));
+        assertTrue(r.warnings().stream().anyMatch(w -> w.message().contains("hết hạn")));
     }
 
     @Test
@@ -199,7 +199,7 @@ class BillingContractsTest {
         // chua thu coc, chua co bien ban nhan phong, chua tung tinh tien
         CalculationResult r = service.calculate(10, null, "ip");
         assertEquals(null, itemNamed(BillingService.ITEM_RENT));
-        assertTrue(r.warnings().stream().anyMatch(w -> w.message().contains("chua nhan phong")));
+        assertTrue(r.warnings().stream().anyMatch(w -> w.message().contains("chưa nhận phòng")));
     }
 
     @Test

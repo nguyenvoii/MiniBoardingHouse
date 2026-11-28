@@ -371,7 +371,7 @@ class PaymentServiceTest {
 
         String r = service.confirmSepayTransfer(780, "HD202611-P101", new BigDecimal("3000000"), "ip");
 
-        assertEquals("Da xu ly truoc do", r);
+        assertEquals("Đã xử lý trước đó", r);
         verify(repo, never()).save(any());
         assertEquals("UNPAID", invoice.getPaymentStatus());
     }
@@ -381,7 +381,7 @@ class PaymentServiceTest {
         // hoa don da PAID thi khong con trong danh sach khop; phai nhan ra bang ma SEPAY-id truoc khi khop
         when(repo.existsByTransactionCode("SEPAY-784")).thenReturn(true);
 
-        assertEquals("Da xu ly truoc do", service.confirmSepayTransfer(784, "HD202611-P101", new BigDecimal("3000000"), "ip"));
+        assertEquals("Đã xử lý trước đó", service.confirmSepayTransfer(784, "HD202611-P101", new BigDecimal("3000000"), "ip"));
 
         verify(repo, never()).findPayableMentionedInFlat(anyString());
         verify(activityLogService, never()).log(any(), anyString(), anyString(), anyString());
@@ -392,7 +392,7 @@ class PaymentServiceTest {
         landlordExists();
         when(repo.findPayableMentionedInFlat(anyString())).thenReturn(List.of());
 
-        assertEquals("Khong khop hoa don", service.confirmSepayTransfer(781, "tien nha thang nay", new BigDecimal("3000000"), "ip"));
+        assertEquals("Không khớp hóa đơn", service.confirmSepayTransfer(781, "tien nha thang nay", new BigDecimal("3000000"), "ip"));
 
         verify(repo, never()).save(any());
         verify(activityLogService).log(eq(5), eq("SEPAY_UNMATCHED"), anyString(), eq("ip"));
@@ -416,7 +416,7 @@ class PaymentServiceTest {
         Invoice twin = otherInvoice(52, "HD202611-P101");
         when(repo.findPayableMentionedInFlat("hd202611p101")).thenReturn(List.of(invoice, twin));
 
-        assertEquals("Khong khop hoa don", service.confirmSepayTransfer(783, "HD202611P101", new BigDecimal("3000000"), "ip"));
+        assertEquals("Không khớp hóa đơn", service.confirmSepayTransfer(783, "HD202611P101", new BigDecimal("3000000"), "ip"));
 
         verify(repo, never()).save(any());
     }

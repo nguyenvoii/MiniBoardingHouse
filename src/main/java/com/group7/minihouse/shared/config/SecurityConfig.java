@@ -77,10 +77,10 @@ public class SecurityConfig {
                         res.sendRedirect(req.getContextPath() + "/ui/index.html");
                         return;
                     }
-                    writeError(res, mapper, HttpStatus.UNAUTHORIZED, "Chua dang nhap hoac token het han");
+                    writeError(res, mapper, HttpStatus.UNAUTHORIZED, "Chưa đăng nhập hoặc phiên đã hết hạn");
                 })
                 .accessDeniedHandler((req, res, ex) ->
-                        writeError(res, mapper, HttpStatus.FORBIDDEN, "Khong co quyen thuc hien")))
+                        writeError(res, mapper, HttpStatus.FORBIDDEN, "Bạn không có quyền thực hiện thao tác này")))
             .addFilterBefore(new JwtAuthFilter(jwtService, statusChecker), UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }

@@ -44,14 +44,14 @@ public class AccountService {
     public void changePassword(Integer userId, String currentPassword, String newPassword, String ip) {
         User user = load(userId);
         if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "Mat khau hien tai khong dung");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Mật khẩu hiện tại không đúng");
         }
         if (!isStrong(newPassword)) {
             throw new BusinessException(HttpStatus.BAD_REQUEST,
-                    "Mat khau moi phai co it nhat 8 ky tu, gom ca chu va so");
+                    "Mật khẩu mới phải có ít nhất 8 ký tự, gồm cả chữ và số");
         }
         if (newPassword.equals(currentPassword)) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "Mat khau moi phai khac mat khau hien tai");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Mật khẩu mới phải khác mật khẩu hiện tại");
         }
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         user.setMustChangePassword(false);
@@ -72,30 +72,30 @@ public class AccountService {
 
         String name = req.fullName() == null ? "" : req.fullName().trim();
         if (name.isEmpty() || name.length() > 100) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "Ho ten khong duoc de trong va toi da 100 ky tu");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Họ tên không được để trống và tối đa 100 ký tự");
         }
         // Khong gui phoneNumber = giu nguyen; gui chuoi rong/khoang trang = xoa SDT
         String oldPhone = blankToNull(user.getPhoneNumber());
         String newPhone = req.phoneNumber() == null ? oldPhone : blankToNull(req.phoneNumber());
         if (newPhone != null && !PHONE.matcher(newPhone).matches()) {
             throw new BusinessException(HttpStatus.BAD_REQUEST,
-                    "So dien thoai chi gom 9-15 chu so (co the bat dau bang +), khong co dau cach");
+                    "Số điện thoại chỉ gồm 9-15 chữ số (có thể bắt đầu bằng +), không có dấu cách");
         }
 
         if (!Objects.equals(newPhone, oldPhone)) {
             // Tai khoan nguoi thue noi voi ho so khach thue bang SDT: doi SDT se lam dut lien ket
             if (roles.contains("TENANT")) {
                 throw new BusinessException(HttpStatus.CONFLICT,
-                        "Nguoi thue khong tu doi duoc so dien thoai, vui long lien he chu tro");
+                        "Người thuê không tự đổi được số điện thoại, vui lòng liên hệ chủ trọ");
             }
             if (newPhone == null && blankToNull(user.getEmail()) == null) {
                 throw new BusinessException(HttpStatus.BAD_REQUEST,
-                        "Khong the xoa so dien thoai vi tai khoan chua co email, se khong con cach dang nhap");
+                        "Không thể xóa số điện thoại vì tài khoản chưa có email, sẽ không còn cách đăng nhập");
             }
             if (newPhone != null) {
                 userRepository.findByPhoneNumber(newPhone).filter(o -> !o.getUserId().equals(userId))
                         .ifPresent(o -> {
-                            throw new BusinessException(HttpStatus.CONFLICT, "So dien thoai da duoc tai khoan khac su dung");
+                            throw new BusinessException(HttpStatus.CONFLICT, "Số điện thoại đã được tài khoản khác sử dụng");
                         });
             }
         }
@@ -139,7 +139,7 @@ public class AccountService {
     }
 
     private User load(Integer userId) {
-        return userRepository.findById(userId).orElseThrow(() -> BusinessException.notFound("Nguoi dung"));
+        return userRepository.findById(userId).orElseThrow(() -> BusinessException.notFound("Người dùng"));
     }
 
     static boolean isStrong(String p) {

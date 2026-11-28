@@ -47,19 +47,19 @@ public class NotificationTemplateService {
     @Transactional
     public TemplateResponse create(TemplateRequest req) {
         if (req == null) {
-            throw new BusinessException("Thieu du lieu");
+            throw new BusinessException("Thiếu dữ liệu");
         }
-        String code = VietSupport.requireText(req.templateCode(), "ma mau").toUpperCase();
+        String code = VietSupport.requireText(req.templateCode(), "mã mẫu").toUpperCase();
         if (!CODE.matcher(code).matches()) {
-            throw new BusinessException("Ma mau chi gom chu hoa, so, dau gach duoi (2-50 ky tu)");
+            throw new BusinessException("Mã mẫu chỉ gồm chữ hoa, số, dấu gạch dưới (2-50 ký tự)");
         }
         String channel = VietSupport.enumOrNull(req.channel(), CHANNELS, "channel");
         if (channel == null) {
-            throw new BusinessException("Thieu channel (EMAIL, SMS hoac SYSTEM_APP)");
+            throw new BusinessException("Thiếu channel (EMAIL, SMS hoặc SYSTEM_APP)");
         }
         if (repository.findByCodeAndChannel(code, channel).isPresent()) {
             throw new BusinessException(org.springframework.http.HttpStatus.CONFLICT,
-                    "Mau \"" + code + "\" cho kenh " + channel + " da ton tai");
+                    "Mẫu \"" + code + "\" cho kênh " + channel + " đã tồn tại");
         }
         NotificationTemplate t = new NotificationTemplate();
         t.setTemplateCode(code);
@@ -73,7 +73,7 @@ public class NotificationTemplateService {
     @Transactional
     public TemplateResponse update(Integer id, TemplateRequest req) {
         if (req == null) {
-            throw new BusinessException("Thieu du lieu");
+            throw new BusinessException("Thiếu dữ liệu");
         }
         NotificationTemplate t = find(id);
         apply(t, req);
@@ -83,7 +83,7 @@ public class NotificationTemplateService {
     @Transactional
     public TemplateResponse setActive(Integer id, Boolean active) {
         if (active == null) {
-            throw new BusinessException("Thieu active (true/false)");
+            throw new BusinessException("Thiếu active (true/false)");
         }
         NotificationTemplate t = find(id);
         t.setIsActive(active);
@@ -101,13 +101,13 @@ public class NotificationTemplateService {
     private static void apply(NotificationTemplate t, TemplateRequest req) {
         String subject = VietSupport.blankToNull(req.subject());
         if (subject != null && subject.length() > SUBJECT_MAX) {
-            throw new BusinessException("Tieu de toi da " + SUBJECT_MAX + " ky tu");
+            throw new BusinessException("Tiêu đề tối đa " + SUBJECT_MAX + " ký tự");
         }
         t.setSubject(subject);
         t.setContent(VietSupport.requireText(req.content(), "noi dung mau"));
     }
 
     private NotificationTemplate find(Integer id) {
-        return repository.findById(id).orElseThrow(() -> BusinessException.notFound("Mau thong bao"));
+        return repository.findById(id).orElseThrow(() -> BusinessException.notFound("Mẫu thông báo"));
     }
 }

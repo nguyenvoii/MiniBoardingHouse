@@ -84,7 +84,7 @@ public class BackupService {
             return backups(c, db, directory).getOrDefault(name, new BackupInfo(name, null, null));
         } catch (SQLException | IOException e) {
             throw new BusinessException(HttpStatus.INTERNAL_SERVER_ERROR,
-                    "Khong sao luu duoc, kiem tra quyen ghi cua SQL Server vao thu muc sao luu: " + e.getMessage());
+                    "Không sao lưu được, kiểm tra quyền ghi của SQL Server vào thư mục sao lưu: " + e.getMessage());
         }
     }
 
@@ -131,7 +131,7 @@ public class BackupService {
      */
     public void restore(String fileName, String confirm) {
         if (fileName == null || !FILE_NAME.matcher(fileName).matches()) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "Ten file sao luu khong hop le");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Tên file sao lưu không hợp lệ");
         }
         String db;
         String file;
@@ -139,20 +139,20 @@ public class BackupService {
             db = databaseName(s);
             if (!db.equals(confirm)) {
                 throw new BusinessException(HttpStatus.BAD_REQUEST,
-                        "Phai gui confirm = ten co so du lieu de xac nhan phuc hoi (ghi de toan bo du lieu hien tai)");
+                        "Phải gửi confirm = tên cơ sở dữ liệu để xác nhận phục hồi (ghi đè toàn bộ dữ liệu hiện tại)");
             }
             String directory = backupDir(s);
             if (!backups(c, db, directory).containsKey(fileName)) {
-                throw BusinessException.notFound("Ban sao luu");
+                throw BusinessException.notFound("Bản sao lưu");
             }
             file = backupPath(directory, fileName);
         } catch (SQLException | IOException e) {
-            throw new BusinessException(HttpStatus.INTERNAL_SERVER_ERROR, "Khong doc duoc thong tin may chu CSDL");
+            throw new BusinessException(HttpStatus.INTERNAL_SERVER_ERROR, "Không đọc được thông tin máy chủ CSDL");
         }
         try (Connection c = master.open(); Statement s = c.createStatement()) {
             try (ResultSet header = s.executeQuery("RESTORE HEADERONLY FROM DISK = N'" + literal(file) + "'")) {
                 if (!header.next() || !db.equals(header.getString("DatabaseName")) || header.getInt("BackupType") != 1) {
-                    throw new BusinessException(HttpStatus.BAD_REQUEST, "Ban sao luu khong thuoc co so du lieu hien tai");
+                    throw new BusinessException(HttpStatus.BAD_REQUEST, "Bản sao lưu không thuộc cơ sở dữ liệu hiện tại");
                 }
             }
             s.execute("RESTORE VERIFYONLY FROM DISK = N'" + literal(file) + "' WITH CHECKSUM");
@@ -172,7 +172,7 @@ public class BackupService {
             s.execute(setMultiUser);
             log.warn("Da phuc hoi CSDL {} tu {}", db, file);
         } catch (SQLException e) {
-            throw new BusinessException(HttpStatus.INTERNAL_SERVER_ERROR, "Phuc hoi that bai: " + e.getMessage());
+            throw new BusinessException(HttpStatus.INTERNAL_SERVER_ERROR, "Phục hồi thất bại: " + e.getMessage());
         }
     }
 
@@ -194,7 +194,7 @@ public class BackupService {
                 return rs.getString(1);
             }
         }
-        throw new IOException("Chua cau hinh app.backup.dir va SQL Server khong co thu muc sao luu mac dinh");
+        throw new IOException("Chưa cấu hình app.backup.dir và SQL Server không có thư mục sao lưu mặc định");
     }
 
     /** So sanh duong dan file sao luu: duong dan kieu Windows khong phan biet hoa thuong va dau gach cheo. */

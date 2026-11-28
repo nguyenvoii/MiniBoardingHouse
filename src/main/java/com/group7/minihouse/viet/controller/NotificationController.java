@@ -65,6 +65,6 @@ public class NotificationController {
     @DeleteMapping({"/me/notifications/{id}", "/notifications/{id}"})
     public ApiResponse<Void> delete(@PathVariable Integer id, @AuthenticationPrincipal AuthUser user) {
         service.delete(CurrentUser.requireUserId(user), id);
-        return ApiResponse.ok("Da xoa thong bao", null);
+        return ApiResponse.ok("Đã xóa thông báo", null);
     }
 }

@@ -415,7 +415,7 @@ class ContractServiceTest {
     void sendTellsWhenTenantHasNoAccount() {
         live("ACTIVE");
         when(userRepo.findByPhoneNumber("0900000001")).thenReturn(Optional.empty());
-        assertTrue(service.send(100, 5, "ip").contains("chua co tai khoan"));
+        assertTrue(service.send(100, 5, "ip").contains("chưa có tài khoản"));
     }
 
     @Test

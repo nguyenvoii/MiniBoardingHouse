@@ -231,7 +231,7 @@ class TenantAccountServiceTest {
         BusinessException ex = assertThrows(BusinessException.class, () -> service.createAccount(42, 1, "127.0.0.1"));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatus());
-        assertTrue(ex.getMessage().contains("da co tai khoan"));
+        assertTrue(ex.getMessage().contains("đã có tài khoản"));
         verify(userRepository, never()).save(any(User.class));
     }
 
@@ -245,7 +245,7 @@ class TenantAccountServiceTest {
         BusinessException ex = assertThrows(BusinessException.class, () -> service.createAccount(42, 1, "127.0.0.1"));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatus());
-        assertTrue(ex.getMessage().contains("nhan vien"));
+        assertTrue(ex.getMessage().contains("nhân viên"));
         verify(userRepository, never()).save(any(User.class));
     }
 
@@ -290,7 +290,7 @@ class TenantAccountServiceTest {
         BusinessException ex = assertThrows(BusinessException.class, () -> service.createAccount(42, 1, "127.0.0.1"));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatus());
-        assertTrue(ex.getMessage().contains("so dien thoai"));
+        assertTrue(ex.getMessage().contains("số điện thoại"));
         verify(userRepository, never()).save(any(User.class));
     }
 

@@ -76,6 +76,6 @@ public class ExpenseController {
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@PathVariable Integer id) {
         service.delete(id);
-        return ApiResponse.ok("Da xoa khoan chi phi", null);
+        return ApiResponse.ok("Đã xóa khoản chi phí", null);
     }
 }

@@ -51,21 +51,21 @@ public class QrLoginService {
     /** Nhan vien tao ma cho tai khoan nguoi thue dang dung mat khau tam. */
     @Transactional(readOnly = true)
     public Link issue(Integer tenantId) {
-        Tenant tenant = tenantRepository.findById(tenantId).orElseThrow(() -> BusinessException.notFound("Khach thue"));
+        Tenant tenant = tenantRepository.findById(tenantId).orElseThrow(() -> BusinessException.notFound("Khách thuê"));
         String phone = tenant.getPhoneNumber() == null ? "" : tenant.getPhoneNumber().trim();
         User account = userRepository.findByPhoneNumber(phone)
-                .orElseThrow(() -> BusinessException.notFound("Tai khoan cua khach thue"));
+                .orElseThrow(() -> BusinessException.notFound("Tài khoản của khách thuê"));
         boolean orphan = account.getCreatedAt() != null && tenant.getCreatedAt() != null
                 && account.getCreatedAt().isBefore(tenant.getCreatedAt());
         if (orphan || !userRoleRepository.findRoleCodesByUserId(account.getUserId()).contains("TENANT")) {
-            throw BusinessException.notFound("Tai khoan cua khach thue");
+            throw BusinessException.notFound("Tài khoản của khách thuê");
         }
         if (!"ACTIVE".equals(account.getStatus())) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Tai khoan dang bi khoa hoac ngung");
+            throw new BusinessException(HttpStatus.CONFLICT, "Tài khoản đang bị khóa hoặc ngừng");
         }
         if (!account.isMustChangePassword()) {
             throw new BusinessException(HttpStatus.CONFLICT,
-                    "Khach da tu dat mat khau, khong tao ma QR dang nhap. Can thi cap lai mat khau tam truoc");
+                    "Khách đã tự đặt mật khẩu, không tạo mã QR đăng nhập. Cần thì cấp lại mật khẩu tạm trước");
         }
         String token = jwtService.generateQrLogin(account.getUserId(), tenantId, fingerprint(account), LINK_MINUTES);
         return new Link(token, LINK_MINUTES * 60);
@@ -82,7 +82,7 @@ public class QrLoginService {
                 && MessageDigest.isEqual(fingerprint(user).getBytes(StandardCharsets.UTF_8),
                         String.valueOf(claims.fingerprint()).getBytes(StandardCharsets.UTF_8));
         if (!valid) {
-            throw new BusinessException(HttpStatus.UNAUTHORIZED, "Ma QR het han hoac da dung xong, nho nhan vien cap ma moi");
+            throw new BusinessException(HttpStatus.UNAUTHORIZED, "Mã QR hết hạn hoặc đã dùng xong, nhờ nhân viên cấp mã mới");
         }
         AuthUser authUser = new AuthUser(user.getUserId(), user.getEmail(), user.getFullName(), roles, claims.tenantId());
         activityLogService.log(user.getUserId(), "LOGIN", "Dang nhap bang ma QR", ip);
@@ -95,12 +95,12 @@ public class QrLoginService {
      */
     @Transactional
     public void setFirstPassword(Integer userId, String newPassword, String ip) {
-        User user = userRepository.findById(userId).orElseThrow(() -> BusinessException.notFound("Tai khoan"));
+        User user = userRepository.findById(userId).orElseThrow(() -> BusinessException.notFound("Tài khoản"));
         if (!user.isMustChangePassword()) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Tai khoan da co mat khau rieng, hay dung chuc nang doi mat khau");
+            throw new BusinessException(HttpStatus.CONFLICT, "Tài khoản đã có mật khẩu riêng, hãy dùng chức năng đổi mật khẩu");
         }
         if (!AccountService.isStrong(newPassword)) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "Mat khau moi phai co it nhat 8 ky tu, gom ca chu va so");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Mật khẩu mới phải có ít nhất 8 ký tự, gồm cả chữ và số");
         }
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         user.setMustChangePassword(false);

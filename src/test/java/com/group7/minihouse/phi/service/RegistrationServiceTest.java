@@ -235,7 +235,7 @@ class RegistrationServiceTest {
         when(userRepository.findByEmailOrPhoneNumber("no@x.vn", "no@x.vn")).thenReturn(Optional.empty());
         BusinessException e = assertThrows(BusinessException.class,
                 () -> service.verifyEmail("no@x.vn", "123456", "ip"));
-        assertEquals("Ma xac thuc khong dung hoac da het han", e.getMessage());
+        assertEquals("Mã xác thực không đúng hoặc đã hết hạn", e.getMessage());
     }
 
     @Test

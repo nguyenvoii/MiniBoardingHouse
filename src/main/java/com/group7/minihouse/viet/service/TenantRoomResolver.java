@@ -49,15 +49,15 @@ public class TenantRoomResolver {
     public Room resolveRoom(Integer tenantId, Integer roomId) {
         List<RentalContract> contracts = activeContracts(tenantId);
         if (contracts.isEmpty()) {
-            throw new BusinessException("Khach thue chua co hop dong dang hieu luc");
+            throw new BusinessException("Khách thuê chưa có hợp đồng đang hiệu lực");
         }
         if (roomId != null) {
             return contracts.stream().map(RentalContract::getRoom)
                     .filter(r -> r.getRoomId().equals(roomId)).findFirst()
-                    .orElseThrow(() -> new BusinessException("Phong nay khong thuoc khach thue"));
+                    .orElseThrow(() -> new BusinessException("Phòng này không thuộc khách thuê"));
         }
         if (contracts.size() > 1) {
-            throw new BusinessException("Khach thue co nhieu phong, can chon roomId");
+            throw new BusinessException("Khách thuê có nhiều phòng, cần chọn roomId");
         }
         return contracts.get(0).getRoom();
     }

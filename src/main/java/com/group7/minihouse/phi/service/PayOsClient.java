@@ -52,7 +52,7 @@ public class PayOsClient {
 
     PayOsClient(RestClient client, String checksumKey, String returnUrl, String cancelUrl, String checkoutHost) {
         if (checksumKey.isBlank()) {
-            throw new IllegalArgumentException("app.payment.payos.checksum-key is required");
+            throw new IllegalArgumentException("Thiếu cấu hình app.payment.payos.checksum-key");
         }
         this.client = client;
         this.checksumKey = checksumKey;
@@ -132,7 +132,7 @@ public class PayOsClient {
         URI url = URI.create(input);
         if (!"https".equals(url.getScheme()) || url.getHost() == null || url.getUserInfo() != null
                 || input.indexOf('&') >= 0) {
-            throw new IllegalArgumentException("Invalid payOS return/cancel URL");
+            throw new IllegalArgumentException("Địa chỉ chuyển hướng payOS (return/cancel) không hợp lệ");
         }
         return url.toString();
     }
@@ -145,12 +145,12 @@ public class PayOsClient {
             hmac.init(new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
             return HexFormat.of().formatHex(hmac.doFinal(value.getBytes(StandardCharsets.UTF_8)));
         } catch (GeneralSecurityException ex) {
-            throw new IllegalStateException("Cannot sign payOS payment", ex);
+            throw new IllegalStateException("Không thể ký yêu cầu thanh toán payOS", ex);
         }
     }
 
     private static BusinessException upstreamFailure() {
-        return new BusinessException(HttpStatus.BAD_GATEWAY, "Khong the xac minh phan hoi tu cong thanh toan payOS");
+        return new BusinessException(HttpStatus.BAD_GATEWAY, "Không thể xác minh phản hồi từ cổng thanh toán payOS");
     }
 
     public record Checkout(long orderCode, String checkoutUrl) {}

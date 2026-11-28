@@ -35,7 +35,7 @@ final class VietSupport {
         }
         v = v.toUpperCase();
         if (!allowed.contains(v)) {
-            throw new BusinessException(fieldName + " khong hop le, chi nhan: " + String.join(", ", allowed));
+            throw new BusinessException(fieldName + " không hợp lệ, chỉ nhận: " + String.join(", ", allowed));
         }
         return v;
     }
@@ -43,7 +43,7 @@ final class VietSupport {
     static String requireText(String value, String fieldName) {
         String v = blankToNull(value);
         if (v == null) {
-            throw new BusinessException("Thieu " + fieldName);
+            throw new BusinessException("Thiếu " + fieldName);
         }
         return v;
     }

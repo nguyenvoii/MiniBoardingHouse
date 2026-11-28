@@ -72,7 +72,7 @@ public class AccountController {
                                             @AuthenticationPrincipal AuthUser user, HttpServletRequest http) {
         service.changePassword(CurrentUser.requireUserId(user), req.currentPassword(), req.newPassword(),
                 http.getRemoteAddr());
-        return ApiResponse.ok("Doi mat khau thanh cong", null);
+        return ApiResponse.ok("Đổi mật khẩu thành công", null);
     }
 
     @GetMapping("/profile")

@@ -61,7 +61,7 @@ public class ActivityLogController {
             @RequestParam(defaultValue = "xlsx") String format) {
         boolean pdf = "pdf".equalsIgnoreCase(format);
         if (!pdf && !"xlsx".equalsIgnoreCase(format)) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "format chi nhan xlsx hoac pdf");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "format chỉ nhận xlsx hoặc pdf");
         }
         List<List<Object>> rows = service.exportRows(userId, actionType, from, to).stream()
                 .map(l -> Arrays.<Object>asList(l.logId(), l.createdAt(), l.userFullName(), l.actionType(),

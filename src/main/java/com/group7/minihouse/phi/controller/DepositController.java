@@ -38,7 +38,7 @@ public class DepositController {
     @PostMapping
     public ApiResponse<DepositStatus> collect(@PathVariable Integer contractId, @RequestBody CollectDepositRequest req,
                                               @AuthenticationPrincipal AuthUser actor, HttpServletRequest http) {
-        return ApiResponse.ok("Da ghi nhan thu coc",
+        return ApiResponse.ok("Đã ghi nhận thu cọc",
                 service.collect(contractId, req == null ? null : req.amount(), actor == null ? null : actor.userId(),
                         http.getRemoteAddr()));
     }

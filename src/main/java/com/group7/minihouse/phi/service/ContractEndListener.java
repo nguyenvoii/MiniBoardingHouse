@@ -42,7 +42,7 @@ public class ContractEndListener {
         a.setContract(c);
         a.setAdjustmentType("TERMINATED");
         a.setOldValue(e.previousStatus() == null ? "ACTIVE" : e.previousStatus());
-        a.setNewValue(e.reason() == null ? "Tra phong" : e.reason());
+        a.setNewValue(e.reason() == null ? "Trả phòng" : e.reason());
         if (e.actorId() != null) {
             a.setAdjustedBy(em.getReference(User.class, e.actorId()));
         }
@@ -53,7 +53,7 @@ public class ContractEndListener {
         h.setRoom(c.getRoom());
         h.setStartDate(c.getStartDate());
         h.setEndDate(e.endDate());
-        h.setCheckoutReason(e.reason() == null ? "Tra phong" : e.reason());
+        h.setCheckoutReason(e.reason() == null ? "Trả phòng" : e.reason());
         em.persist(h);
         em.createQuery("update RoomResident r set r.isActive = false, r.endDate = :d "
                         + "where r.room.roomId = :room and r.isActive = true")

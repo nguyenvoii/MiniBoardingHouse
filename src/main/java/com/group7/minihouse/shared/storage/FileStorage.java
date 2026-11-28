@@ -32,15 +32,15 @@ public class FileStorage {
     /** Luu anh PNG/JPEG/WebP toi da maxBytes. Tra ve ten file da luu (vd "3f2a....png"). */
     public String saveImage(String folder, byte[] data, long maxBytes) {
         if (data == null || data.length == 0) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "File rong");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "File rỗng");
         }
         if (data.length > maxBytes) {
             throw new BusinessException(HttpStatus.PAYLOAD_TOO_LARGE,
-                    "File qua lon, toi da " + (maxBytes / 1024) + " KB");
+                    "File quá lớn, tối đa " + (maxBytes / 1024) + " KB");
         }
         String ext = detectImageExtension(data);
         if (ext == null) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "Chi nhan anh PNG, JPG hoac WebP");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Chỉ nhận ảnh PNG, JPG hoặc WebP");
         }
         Path dir = folderPath(folder);
         String name = UUID.randomUUID() + "." + ext;
@@ -90,7 +90,7 @@ public class FileStorage {
 
     private Path folderPath(String folder) {
         if (!SAFE_FOLDER.matcher(folder).matches()) {
-            throw new IllegalArgumentException("Ten thu muc khong hop le: " + folder);
+            throw new IllegalArgumentException("Tên thư mục không hợp lệ: " + folder);
         }
         return root.resolve(folder);
     }

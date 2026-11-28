@@ -55,7 +55,7 @@ public class ReceiptService {
     @Transactional
     public ReceiptResponse create(ReceiptRequest req, Integer actorId, String ip) {
         if (req != null && "DEPOSIT".equalsIgnoreCase(req.voucherType())) {
-            throw bad("Phieu thu coc chi lap qua muc Thu coc cua hop dong");
+            throw bad("Phiếu thu cọc chỉ lập qua mục Thu cọc của hợp đồng");
         }
         return doCreate(req, actorId, ip);
     }
@@ -66,30 +66,30 @@ public class ReceiptService {
      */
     private ReceiptResponse doCreate(ReceiptRequest req, Integer actorId, String ip) {
         if (req == null || req.voucherType() == null || !TYPES.contains(req.voucherType().toUpperCase())) {
-            throw bad("voucherType phai thuoc " + TYPES);
+            throw bad("voucherType phải thuộc " + TYPES);
         }
         if (req.amount() == null || req.amount().signum() <= 0) {
-            throw bad("So tien phai lon hon 0");
+            throw bad("Số tiền phải lớn hơn 0");
         }
         PaymentTransaction tx = null;
         if (req.transactionId() != null) {
             tx = em.find(PaymentTransaction.class, req.transactionId());
             if (tx == null) {
-                throw notFound("Giao dich " + req.transactionId());
+                throw notFound("Giao dịch " + req.transactionId());
             }
             // Use the same invoice-first lock as payment confirmation and reversal.
             em.lock(tx.getInvoice(), LockModeType.PESSIMISTIC_WRITE);
             em.refresh(tx);
             if (!"SUCCESS".equals(tx.getStatus())) {
-                throw new BusinessException(HttpStatus.CONFLICT, "Chi lap phieu thu cho giao dich da thu thanh cong");
+                throw new BusinessException(HttpStatus.CONFLICT, "Chỉ lập phiếu thu cho giao dịch đã thu thành công");
             }
             BigDecimal issued = receiptRepo.sumByTransaction(tx.getTransactionId());
             if (issued.add(req.amount()).compareTo(tx.getAmountPaid()) > 0) {
-                throw bad("So tien phieu thu vuot so tien giao dich (giao dich " + tx.getAmountPaid()
-                        + ", da lap phieu " + issued + ")");
+                throw bad("Số tiền phiếu thu vượt số tiền giao dịch (giao dịch " + tx.getAmountPaid()
+                        + ", đã lập phiếu " + issued + ")");
             }
         } else if ("MONTHLY_RENT".equals(req.voucherType().toUpperCase())) {
-            throw bad("Phieu thu tien phong phai gan voi mot giao dich thu tien (transactionId)");
+            throw bad("Phiếu thu tiền phòng phải gắn với một giao dịch thu tiền (transactionId)");
         }
         ReceiptVoucher v = new ReceiptVoucher();
         v.setVoucherCode(nextCode());
@@ -127,7 +127,7 @@ public class ReceiptService {
     public void sendConfirmation(Integer voucherId) {
         ReceiptVoucher v = find(voucherId);
         if (v.getTransaction() == null) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Phieu thu chua gan voi giao dich/hoa don");
+            throw new BusinessException(HttpStatus.CONFLICT, "Phiếu thu chưa gắn với giao dịch/hóa đơn");
         }
         invoiceService.notifyPaymentConfirmed(v.getTransaction().getInvoice(),
                 "Da nhan " + v.getAmount().toPlainString() + " - phieu thu " + v.getVoucherCode());
@@ -151,7 +151,7 @@ public class ReceiptService {
     @Transactional(readOnly = true)
     public String printableHtmlForTenant(Integer tenantId, Integer voucherId) {
         ReceiptVoucher voucher = receiptRepo.findSuccessfulForTenant(tenantId, voucherId)
-                .orElseThrow(() -> notFound("Phieu thu"));
+                .orElseThrow(() -> notFound("Phiếu thu"));
         return printableHtml(voucher, false);
     }
 
@@ -185,7 +185,7 @@ public class ReceiptService {
     }
 
     private ReceiptVoucher find(Integer id) {
-        return receiptRepo.findById(id).orElseThrow(() -> notFound("Phieu thu " + id));
+        return receiptRepo.findById(id).orElseThrow(() -> notFound("Phiếu thu " + id));
     }
 
     private ReceiptResponse toResponse(ReceiptVoucher v) {
@@ -207,6 +207,6 @@ public class ReceiptService {
     }
 
     private static BusinessException notFound(String what) {
-        return new BusinessException(HttpStatus.NOT_FOUND, "Khong tim thay " + what);
+        return new BusinessException(HttpStatus.NOT_FOUND, "Không tìm thấy " + what);
     }
 }

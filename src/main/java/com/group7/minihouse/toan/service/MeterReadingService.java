@@ -64,18 +64,18 @@ public class MeterReadingService {
     public PeriodResponse createPeriod(PeriodRequest req) {
         if (req.propertyId() == null || req.periodName() == null || req.periodName().isBlank()
                 || req.startDate() == null || req.endDate() == null) {
-            throw bad("Can propertyId, periodName, startDate, endDate");
+            throw bad("Cần propertyId, periodName, startDate, endDate");
         }
         if (req.endDate().isBefore(req.startDate())) {
-            throw bad("Ngay ket thuc ky phai sau ngay bat dau");
+            throw bad("Ngày kết thúc kỳ phải sau ngày bắt đầu");
         }
         if (periodRepo.existsByPropertyPropertyIdAndPeriodName(req.propertyId(), req.periodName())) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Ky ghi so nay da ton tai");
+            throw new BusinessException(HttpStatus.CONFLICT, "Kỳ ghi số này đã tồn tại");
         }
         // Hai ky chong len nhau thi chi so, ky truoc va viec chon ky theo thang bi mo ho
         if (periodRepo.existsByPropertyPropertyIdAndStartDateLessThanEqualAndEndDateGreaterThanEqual(
                 req.propertyId(), req.endDate(), req.startDate())) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Khoang thoi gian trung voi mot ky ghi so da co cua khu");
+            throw new BusinessException(HttpStatus.CONFLICT, "Khoảng thời gian trùng với một kỳ ghi số đã có của khu");
         }
         UtilityReadingPeriod p = new UtilityReadingPeriod();
         p.setProperty(ref(Property.class, req.propertyId()));
@@ -113,31 +113,31 @@ public class MeterReadingService {
     public ReadingResponse recordReading(ReadingRequest req) {
         if (req.periodId() == null || req.roomId() == null || req.newElectric() == null
                 || req.newWater() == null || req.recordedByUserId() == null) {
-            throw bad("Can periodId, roomId, newElectric, newWater, recordedByUserId");
+            throw bad("Cần periodId, roomId, newElectric, newWater, recordedByUserId");
         }
         UtilityReadingPeriod period = findPeriod(req.periodId());
         if (Boolean.TRUE.equals(period.getIsClosed())) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Ky ghi so da dong");
+            throw new BusinessException(HttpStatus.CONFLICT, "Kỳ ghi số đã đóng");
         }
         Room room = em.find(Room.class, req.roomId());
         if (room == null) {
-            throw notFound("Phong " + req.roomId());
+            throw notFound("Phòng " + req.roomId());
         }
         if (room.getProperty() != null && !room.getProperty().getPropertyId()
                 .equals(period.getProperty().getPropertyId())) {
-            throw bad("Phong khong thuoc khu cua ky ghi so");
+            throw bad("Phòng không thuộc khu của kỳ ghi số");
         }
         em.lock(room, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
         if (readingRepo.findByPeriodPeriodIdAndRoomRoomId(req.periodId(), req.roomId()).isPresent()) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Phong nay da co chi so trong ky");
+            throw new BusinessException(HttpStatus.CONFLICT, "Phòng này đã có chỉ số trong kỳ");
         }
 
         int[] base = resolveOldValues(room, period, req.oldElectric(), req.oldWater());
         if (req.newElectric() < base[0]) {
-            throw bad("Chi so dien moi (" + req.newElectric() + ") nho hon chi so cu (" + base[0] + ")");
+            throw bad("Chỉ số điện mới (" + req.newElectric() + ") nhỏ hơn chỉ số cũ (" + base[0] + ")");
         }
         if (req.newWater() < base[1]) {
-            throw bad("Chi so nuoc moi (" + req.newWater() + ") nho hon chi so cu (" + base[1] + ")");
+            throw bad("Chỉ số nước mới (" + req.newWater() + ") nhỏ hơn chỉ số cũ (" + base[1] + ")");
         }
 
         MeterReading r = new MeterReading();
@@ -211,11 +211,11 @@ public class MeterReadingService {
     public PhotoResponse addPhoto(Integer readingId, PhotoRequest req) {
         MeterReading r = findReading(readingId);
         if (req.photoUrl() == null || req.photoUrl().isBlank()) {
-            throw bad("Thieu photoUrl");
+            throw bad("Thiếu photoUrl");
         }
         String type = req.meterType() == null ? "" : req.meterType().toUpperCase();
         if (!type.equals("ELECTRIC") && !type.equals("WATER")) {
-            throw bad("meterType phai la ELECTRIC hoac WATER");
+            throw bad("meterType phải là ELECTRIC hoặc WATER");
         }
         return toResponse(savePhoto(r, type, req.photoUrl().trim()));
     }
@@ -231,7 +231,7 @@ public class MeterReadingService {
     public ReadingResponse confirmReading(Integer readingId) {
         MeterReading r = findReading(readingId);
         if (Boolean.TRUE.equals(r.getPeriod().getIsClosed())) { // SRS 13#12: giong adjustReading, ky da dong thi khong doi
-            throw new BusinessException(HttpStatus.CONFLICT, "Ky ghi so da dong, khong the xac nhan chi so");
+            throw new BusinessException(HttpStatus.CONFLICT, "Kỳ ghi số đã đóng, không thể xác nhận chỉ số");
         }
         r.setIsVerified(true);
         return toResponse(r);
@@ -250,17 +250,17 @@ public class MeterReadingService {
         }
         MeterReading r = existing.get();
         if (Boolean.TRUE.equals(r.getPeriod().getIsClosed())) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Ky ghi so da dong");
+            throw new BusinessException(HttpStatus.CONFLICT, "Kỳ ghi số đã đóng");
         }
         if (electric < r.getNewElectric() || water < r.getNewWater()) {
-            throw bad("Chi so chot (" + electric + "/" + water + ") nho hon chi so da ghi trong ky ("
+            throw bad("Chỉ số chốt (" + electric + "/" + water + ") nhỏ hơn chỉ số đã ghi trong kỳ ("
                     + r.getNewElectric() + "/" + r.getNewWater() + ")");
         }
         if (electric != r.getNewElectric()) {
-            adjustReading(r.getReadingId(), new AdjustRequest("NEW_ELECTRIC", electric, "Chot chi so khi chuyen phong", userId));
+            adjustReading(r.getReadingId(), new AdjustRequest("NEW_ELECTRIC", electric, "Chốt chỉ số khi chuyển phòng", userId));
         }
         if (water != r.getNewWater()) {
-            adjustReading(r.getReadingId(), new AdjustRequest("NEW_WATER", water, "Chot chi so khi chuyen phong", userId));
+            adjustReading(r.getReadingId(), new AdjustRequest("NEW_WATER", water, "Chốt chỉ số khi chuyển phòng", userId));
         }
         r.setClosingContract(contract);
         confirmReading(r.getReadingId());
@@ -273,35 +273,35 @@ public class MeterReadingService {
         em.lock(r.getRoom(), jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
         if (r.getClosingContract() != null && readingRepo.existsByPeriodPeriodIdAndRoomRoomIdAndReadingIdGreaterThan(
                 r.getPeriod().getPeriodId(), r.getRoom().getRoomId(), readingId)) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Chi so chot da duoc dung lam moc cho chi so tiep theo");
+            throw new BusinessException(HttpStatus.CONFLICT, "Chỉ số chốt đã được dùng làm mốc cho chỉ số tiếp theo");
         }
         if (Boolean.TRUE.equals(r.getPeriod().getIsClosed())) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Ky ghi so da dong, khong the dieu chinh");
+            throw new BusinessException(HttpStatus.CONFLICT, "Kỳ ghi số đã đóng, không thể điều chỉnh");
         }
         if (req.reason() == null || req.reason().isBlank()) {
-            throw bad("Phai nhap ly do dieu chinh");
+            throw bad("Phải nhập lý do điều chỉnh");
         }
         if (req.newValue() == null || req.adjustedByUserId() == null) {
-            throw bad("Can newValue va adjustedByUserId");
+            throw bad("Cần newValue và adjustedByUserId");
         }
         String field = req.adjustedField() == null ? "" : req.adjustedField().toUpperCase();
         int oldVal;
         switch (field) {
             case "NEW_ELECTRIC" -> {
                 if (req.newValue() < r.getOldElectric()) {
-                    throw bad("Chi so dien moi nho hon chi so cu");
+                    throw bad("Chỉ số điện mới nhỏ hơn chỉ số cũ");
                 }
                 oldVal = r.getNewElectric();
                 r.setNewElectric(req.newValue());
             }
             case "NEW_WATER" -> {
                 if (req.newValue() < r.getOldWater()) {
-                    throw bad("Chi so nuoc moi nho hon chi so cu");
+                    throw bad("Chỉ số nước mới nhỏ hơn chỉ số cũ");
                 }
                 oldVal = r.getNewWater();
                 r.setNewWater(req.newValue());
             }
-            default -> throw bad("adjustedField phai la NEW_ELECTRIC hoac NEW_WATER");
+            default -> throw bad("adjustedField phải là NEW_ELECTRIC hoặc NEW_WATER");
         }
         MeterAdjustmentLog log = new MeterAdjustmentLog();
         log.setReading(r);
@@ -347,7 +347,7 @@ public class MeterReadingService {
     @Transactional
     public AlertResponse resolveAlert(Integer alertId) {
         MeterAnomalyAlert a = alertRepo.findById(alertId)
-                .orElseThrow(() -> notFound("Canh bao " + alertId));
+                .orElseThrow(() -> notFound("Cảnh báo " + alertId));
         a.setIsResolved(true);
         return toResponse(a);
     }
@@ -382,7 +382,7 @@ public class MeterReadingService {
         // cot DECIMAL(5,2) -> toi da 999.99
         a.setIncreasePercentage(pct.min(new BigDecimal("999.99")));
         a.setAlertMessage("Phong " + r.getRoom().getRoomCode() + ": " + label + " tang " + pct
-                + "% so voi ky truoc (" + prevUsed + " -> " + curUsed + ")");
+                + "% so với kỳ trước (" + prevUsed + " -> " + curUsed + ")");
         a.setIsResolved(false);
         alertRepo.save(a);
     }
@@ -393,7 +393,7 @@ public class MeterReadingService {
     public ConsumptionHistory roomHistory(Integer roomId, LocalDate from, LocalDate to) {
         Room room = em.find(Room.class, roomId);
         if (room == null) {
-            throw notFound("Phong " + roomId);
+            throw notFound("Phòng " + roomId);
         }
         List<ConsumptionPoint> points = readingRepo.findHistoryByRoom(roomId, orMin(from), orMax(to)).stream()
                 .map(r -> new ConsumptionPoint(r.getPeriod().getPeriodId(), r.getPeriod().getPeriodName(),
@@ -431,11 +431,11 @@ public class MeterReadingService {
     public MoveInResponse recordMoveIn(MoveInRequest req) {
         if (req.roomId() == null || req.electric() == null || req.water() == null
                 || req.electric() < 0 || req.water() < 0) {
-            throw bad("Can roomId, electric >= 0, water >= 0");
+            throw bad("Cần roomId, electric >= 0, water >= 0");
         }
         Room room = em.find(Room.class, req.roomId());
         if (room == null) {
-            throw notFound("Phong " + req.roomId());
+            throw notFound("Phòng " + req.roomId());
         }
         // L19: giong CheckinInspectionService, chi doi chi so ban dau khi phong chua tung co so doc (doi sau khi da
         // co ky tinh tien se lam lech luong tieu thu cac ky da tinh)
@@ -466,15 +466,15 @@ public class MeterReadingService {
     public void validateFinalReading(Integer roomId, LocalDate date, int electric, int water) {
         Room room = em.find(Room.class, roomId);
         if (room == null) {
-            throw notFound("Phong " + roomId);
+            throw notFound("Phòng " + roomId);
         }
         UtilityReadingPeriod period = openPeriodAt(room, date);
         int[] base = period == null ? baseBefore(room, date) : resolveOldValues(room, period, null, null);
         if (electric < base[0]) {
-            throw bad("Chi so dien cuoi (" + electric + ") nho hon chi so ky truoc (" + base[0] + "), kiem tra lai so vua nhap");
+            throw bad("Chỉ số điện cuối (" + electric + ") nhỏ hơn chỉ số kỳ trước (" + base[0] + "), kiểm tra lại số vừa nhập");
         }
         if (water < base[1]) {
-            throw bad("Chi so nuoc cuoi (" + water + ") nho hon chi so ky truoc (" + base[1] + "), kiem tra lai so vua nhap");
+            throw bad("Chỉ số nước cuối (" + water + ") nhỏ hơn chỉ số kỳ trước (" + base[1] + "), kiểm tra lại số vừa nhập");
         }
     }
 
@@ -500,7 +500,7 @@ public class MeterReadingService {
         var existing = readingRepo.findByPeriodPeriodIdAndRoomRoomId(period.getPeriodId(), roomId);
         if (existing.isPresent()) {
             MeterReading r = existing.get();
-            String reason = "Cap nhat theo chi so cuoi cua bien ban tra phong";
+            String reason = "Cập nhật theo chỉ số cuối của biên bản trả phòng";
             if (r.getNewElectric() != electric) {
                 adjustReading(r.getReadingId(), new AdjustRequest("NEW_ELECTRIC", electric, reason, userId));
             }
@@ -548,7 +548,7 @@ public class MeterReadingService {
             MeterReading last = closing.get();
             if ((reqElectric != null && !reqElectric.equals(last.getNewElectric()))
                     || (reqWater != null && !reqWater.equals(last.getNewWater()))) {
-                throw bad("Chi so cu phai bang chi so chot chuyen phong trong ky");
+                throw bad("Chỉ số cũ phải bằng chỉ số chốt chuyển phòng trong kỳ");
             }
             return new int[] {last.getNewElectric(), last.getNewWater()};
         }
@@ -591,11 +591,11 @@ public class MeterReadingService {
     }
 
     private UtilityReadingPeriod findPeriod(Integer id) {
-        return periodRepo.findById(id).orElseThrow(() -> notFound("Ky ghi so " + id));
+        return periodRepo.findById(id).orElseThrow(() -> notFound("Kỳ ghi số " + id));
     }
 
     private MeterReading findReading(Integer id) {
-        return readingRepo.findById(id).orElseThrow(() -> notFound("Chi so " + id));
+        return readingRepo.findById(id).orElseThrow(() -> notFound("Chỉ số " + id));
     }
 
     private <T> T ref(Class<T> type, Integer id) {
@@ -632,6 +632,6 @@ public class MeterReadingService {
     }
 
     private static BusinessException notFound(String what) {
-        return new BusinessException(HttpStatus.NOT_FOUND, "Khong tim thay " + what);
+        return new BusinessException(HttpStatus.NOT_FOUND, "Không tìm thấy " + what);
     }
 }

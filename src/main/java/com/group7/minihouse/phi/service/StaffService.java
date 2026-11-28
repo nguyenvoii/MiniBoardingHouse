@@ -68,10 +68,10 @@ public class StaffService {
         List<String> roleCodes = normalizeRoles(req.roles());
 
         if (c.email() != null && userRepository.existsByEmail(c.email())) {
-            throw conflict("Email da duoc tai khoan khac su dung");
+            throw conflict("Email đã được tài khoản khác sử dụng");
         }
         if (c.phone() != null && userRepository.existsByPhoneNumber(c.phone())) {
-            throw conflict("So dien thoai da duoc tai khoan khac su dung");
+            throw conflict("Số điện thoại đã được tài khoản khác sử dụng");
         }
         List<Role> roles = loadRoles(roleCodes);
 
@@ -104,7 +104,7 @@ public class StaffService {
     public PageResponse<StaffResponse> search(String keyword, String status, int page, int size) {
         String st = status == null ? "" : status.trim();
         if (!st.isEmpty() && !STATUSES.contains(st)) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "Trang thai khong hop le (ACTIVE, LOCKED, INACTIVE)");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Trạng thái không hợp lệ (ACTIVE, LOCKED, INACTIVE)");
         }
         int s = size < 1 ? DEFAULT_SIZE : Math.min(size, MAX_SIZE);
         // trang tran so khong thanh 500; sap xep co khoa phu userId de cac dong cung createdAt khong nhay giua cac trang
@@ -121,10 +121,10 @@ public class StaffService {
         StaffRef ref = staff(id);
         Contact c = validateContact(req.fullName(), req.email(), req.phoneNumber());
         if (c.email() != null && userRepository.existsByEmailAndUserIdNot(c.email(), id)) {
-            throw conflict("Email da duoc tai khoan khac su dung");
+            throw conflict("Email đã được tài khoản khác sử dụng");
         }
         if (c.phone() != null && userRepository.existsByPhoneNumberAndUserIdNot(c.phone(), id)) {
-            throw conflict("So dien thoai da duoc tai khoan khac su dung");
+            throw conflict("Số điện thoại đã được tài khoản khác sử dụng");
         }
 
         List<String> roleCodes = ref.roles();
@@ -151,10 +151,10 @@ public class StaffService {
     @Transactional
     public StaffResponse setStatus(Integer id, String status, Integer actorId, String ip) {
         if (!"ACTIVE".equals(status) && !"LOCKED".equals(status)) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "Trang thai chi nhan ACTIVE (mo khoa) hoac LOCKED (khoa)");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Trạng thái chỉ nhận ACTIVE (mở khóa) hoặc LOCKED (khóa)");
         }
         if (id.equals(actorId)) {
-            throw conflict("Khong the khoa hoac mo khoa chinh tai khoan cua minh");
+            throw conflict("Không thể khóa hoặc mở khóa chính tài khoản của mình");
         }
         StaffRef ref = staff(id);
         User user = ref.user();
@@ -176,12 +176,12 @@ public class StaffService {
 
     /** Nhan vien that su: ton tai, co vai tro nhan vien, khong phai LANDLORD/TENANT; nguoc lai 404. */
     private StaffRef staff(Integer id) {
-        User user = userRepository.findById(id).orElseThrow(() -> BusinessException.notFound("Nhan vien"));
+        User user = userRepository.findById(id).orElseThrow(() -> BusinessException.notFound("Nhân viên"));
         List<String> roles = userRoleRepository.findRoleCodesByUserId(id);
         boolean isStaff = roles.stream().anyMatch(STAFF_ROLES::contains)
                 && !roles.contains("LANDLORD") && !roles.contains("TENANT");
         if (!isStaff) {
-            throw BusinessException.notFound("Nhan vien");
+            throw BusinessException.notFound("Nhân viên");
         }
         return new StaffRef(user, roles);
     }
@@ -189,7 +189,7 @@ public class StaffService {
     private Contact validateContact(String fullName, String email, String phone) {
         String name = fullName == null ? "" : fullName.trim();
         if (name.isEmpty() || name.length() > 100) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "Ho ten khong duoc de trong va toi da 100 ky tu");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Họ tên không được để trống và tối đa 100 ký tự");
         }
         String e = blankToNull(email);
         if (e != null) {
@@ -197,27 +197,27 @@ public class StaffService {
         }
         String p = blankToNull(phone);
         if (e == null && p == null) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "Phai co email hoac so dien thoai de dang nhap");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Phải có email hoặc số điện thoại để đăng nhập");
         }
         if (e != null && (e.length() > 255 || !EMAIL.matcher(e).matches())) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "Email khong hop le");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Email không hợp lệ");
         }
         if (p != null && !PHONE.matcher(p).matches()) {
             throw new BusinessException(HttpStatus.BAD_REQUEST,
-                    "So dien thoai chi gom 9-15 chu so (co the bat dau bang +), khong co dau cach");
+                    "Số điện thoại chỉ gồm 9-15 chữ số (có thể bắt đầu bằng +), không có dấu cách");
         }
         return new Contact(name, e, p);
     }
 
     private List<String> normalizeRoles(List<String> roles) {
         if (roles == null || roles.isEmpty()) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "Phai chon it nhat 1 vai tro nhan vien");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Phải chọn ít nhất 1 vai trò nhân viên");
         }
         Set<String> codes = new LinkedHashSet<>();
         for (String r : roles) {
             if (r == null || !STAFF_ROLES.contains(r)) {
                 throw new BusinessException(HttpStatus.BAD_REQUEST,
-                        "Vai tro khong hop le: " + r + " (chi MANAGER, CASHIER, METER_READER)");
+                        "Vai trò không hợp lệ: " + r + " (chỉ MANAGER, CASHIER, METER_READER)");
             }
             codes.add(r);
         }
@@ -229,7 +229,7 @@ public class StaffService {
         for (String code : codes) {
             roles.add(roleRepository.findByRoleCode(code).orElseThrow(() ->
                     new BusinessException(HttpStatus.INTERNAL_SERVER_ERROR,
-                            "Chua nap role " + code + ", chay db/seed.sql")));
+                            "Chưa nạp role " + code + ", chạy db/seed.sql")));
         }
         return roles;
     }

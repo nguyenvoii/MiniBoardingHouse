@@ -67,7 +67,7 @@ public class InvoiceController {
         if (actor != null && actor.isTenant()) {
             Integer own = CurrentUser.requireTenantId(actor);
             if (!own.equals(service.get(invoiceId).tenantId())) {
-                throw com.group7.minihouse.shared.exception.BusinessException.notFound("Hoa don " + invoiceId);
+                throw com.group7.minihouse.shared.exception.BusinessException.notFound("Hóa đơn " + invoiceId);
             }
         }
     }
@@ -93,7 +93,7 @@ public class InvoiceController {
                                          @AuthenticationPrincipal AuthUser actor) {
         Integer tid = actor != null && actor.isTenant() ? CurrentUser.requireTenantId(actor) : tenantId;
         if (tid == null) {
-            throw new com.group7.minihouse.shared.exception.BusinessException("Can tenantId");
+            throw new com.group7.minihouse.shared.exception.BusinessException("Cần tenantId");
         }
         return service.payable(tid);
     }

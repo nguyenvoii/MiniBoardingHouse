@@ -62,7 +62,7 @@ public class ServiceRateService {
         planRepo.findFirstByEffectiveEndDateIsNullOrderByEffectiveStartDateDesc().ifPresent(open -> {
             if (!open.getEffectiveStartDate().isBefore(req.effectiveStartDate())) {
                 throw new BusinessException(HttpStatus.CONFLICT,
-                        "Ngay ap dung phai sau bang gia dang hieu luc (" + open.getEffectiveStartDate() + ")");
+                        "Ngày áp dụng phải sau bảng giá đang hiệu lực (" + open.getEffectiveStartDate() + ")");
             }
             open.setEffectiveEndDate(req.effectiveStartDate().minusDays(1));
         });
@@ -85,7 +85,7 @@ public class ServiceRateService {
     @CacheEvict(cacheNames = {"servicePlans", "serviceRates"}, allEntries = true)
     public PlanResponse updatePlan(Integer planId, PlanRequest req, Integer actorId) {
         validatePlan(req);
-        ServiceRatePlan p = planRepo.findById(planId).orElseThrow(() -> notFound("Bang gia " + planId));
+        ServiceRatePlan p = planRepo.findById(planId).orElseThrow(() -> notFound("Bảng giá " + planId));
         BigDecimal oldElectric = p.getElectricUnitPrice();
         BigDecimal oldWater = p.getWaterUnitPrice();
         apply(p, req);
@@ -115,7 +115,7 @@ public class ServiceRateService {
     public PlanResponse effectivePlan(LocalDate day) {
         LocalDate d = day == null ? LocalDate.now() : day;
         return planRepo.findEffectiveAt(d).stream().findFirst().map(this::toResponse)
-                .orElseThrow(() -> notFound("bang gia dien nuoc ap dung ngay " + d));
+                .orElseThrow(() -> notFound("bảng giá điện nước áp dụng ngày " + d));
     }
 
     // ------------------------------------------------------------------ UC 62: phi dich vu theo khu
@@ -138,7 +138,7 @@ public class ServiceRateService {
     public ServiceRateResponse updateServiceRate(Integer rateId, ServiceRateRequest req) {
         validateServiceRate(req);
         PropertyServiceRate r = serviceRateRepo.findById(rateId)
-                .orElseThrow(() -> notFound("Phi dich vu " + rateId));
+                .orElseThrow(() -> notFound("Phí dịch vụ " + rateId));
         BigDecimal oldPrice = r.getUnitPrice();
         String oldName = r.getServiceName();
         r.setServiceName(req.serviceName().trim());
@@ -149,7 +149,7 @@ public class ServiceRateService {
         }
         if (oldPrice.compareTo(req.unitPrice()) != 0) { // UC 64: luu lich su doi gia
             if (req.changedByUserId() == null) {
-                throw bad("Doi don gia can changedByUserId");
+                throw bad("Đổi đơn giá cần changedByUserId");
             }
             saveHistory(r.getProperty().getPropertyId(), oldName, oldPrice, req.unitPrice(), req.changedByUserId());
         }
@@ -160,7 +160,7 @@ public class ServiceRateService {
     @CacheEvict(cacheNames = {"servicePlans", "serviceRates"}, allEntries = true)
     public void deleteServiceRate(Integer rateId) {
         if (!serviceRateRepo.existsById(rateId)) {
-            throw notFound("Phi dich vu " + rateId);
+            throw notFound("Phí dịch vụ " + rateId);
         }
         serviceRateRepo.deleteById(rateId);
     }
@@ -188,7 +188,7 @@ public class ServiceRateService {
     @Transactional
     public CustomRateResponse updateCustomRate(Integer id, CustomRateRequest req) {
         validateCustomRate(req);
-        RoomCustomRate c = customRateRepo.findById(id).orElseThrow(() -> notFound("Phu thu/mien giam " + id));
+        RoomCustomRate c = customRateRepo.findById(id).orElseThrow(() -> notFound("Phụ thu/miễn giảm " + id));
         applyCustom(c, req);
         return toResponse(c);
     }
@@ -196,7 +196,7 @@ public class ServiceRateService {
     @Transactional
     public void deleteCustomRate(Integer id) {
         if (!customRateRepo.existsById(id)) {
-            throw notFound("Phu thu/mien giam " + id);
+            throw notFound("Phụ thu/miễn giảm " + id);
         }
         customRateRepo.deleteById(id);
     }
@@ -233,32 +233,32 @@ public class ServiceRateService {
     private void validatePlan(PlanRequest r) {
         if (r.planName() == null || r.planName().isBlank() || r.electricUnitPrice() == null
                 || r.waterUnitPrice() == null || r.effectiveStartDate() == null) {
-            throw bad("Can planName, electricUnitPrice, waterUnitPrice, effectiveStartDate");
+            throw bad("Cần planName, electricUnitPrice, waterUnitPrice, effectiveStartDate");
         }
         if (r.electricUnitPrice().signum() < 0 || r.waterUnitPrice().signum() < 0) {
-            throw bad("Don gia khong duoc am");
+            throw bad("Đơn giá không được âm");
         }
         if (r.effectiveEndDate() != null && r.effectiveEndDate().isBefore(r.effectiveStartDate())) {
-            throw bad("Ngay het hieu luc phai sau ngay ap dung");
+            throw bad("Ngày hết hiệu lực phải sau ngày áp dụng");
         }
     }
 
     private void validateServiceRate(ServiceRateRequest r) {
         if (r.propertyId() == null || r.serviceName() == null || r.serviceName().isBlank()
                 || r.chargeType() == null || r.unitPrice() == null) {
-            throw bad("Can propertyId, serviceName, chargeType, unitPrice");
+            throw bad("Cần propertyId, serviceName, chargeType, unitPrice");
         }
         if (!CHARGE_TYPES.contains(r.chargeType().toUpperCase())) {
-            throw bad("chargeType phai thuoc " + CHARGE_TYPES);
+            throw bad("chargeType phải thuộc " + CHARGE_TYPES);
         }
         if (r.unitPrice().signum() < 0) {
-            throw bad("Don gia khong duoc am");
+            throw bad("Đơn giá không được âm");
         }
     }
 
     private void validateCustomRate(CustomRateRequest r) {
         if (r.roomId() == null || r.rateName() == null || r.rateName().isBlank() || r.customPrice() == null) {
-            throw bad("Can roomId, rateName, customPrice");
+            throw bad("Cần roomId, rateName, customPrice");
         }
     }
 
@@ -297,6 +297,6 @@ public class ServiceRateService {
     }
 
     private static BusinessException notFound(String what) {
-        return new BusinessException(HttpStatus.NOT_FOUND, "Khong tim thay " + what);
+        return new BusinessException(HttpStatus.NOT_FOUND, "Không tìm thấy " + what);
     }
 }

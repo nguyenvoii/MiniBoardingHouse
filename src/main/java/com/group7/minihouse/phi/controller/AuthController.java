@@ -62,63 +62,63 @@ public class AuthController {
     @PostMapping("/register")
     public ApiResponse<Void> register(@RequestBody RegisterRequest req, HttpServletRequest http) {
         registrationService.register(req, http.getRemoteAddr());
-        return ApiResponse.ok("Da gui ma xac thuc ve email, hay nhap ma de kich hoat tai khoan", null);
+        return ApiResponse.ok("Đã gửi mã xác thực về email, hãy nhập mã để kích hoạt tài khoản", null);
     }
 
     @PostMapping("/send-phone-verification")
     public ApiResponse<Void> sendPhoneVerification(@Valid @RequestBody ForgotPasswordRequest req,
                                                     @AuthenticationPrincipal AuthUser actor) {
         registrationService.requestPhoneVerification(CurrentUser.requireUserId(actor), req.identifier());
-        return ApiResponse.ok("Da gui ma xac thuc so dien thoai", null);
+        return ApiResponse.ok("Đã gửi mã xác thực số điện thoại", null);
     }
 
     @PostMapping("/verify-phone")
     public ApiResponse<Void> verifyPhone(@Valid @RequestBody VerifyPhoneRequest req, @AuthenticationPrincipal AuthUser actor,
                                          HttpServletRequest http) {
         registrationService.verifyPhone(CurrentUser.requireUserId(actor), req.phone(), req.code(), http.getRemoteAddr());
-        return ApiResponse.ok("Da xac thuc so dien thoai", null);
+        return ApiResponse.ok("Đã xác thực số điện thoại", null);
     }
 
     /** UC2: nhap ma OTP gui qua email de kich hoat tai khoan. */
     @PostMapping("/verify-email")
     public ApiResponse<Void> verifyEmail(@Valid @RequestBody VerifyEmailRequest req, HttpServletRequest http) {
         registrationService.verifyEmail(req.email(), req.code(), http.getRemoteAddr());
-        return ApiResponse.ok("Da kich hoat tai khoan, hay dang nhap", null);
+        return ApiResponse.ok("Đã kích hoạt tài khoản, hãy đăng nhập", null);
     }
 
     /** UC2: gui lai ma xac thuc. Luon tra cung 1 thong bao. */
     @PostMapping("/resend-verification")
     public ApiResponse<Void> resendVerification(@Valid @RequestBody ForgotPasswordRequest req) {
         registrationService.resendVerification(req.identifier());
-        return ApiResponse.ok("Neu tai khoan dang cho xac thuc, ma moi da duoc gui", null);
+        return ApiResponse.ok("Nếu tài khoản đang chờ xác thực, mã mới đã được gửi", null);
     }
 
     /** UC4 buoc 1: xin ma OTP dat lai mat khau. Luon tra cung 1 thong bao du tai khoan co ton tai hay khong. */
     @PostMapping("/forgot-password")
     public ApiResponse<Void> forgotPassword(@Valid @RequestBody ForgotPasswordRequest req, HttpServletRequest http) {
         recoveryService.forgotPassword(req.identifier(), http.getRemoteAddr());
-        return ApiResponse.ok("Neu tai khoan ton tai, ma xac thuc da duoc gui", null);
+        return ApiResponse.ok("Nếu tài khoản tồn tại, mã xác thực đã được gửi", null);
     }
 
     /** UC4 buoc 2: nhap ma OTP, dung thi giao dien moi cho nhap mat khau moi. */
     @PostMapping("/verify-reset-code")
     public ApiResponse<Void> verifyResetCode(@Valid @RequestBody VerifyResetCodeRequest req) {
         recoveryService.verifyCode(req.identifier(), req.code());
-        return ApiResponse.ok("Ma xac thuc dung", null);
+        return ApiResponse.ok("Mã xác thực đúng", null);
     }
 
     /** UC4 buoc 3: gui lai ma OTP + mat khau moi (ma van duoc kiem tra lai o day). */
     @PostMapping("/reset-password")
     public ApiResponse<Void> resetPassword(@Valid @RequestBody ResetPasswordRequest req, HttpServletRequest http) {
         recoveryService.resetPassword(req.identifier(), req.code(), req.newPassword(), http.getRemoteAddr());
-        return ApiResponse.ok("Da dat lai mat khau, hay dang nhap bang mat khau moi", null);
+        return ApiResponse.ok("Đã đặt lại mật khẩu, hãy đăng nhập bằng mật khẩu mới", null);
     }
 
     /** Thong tin nguoi dang dang nhap (dung de thu token). */
     @GetMapping("/me")
     public ApiResponse<AuthUser> me(@AuthenticationPrincipal AuthUser user) {
         if (user == null) {
-            throw new BusinessException(HttpStatus.UNAUTHORIZED, "Chua dang nhap hoac token het han");
+            throw new BusinessException(HttpStatus.UNAUTHORIZED, "Chưa đăng nhập hoặc phiên đã hết hạn");
         }
         return ApiResponse.ok(user);
     }

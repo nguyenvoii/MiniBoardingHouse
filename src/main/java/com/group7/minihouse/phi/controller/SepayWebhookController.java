@@ -39,12 +39,12 @@ public class SepayWebhookController {
                                      @RequestHeader(value = "Authorization", required = false) String authorization,
                                      HttpServletRequest http) {
         if (!enabled) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "Chua bat SePay (app.payment.sepay.enabled va api-key)");
+            throw new BusinessException(HttpStatus.FORBIDDEN, "Chưa bật SePay (app.payment.sepay.enabled và api-key)");
         }
         boolean ok = authorization != null
                 && MessageDigest.isEqual(authorization.trim().getBytes(StandardCharsets.UTF_8), expected);
         if (!ok) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "Sai khoa SePay");
+            throw new BusinessException(HttpStatus.FORBIDDEN, "Sai khóa SePay");
         }
         return ApiResponse.ok(service.handle(body, http.getRemoteAddr()), null);
     }

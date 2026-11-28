@@ -98,10 +98,10 @@ public class ContractService {
     public ContractResponse create(CreateContractRequest req, Integer actorId, String ip) {
         if (req == null || req.roomId() == null || req.tenantId() == null
                 || req.startDate() == null || req.endDate() == null) {
-            throw bad("Can roomId, tenantId, startDate, endDate");
+            throw bad("Cần roomId, tenantId, startDate, endDate");
         }
         if (!req.endDate().isAfter(req.startDate())) {
-            throw bad("Ngay ket thuc phai sau ngay bat dau");
+            throw bad("Ngày kết thúc phải sau ngày bắt đầu");
         }
         Room room = room(req.roomId());
         em.refresh(room, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
@@ -111,16 +111,16 @@ public class ContractService {
         }
         Tenant tenant = tenant(req.tenantId());
         if (!"VACANT".equals(room.getStatus())) {
-            throw conflict("Phong " + room.getRoomCode() + " khong o trang thai trong (VACANT)");
+            throw conflict("Phòng " + room.getRoomCode() + " không ở trạng thái trống (VACANT)");
         }
         if (repo.countLiveByRoom(room.getRoomId(), 0) > 0) {
-            throw conflict("Phong da co hop dong con hieu luc");
+            throw conflict("Phòng đã có hợp đồng còn hiệu lực");
         }
         ContractTemplate template = null;
         if (req.templateId() != null) {
             template = em.find(ContractTemplate.class, req.templateId());
             if (template == null) {
-                throw BusinessException.notFound("Mau hop dong " + req.templateId());
+                throw BusinessException.notFound("Mẫu hợp đồng " + req.templateId());
             }
             em.refresh(template, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
         }
@@ -130,7 +130,7 @@ public class ContractService {
         int dueDay = req.paymentDueDay() != null ? req.paymentDueDay() : 5;
         checkPricing(rent, deposit, cycle, dueDay);
         if (req.lateFeePerDay() != null && req.lateFeePerDay().signum() < 0) {
-            throw bad("Tien phat tre han moi ngay khong duoc am");
+            throw bad("Tiền phạt trễ hạn mỗi ngày không được âm");
         }
 
         RentalContract c = new RentalContract();
@@ -166,14 +166,14 @@ public class ContractService {
         com.group7.minihouse.shared.entity.BookingRequest b =
                 em.find(com.group7.minihouse.shared.entity.BookingRequest.class, bookingId);
         if (b == null) {
-            throw BusinessException.notFound("Yeu cau giu cho " + bookingId);
+            throw BusinessException.notFound("Yêu cầu giữ chỗ " + bookingId);
         }
         if (!"APPROVED".equals(b.getStatus())) {
-            throw conflict("Chi lap hop dong tu yeu cau giu cho da duyet (hien la " + b.getStatus() + ")");
+            throw conflict("Chỉ lập hợp đồng từ yêu cầu giữ chỗ đã duyệt (hiện là " + b.getStatus() + ")");
         }
         if (!b.getRoom().getRoomId().equals(c.getRoom().getRoomId())
                 || !b.getTenant().getTenantId().equals(c.getTenant().getTenantId())) {
-            throw bad("Yeu cau giu cho khong thuoc phong va khach da chon");
+            throw bad("Yêu cầu giữ chỗ không thuộc phòng và khách đã chọn");
         }
         if (b.getHoldUntil() != null && !b.getHoldUntil().isAfter(LocalDateTime.now())) {
             throw conflict("Yêu cầu giữ chỗ đã hết hạn");
@@ -184,7 +184,7 @@ public class ContractService {
             depositService.collect(c.getContractId(), toCollect, actorId, ip);
         }
         b.setStatus("CANCELLED");
-        b.setRejectionReason("Da lap hop dong " + c.getContractCode());
+        b.setRejectionReason("Đã lập hợp đồng " + c.getContractCode());
     }
 
     // ------------------------------------------------------------------ UC47: tra cuu
@@ -193,7 +193,7 @@ public class ContractService {
     public PageResponse<ContractResponse> search(String keyword, String status, int page, int size) {
         String st = status == null ? "" : status.trim();
         if (!st.isEmpty() && !STATUSES.contains(st)) {
-            throw bad("Trang thai khong hop le (ACTIVE, EXPIRING_SOON, EXPIRED, TERMINATED)");
+            throw bad("Trạng thái không hợp lệ (ACTIVE, EXPIRING_SOON, EXPIRED, TERMINATED)");
         }
         int s = size < 1 ? 20 : Math.min(size, 100);
         PageRequest pageable = PageRequest.of(Math.min(Math.max(page, 0), 100_000), s,
@@ -222,7 +222,7 @@ public class ContractService {
     public ContractDetail detailOfTenant(Integer id, Integer tenantId) {
         RentalContract c = load(id);
         if (!c.getTenant().getTenantId().equals(tenantId)) {
-            throw BusinessException.notFound("Hop dong " + id);
+            throw BusinessException.notFound("Hợp đồng " + id);
         }
         return detail(id);
     }
@@ -244,8 +244,8 @@ public class ContractService {
             // M2: ha coc xuong duoi so da thu thi khach mat phan chenh khi hoan coc; phai hoan phan do truoc
             BigDecimal collected = DepositLedger.collected(em, c.getContractCode());
             if (deposit.compareTo(collected) < 0) {
-                throw conflict("Da thu coc " + collected.toBigInteger() + ", khong the sua tien coc xuong "
-                        + deposit.toBigInteger() + " (thap hon so da thu). Hoan phan chenh cho khach truoc");
+                throw conflict("Đã thu cọc " + collected.toBigInteger() + ", không thể sửa tiền cọc xuống "
+                        + deposit.toBigInteger() + " (thấp hơn số đã thu). Hoàn phần chênh lệch cho khách trước");
             }
         }
         if (deposit.compareTo(c.getDepositAmount()) != 0) {
@@ -268,7 +268,7 @@ public class ContractService {
         RentalContract c = liveContract(id);
         if (req.lateFeePerDay() != null) {
             if (req.lateFeePerDay().signum() < 0) {
-                throw bad("Tien phat tre han moi ngay khong duoc am");
+                throw bad("Tiền phạt trễ hạn mỗi ngày không được âm");
             }
             record(c, "PAYMENT_TERMS", str(c.getLateFeePerDay()), req.lateFeePerDay().toPlainString(), actorId);
             c.setLateFeePerDay(req.lateFeePerDay());
@@ -284,7 +284,7 @@ public class ContractService {
     public ContractResponse updateUtilityTerms(Integer id, UtilityTermsRequest req, Integer actorId, String ip) {
         RentalContract c = liveContract(id);
         if (req == null) {
-            throw bad("Thieu dieu khoan hop dong");
+            throw bad("Thiếu điều khoản hợp đồng");
         }
         if (req.electricTerms() != null) {
             String terms = checkedUtilityTerms(req.electricTerms());
@@ -308,7 +308,7 @@ public class ContractService {
     private static String checkedUtilityTerms(String value) {
         String terms = value.trim();
         if (terms.length() > 255) {
-            throw bad("Dieu khoan khong duoc dai qua 255 ky tu");
+            throw bad("Điều khoản không được dài quá 255 ký tự");
         }
         return terms.isEmpty() ? null : terms;
     }
@@ -361,7 +361,7 @@ public class ContractService {
         User user = userRepo.findByPhoneNumber(c.getTenant().getPhoneNumber().trim()).orElse(null);
         audit(actorId, "SEND_CONTRACT", "Gui hop dong " + c.getContractCode() + " cho khach thue", ip);
         if (user == null) {
-            return "Khach thue chua co tai khoan, hay cap tai khoan (UC10) hoac dua ban PDF truc tiep";
+            return "Khách thuê chưa có tài khoản, hãy cấp tài khoản (UC10) hoặc đưa bản PDF trực tiếp";
         }
         UserNotification n = new UserNotification();
         n.setUser(user);
@@ -371,7 +371,7 @@ public class ContractService {
         n.setReferenceId(c.getContractId());
         n.setIsRead(false);
         em.persist(n);
-        return "Da gui thong bao cho khach thue";
+        return "Đã gửi thông báo cho khách thuê";
     }
 
     /** Luu anh chu ky; chi ky 1 lan (ky lai phai cham dut hop dong va lap moi). */
@@ -379,7 +379,7 @@ public class ContractService {
     public ContractResponse sign(Integer id, byte[] image, Integer actorId, String ip) {
         RentalContract c = liveContract(id);
         if (c.getDigitalSignatureUrl() != null) {
-            throw conflict("Hop dong da duoc ky");
+            throw conflict("Hợp đồng đã được ký");
         }
         String name = fileStorage.saveImage(SIGNATURE_FOLDER, image, SIGNATURE_MAX_BYTES);
         c.setDigitalSignatureUrl(SIGNATURE_URL_PREFIX + name);
@@ -392,7 +392,7 @@ public class ContractService {
     @Transactional
     public ContractResponse signByTenant(Integer id, Integer tenantId, byte[] image, Integer actorId, String ip) {
         if (!load(id).getTenant().getTenantId().equals(tenantId)) {
-            throw BusinessException.notFound("Hop dong " + id);
+            throw BusinessException.notFound("Hợp đồng " + id);
         }
         return sign(id, image, actorId, ip);
     }
@@ -403,17 +403,17 @@ public class ContractService {
     public ContractResponse extend(Integer id, ExtendRequest req, Integer actorId, String ip) {
         RentalContract c = load(id);
         if ("TERMINATED".equals(c.getStatus())) {
-            throw conflict("Hop dong da cham dut, khong gia han duoc");
+            throw conflict("Hợp đồng đã chấm dứt, không gia hạn được");
         }
         if (req == null || req.newEndDate() == null || !req.newEndDate().isAfter(c.getEndDate())) {
-            throw bad("Ngay het han moi phai sau ngay het han hien tai (" + c.getEndDate() + ")");
+            throw bad("Ngày hết hạn mới phải sau ngày hết hạn hiện tại (" + c.getEndDate() + ")");
         }
         if ("EXPIRED".equals(c.getStatus())) {
             // hop dong da het han: chi gia han lai neu phong chua cho ai thue
             String roomStatus = c.getRoom().getStatus();
             if (repo.countLiveByRoom(c.getRoom().getRoomId(), c.getContractId()) > 0
                     || !("VACANT".equals(roomStatus) || "RENTED".equals(roomStatus))) {
-                throw conflict("Phong da co hop dong khac, khong gia han duoc");
+                throw conflict("Phòng đã có hợp đồng khác, không gia hạn được");
             }
             c.getRoom().setStatus("RENTED");
         }
@@ -428,11 +428,11 @@ public class ContractService {
     public ContractResponse adjust(Integer id, AdjustRequest req, Integer actorId, String ip) {
         RentalContract c = liveContract(id);
         if (req == null || req.monthlyRentPrice() == null && req.tenantId() == null) {
-            throw bad("Can monthlyRentPrice hoac tenantId");
+            throw bad("Cần monthlyRentPrice hoặc tenantId");
         }
         if (req.monthlyRentPrice() != null) {
             if (req.monthlyRentPrice().signum() <= 0) {
-                throw bad("Gia thue phai lon hon 0");
+                throw bad("Giá thuê phải lớn hơn 0");
             }
             if (req.monthlyRentPrice().compareTo(c.getMonthlyRentPrice()) != 0) {
                 record(c, "PRICE_CHANGE", c.getMonthlyRentPrice().toPlainString(),
@@ -457,11 +457,11 @@ public class ContractService {
     public ContractResponse transferRoom(Integer id, TransferRequest req, Integer actorId, String ip) {
         RentalContract c = liveContract(id);
         if (req == null || req.newRoomId() == null) {
-            throw bad("Can newRoomId");
+            throw bad("Cần newRoomId");
         }
         Room oldRoom = c.getRoom();
         if (oldRoom.getRoomId().equals(req.newRoomId())) {
-            throw bad("Phong moi trung phong hien tai");
+            throw bad("Phòng mới trùng phòng hiện tại");
         }
         Room newRoom = room(req.newRoomId());
         em.refresh(newRoom, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
@@ -469,11 +469,11 @@ public class ContractService {
             throw conflict("Phòng đang được giữ chỗ");
         }
         if (!"VACANT".equals(newRoom.getStatus()) || repo.countLiveByRoom(newRoom.getRoomId(), 0) > 0) {
-            throw conflict("Phong " + newRoom.getRoomCode() + " khong trong");
+            throw conflict("Phòng " + newRoom.getRoomCode() + " không trống");
         }
         boolean closing = req.periodId() != null || req.closingElectric() != null || req.closingWater() != null;
         if (closing && (req.periodId() == null || req.closingElectric() == null || req.closingWater() == null)) {
-            throw bad("Chot chi so can du periodId, closingElectric, closingWater");
+            throw bad("Chốt chỉ số cần đủ periodId, closingElectric, closingWater");
         }
         if (closing) {
             var reused = meterService.closeExistingRegularReading(req.periodId(), oldRoom.getRoomId(),
@@ -507,14 +507,14 @@ public class ContractService {
     public ContractResponse terminate(Integer id, TerminateRequest req, Integer actorId, String ip) {
         RentalContract c = load(id);
         if (!OCCUPYING.contains(c.getStatus())) {
-            throw conflict("Hop dong o trang thai " + c.getStatus() + ", khong con hieu luc de thao tac");
+            throw conflict("Hợp đồng ở trạng thái " + c.getStatus() + ", không còn hiệu lực để thao tác");
         }
         String reason = req == null || req.reason() == null ? "" : req.reason().trim();
         if (reason.length() < 10) {
-            throw bad("Can ly do cham dut hop dong (it nhat 10 ky tu)");
+            throw bad("Cần lý do chấm dứt hợp đồng (ít nhất 10 ký tự)");
         }
         if (reason.length() > 255) {
-            throw bad("Ly do toi da 255 ky tu");
+            throw bad("Lý do tối đa 255 ký tự");
         }
         // Chấm dứt sớm là việc hiếm và không hoàn tác: phải gõ lại đúng mã phòng, và không được còn nợ.
         // Khách trả phòng bình thường thì dùng quy trình Trả phòng (kiểm tra phòng, quyết toán, hoàn cọc).
@@ -532,13 +532,13 @@ public class ContractService {
         if (!em.createQuery("select r.checkoutId from CheckoutRequest r where r.contract.contractId = :id "
                         + "and r.status in ('PENDING', 'INSPECTING')").setParameter("id", id)
                 .getResultList().isEmpty()) {
-            throw conflict("Hop dong dang co yeu cau tra phong chua xu ly: hoan tat thanh ly o muc Tra phong hoac huy yeu cau do truoc");
+            throw conflict("Hợp đồng đang có yêu cầu trả phòng chưa xử lý: hoàn tất thanh lý ở mục Trả phòng hoặc hủy yêu cầu đó trước");
         }
         Integer finalE = req.finalElectricMeter();
         Integer finalW = req.finalWaterMeter();
         if (finalE != null || finalW != null) {
             if (finalE == null || finalW == null || finalE < 0 || finalW < 0) {
-                throw bad("Chi so dien va nuoc cuoi phai di cung nhau va khong am");
+                throw bad("Chỉ số điện và nước cuối phải đi cùng nhau và không âm");
             }
             meterService.validateFinalReading(c.getRoom().getRoomId(), LocalDate.now(), finalE, finalW);
         }
@@ -551,14 +551,14 @@ public class ContractService {
     // ------------------------------------------------------------------ noi bo
 
     private RentalContract load(Integer id) {
-        return repo.findById(id).orElseThrow(() -> BusinessException.notFound("Hop dong " + id));
+        return repo.findById(id).orElseThrow(() -> BusinessException.notFound("Hợp đồng " + id));
     }
 
     /** Hop dong con hieu luc (ACTIVE/EXPIRING_SOON); het han hoac da cham dut thi khong sua duoc. */
     private RentalContract liveContract(Integer id) {
         RentalContract c = load(id);
         if (!LIVE.contains(c.getStatus())) {
-            throw conflict("Hop dong o trang thai " + c.getStatus() + ", khong con hieu luc de thao tac");
+            throw conflict("Hợp đồng ở trạng thái " + c.getStatus() + ", không còn hiệu lực để thao tác");
         }
         return c;
     }
@@ -566,13 +566,13 @@ public class ContractService {
     private Room room(Integer id) {
         Room r = em.find(Room.class, id);
         if (r == null) {
-            throw BusinessException.notFound("Phong " + id);
+            throw BusinessException.notFound("Phòng " + id);
         }
         return r;
     }
 
     private Tenant tenant(Integer id) {
-        return tenantRepo.findById(id).orElseThrow(() -> BusinessException.notFound("Khach thue " + id));
+        return tenantRepo.findById(id).orElseThrow(() -> BusinessException.notFound("Khách thuê " + id));
     }
 
     private void record(RentalContract c, String type, String oldValue, String newValue, Integer actorId) {
@@ -599,16 +599,16 @@ public class ContractService {
 
     private static void checkPricing(BigDecimal rent, BigDecimal deposit, int cycle, int dueDay) {
         if (rent == null || rent.signum() <= 0) {
-            throw bad("Gia thue phai lon hon 0");
+            throw bad("Giá thuê phải lớn hơn 0");
         }
         if (deposit == null || deposit.signum() < 0) {
-            throw bad("Tien coc khong duoc am");
+            throw bad("Tiền cọc không được âm");
         }
         if (cycle < 1 || cycle > 12) {
-            throw bad("Chu ky thanh toan tu 1 den 12 thang");
+            throw bad("Chu kỳ thanh toán từ 1 đến 12 tháng");
         }
         if (dueDay < 1 || dueDay > 28) {
-            throw bad("Ngay han thanh toan tu 1 den 28");
+            throw bad("Ngày hạn thanh toán từ 1 đến 28");
         }
     }
 

@@ -49,12 +49,12 @@ public class AuthService {
                 .orElse(null);
         if (user == null) {
             recordFailure(key);
-            throw new BusinessException(HttpStatus.UNAUTHORIZED, "Sai tai khoan hoac mat khau");
+            throw new BusinessException(HttpStatus.UNAUTHORIZED, "Sai tài khoản hoặc mật khẩu");
         }
         FAILURES.remove(key);
 
         if (!"ACTIVE".equals(user.getStatus())) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "Tai khoan khong hoat dong (bi khoa hoac ngung)");
+            throw new BusinessException(HttpStatus.FORBIDDEN, "Tài khoản không hoạt động (bị khóa hoặc ngừng)");
         }
 
         List<String> roles = userRoleRepository.findRoleCodesByUserId(user.getUserId());
@@ -82,7 +82,7 @@ public class AuthService {
         long[] f = FAILURES.get(key);
         if (f != null && f[1] > System.currentTimeMillis()) {
             throw new BusinessException(HttpStatus.TOO_MANY_REQUESTS,
-                    "Dang nhap sai qua nhieu lan, vui long thu lai sau " + LOCK_MINUTES + " phut");
+                    "Đăng nhập sai quá nhiều lần, vui lòng thử lại sau " + LOCK_MINUTES + " phút");
         }
     }
 
@@ -116,6 +116,6 @@ public class AuthService {
 
     private static BusinessException noTenantProfile() {
         return new BusinessException(HttpStatus.CONFLICT,
-                "Tai khoan chua lien ket ho so khach thue, lien he chu tro");
+                "Tài khoản chưa liên kết hồ sơ khách thuê, liên hệ chủ trọ");
     }
 }

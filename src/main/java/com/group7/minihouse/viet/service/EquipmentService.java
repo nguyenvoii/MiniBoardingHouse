@@ -58,26 +58,26 @@ public class EquipmentService {
     @Transactional
     public EquipmentResponse create(CreateEquipmentRequest req, Integer tenantId) {
         if (req == null) {
-            throw new BusinessException("Thieu du lieu");
+            throw new BusinessException("Thiếu dữ liệu");
         }
         String name = VietSupport.requireText(req.equipmentName(), "ten thiet bi");
         if (name.length() > 100) {
-            throw new BusinessException("Ten thiet bi toi da 100 ky tu");
+            throw new BusinessException("Tên thiết bị tối đa 100 ký tự");
         }
         String type = VietSupport.enumOrNull(req.requestType(), TYPES, "requestType");
         if (type == null) {
-            throw new BusinessException("Thieu requestType (INSTALL hoac EXTRA_USAGE)");
+            throw new BusinessException("Thiếu requestType (INSTALL hoặc EXTRA_USAGE)");
         }
         BigDecimal fee = req.estimatedMonthlyFee() == null ? BigDecimal.ZERO : req.estimatedMonthlyFee();
         if (fee.signum() < 0) {
-            throw new BusinessException("Phi du kien khong duoc am");
+            throw new BusinessException("Phí dự kiến không được âm");
         }
         IncidentCategory category = null;
         if (req.categoryId() != null) {
             category = categoryRepository.findById(req.categoryId())
-                    .orElseThrow(() -> BusinessException.notFound("Nhom thiet bi"));
+                    .orElseThrow(() -> BusinessException.notFound("Nhóm thiết bị"));
             if (!"EQUIPMENT".equals(category.getCategoryType()) || !Boolean.TRUE.equals(category.getIsActive())) {
-                throw new BusinessException("Nhom thiet bi khong hop le hoac da tat");
+                throw new BusinessException("Nhóm thiết bị không hợp lệ hoặc đã tắt");
             }
         }
         Room room = tenantRoomResolver.resolveRoom(tenantId, req.roomId());
@@ -111,10 +111,10 @@ public class EquipmentService {
     public EquipmentResponse review(Integer id, ReviewRequest req, Integer actorId) {
         RoomEquipmentRequest r = findForUpdate(id);
         if (!"PENDING".equals(r.getStatus())) {
-            throw new BusinessException("Chi duyet duoc yeu cau dang PENDING");
+            throw new BusinessException("Chỉ duyệt được yêu cầu đang PENDING");
         }
         if (req == null || req.approve() == null) {
-            throw new BusinessException("Thieu approve (true/false)");
+            throw new BusinessException("Thiếu approve (true/false)");
         }
         r.setStatus(req.approve() ? "APPROVED" : "REJECTED");
         r.setReviewedBy(actorResolver.require(actorId));
@@ -127,19 +127,19 @@ public class EquipmentService {
     public AddonFeeResponse install(Integer id, InstallRequest req) {
         RoomEquipmentRequest r = findForUpdate(id);
         if (!"APPROVED".equals(r.getStatus())) {
-            throw new BusinessException("Chi lap dat duoc yeu cau da duyet (APPROVED)");
+            throw new BusinessException("Chỉ lắp đặt được yêu cầu đã duyệt (APPROVED)");
         }
         BigDecimal amount = req != null && req.amount() != null ? req.amount() : VietSupport.nz(r.getEstimatedMonthlyFee());
         if (amount.signum() < 0) {
-            throw new BusinessException("Phu phi khong duoc am");
+            throw new BusinessException("Phụ phí không được âm");
         }
         int cycle = req != null && req.billingCycleMonths() != null ? req.billingCycleMonths() : 1;
         if (cycle < 1) {
-            throw new BusinessException("Chu ky tinh phi toi thieu 1 thang");
+            throw new BusinessException("Chu kỳ tính phí tối thiểu 1 tháng");
         }
         String feeName = req == null ? null : VietSupport.blankToNull(req.feeName());
         if (feeName != null && feeName.length() > 100) {
-            throw new BusinessException("Ten phu phi toi da 100 ky tu");
+            throw new BusinessException("Tên phụ phí tối đa 100 ký tự");
         }
         RoomAddonFee fee = new RoomAddonFee();
         fee.setRoom(r.getRoom());
@@ -160,7 +160,7 @@ public class EquipmentService {
     public EquipmentResponse remove(Integer id) {
         RoomEquipmentRequest r = findForUpdate(id);
         if (!"INSTALLED".equals(r.getStatus())) {
-            throw new BusinessException("Chi thao duoc thiet bi dang INSTALLED");
+            throw new BusinessException("Chỉ tháo được thiết bị đang INSTALLED");
         }
         for (RoomAddonFee f : feeRepository.findByEquipmentRequest_EquipmentRequestId(id)) {
             if (Boolean.TRUE.equals(f.getIsActive())) {
@@ -179,6 +179,6 @@ public class EquipmentService {
     }
 
     private RoomEquipmentRequest findForUpdate(Integer id) {
-        return requestRepository.findForUpdate(id).orElseThrow(() -> BusinessException.notFound("Yeu cau thiet bi"));
+        return requestRepository.findForUpdate(id).orElseThrow(() -> BusinessException.notFound("Yêu cầu thiết bị"));
     }
 }

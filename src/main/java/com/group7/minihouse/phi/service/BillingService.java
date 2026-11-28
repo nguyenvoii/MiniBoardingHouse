@@ -97,16 +97,16 @@ public class BillingService {
     @Transactional
     public PeriodCreated createPeriod(CreatePeriodRequest req, Integer actorId, String ip) {
         if (req == null || req.propertyId() == null || req.monthYear() == null) {
-            throw bad("Can propertyId va monthYear (YYYY-MM)");
+            throw bad("Cần propertyId và monthYear (YYYY-MM)");
         }
         YearMonth ym = parseMonth(req.monthYear());
         Property property = em.find(Property.class, req.propertyId());
         if (property == null) {
-            throw BusinessException.notFound("Khu tro " + req.propertyId());
+            throw BusinessException.notFound("Khu trọ " + req.propertyId());
         }
         String key = ym.toString();
         if (periodRepo.existsByPropertyPropertyIdAndMonthYear(req.propertyId(), key)) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Khu tro da co ky tinh tien thang " + key);
+            throw new BusinessException(HttpStatus.CONFLICT, "Khu trọ đã có kỳ tính tiền tháng " + key);
         }
         MonthlyBillingPeriod p = new MonthlyBillingPeriod();
         p.setProperty(property);
@@ -153,11 +153,11 @@ public class BillingService {
         YearMonth ym = YearMonth.parse(p.getMonthYear());
         List<Issue> issues = new ArrayList<>();
         if (ratePlan(ym) == null) {
-            issues.add(new Issue(null, "Chua co don gia dien nuoc hieu luc trong thang " + p.getMonthYear()));
+            issues.add(new Issue(null, "Chưa có đơn giá điện nước hiệu lực trong tháng " + p.getMonthYear()));
         }
         var readingPeriod = readingPeriod(p.getProperty().getPropertyId(), ym);
         if (readingPeriod == null) {
-            issues.add(new Issue(null, "Chua co ky ghi chi so dien nuoc cho thang " + p.getMonthYear()));
+            issues.add(new Issue(null, "Chưa có kỳ ghi chỉ số điện nước cho tháng " + p.getMonthYear()));
         }
         addContractWarnings(p, ym, issues);
         for (RentalContract c : eligibleContracts(p, ym)) {
@@ -166,9 +166,9 @@ public class BillingService {
             }
             MeterReading m = reading(c.getRoom().getRoomId(), readingPeriod.getPeriodId());
             if (!readingAppliesTo(m, c)) {
-                issues.add(new Issue(c.getRoom().getRoomCode(), "Thieu chi so dien nuoc"));
+                issues.add(new Issue(c.getRoom().getRoomCode(), "Thiếu chỉ số điện nước"));
             } else if (!Boolean.TRUE.equals(m.getIsVerified())) {
-                issues.add(new Issue(c.getRoom().getRoomCode(), "Chi so chua xac nhan"));
+                issues.add(new Issue(c.getRoom().getRoomCode(), "Chỉ số chưa xác nhận"));
             }
         }
         return issues;
@@ -210,8 +210,8 @@ public class BillingService {
                 + "where i.calculatedFee.billingPeriod.billingPeriodId = :p", Long.class)
                 .setParameter("p", periodId).getSingleResult();
         if (invoiced > 0) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Ky " + p.getMonthYear() + " da co hoa don (ke ca hoa don "
-                    + "da huy) nen khong tinh lai toan ky duoc. Sua tung khoan trong bang tinh cua phong can sua roi duyet lai");
+            throw new BusinessException(HttpStatus.CONFLICT, "Kỳ " + p.getMonthYear() + " đã có hóa đơn (kể cả hóa đơn "
+                    + "đã hủy) nên không tính lại toàn kỳ được. Sửa từng khoản trong bảng tính của phòng cần sửa rồi duyệt lại");
         }
         YearMonth ym = YearMonth.parse(p.getMonthYear());
         Integer propertyId = p.getProperty().getPropertyId();
@@ -237,7 +237,7 @@ public class BillingService {
 
         ServiceRatePlan plan = ratePlan(ym);
         if (plan == null) {
-            warnings.add(new Issue(null, "Chua co don gia dien nuoc hieu luc, tien dien nuoc se la 0"));
+            warnings.add(new Issue(null, "Chưa có đơn giá điện nước hiệu lực, tiền điện nước sẽ là 0"));
         }
         var readingPeriod = readingPeriod(propertyId, ym);
         List<PropertyServiceRate> services = em.createQuery(
@@ -287,9 +287,9 @@ public class BillingService {
                 drafts.add(d);
             }
             if (shared) {
-                warnings.add(new Issue(list.get(0).getRoom().getRoomCode(), "Phong doi khach giua thang (" + list.size()
-                        + " hop dong): tien phong va dich vu tinh theo so ngay cua tung khach, dien nuoc tinh cho khach "
-                        + "sau cung; chinh tay (them/sua khoan) neu can chia dien nuoc"));
+                warnings.add(new Issue(list.get(0).getRoom().getRoomCode(), "Phòng đổi khách giữa tháng (" + list.size()
+                        + " hợp đồng): tiền phòng và dịch vụ tính theo số ngày của từng khách, điện nước tính cho khách "
+                        + "sau cùng; chỉnh tay (thêm/sửa khoản) nếu cần chia điện nước"));
             }
         }
 
@@ -357,8 +357,8 @@ public class BillingService {
             }
         }
         for (Map.Entry<Integer, List<Line>> lost : manual.entrySet()) {
-            warnings.add(new Issue(null, "Co " + lost.getValue().size() + " khoan nhap tay cua phong khong con trong ky "
-                    + "(het hop dong trong thang) nen bi bo: " + lost.getValue().stream()
+            warnings.add(new Issue(null, "Co " + lost.getValue().size() + " khoản nhập tay của phòng không còn trong kỳ "
+                    + "(hết hợp đồng trong tháng) nên bị bỏ: " + lost.getValue().stream()
                     .map(l -> l.name().substring(MANUAL.length())).toList()));
         }
         MonthlyBillingPeriod periodRef = em.getReference(MonthlyBillingPeriod.class, periodId);
@@ -392,26 +392,26 @@ public class BillingService {
     @Transactional
     public FeeResponse updateItem(Integer detailId, UpdateItemRequest req, Integer actorId, String ip) {
         FeeItemDetail item = itemRepo.findById(detailId)
-                .orElseThrow(() -> BusinessException.notFound("Dong chi tiet " + detailId));
+                .orElseThrow(() -> BusinessException.notFound("Dòng chi tiết " + detailId));
         CalculatedMonthlyFee fee = item.getCalculatedFee();
         requireDraft(fee.getBillingPeriod());
         if (req == null || req.quantity() == null && req.unitPrice() == null) {
-            throw bad("Can quantity hoac unitPrice");
+            throw bad("Cần quantity hoặc unitPrice");
         }
         BigDecimal q = req.quantity() != null ? req.quantity() : item.getQuantity();
         BigDecimal u = req.unitPrice() != null ? req.unitPrice() : item.getUnitPrice();
         if (q.signum() < 0) {
-            throw bad("So luong khong duoc am");
+            throw bad("Số lượng không được âm");
         }
         if (item.getItemName().startsWith(MANUAL)) {
             // khoan nhap tay: don gia duong = phu thu, am = giam tru (cho sua so luong / don gia, khong duoc bang 0)
             if (u.signum() == 0) {
-                throw bad("Don gia phai khac 0 (so am la giam tru)");
+                throw bad("Đơn giá phải khác 0 (số âm là giảm trừ)");
             }
         } else {
             boolean credit = item.getItemName().startsWith(ITEM_DISCOUNT);
             if (!credit && u.signum() < 0 || credit && u.signum() > 0) {
-                throw bad(credit ? "Dong giam tru phai co don gia am" : "Don gia khong duoc am");
+                throw bad(credit ? "Dòng giảm trừ phải có đơn giá âm" : "Đơn giá không được âm");
             }
         }
         item.setQuantity(q);
@@ -454,14 +454,14 @@ public class BillingService {
         requireDraft(p);
         List<CalculatedMonthlyFee> fees = feeRepo.findByPeriod(periodId);
         if (fees.isEmpty()) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Ky chua co bang tinh nao, hay tinh tien truoc khi duyet");
+            throw new BusinessException(HttpStatus.CONFLICT, "Kỳ chưa có bảng tính nào, hãy tính tiền trước khi duyệt");
         }
         if (!force) {
             List<String> missing = roomsMissingReading(p, fees);
             if (!missing.isEmpty()) {
-                throw new BusinessException(HttpStatus.CONFLICT, "Con " + missing.size() + " phong thieu chi so dien nuoc "
-                        + missing + ": dien nuoc dang bang 0. Ghi chi so roi tinh tien lai, hoac duyet kem force=true "
-                        + "neu dung la khong tinh dien nuoc");
+                throw new BusinessException(HttpStatus.CONFLICT, "Còn " + missing.size() + " phòng thiếu chỉ số điện nước "
+                        + missing + ": điện nước đang bằng 0. Ghi chỉ số rồi tính tiền lại, hoặc duyệt kèm force=true "
+                        + "nếu đúng là không tính điện nước");
             }
         }
         p.setStatus("APPROVED");
@@ -482,13 +482,13 @@ public class BillingService {
     public PeriodResponse reopen(Integer periodId, Integer actorId, String ip) {
         MonthlyBillingPeriod p = period(periodId);
         if (!"APPROVED".equals(p.getStatus())) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Chi mo lai duoc ky da duyet (hien la " + p.getStatus() + ")");
+            throw new BusinessException(HttpStatus.CONFLICT, "Chỉ mở lại được kỳ đã duyệt (hiện là " + p.getStatus() + ")");
         }
         long active = em.createQuery("select count(i) from Invoice i where i.calculatedFee.billingPeriod.billingPeriodId = :p "
                 + "and i.paymentStatus <> 'CANCELLED'", Long.class).setParameter("p", periodId).getSingleResult();
         if (active > 0) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Ky con " + active
-                    + " hoa don dang hieu luc, hay huy cac hoa don do truoc khi mo lai ky");
+            throw new BusinessException(HttpStatus.CONFLICT, "Kỳ còn " + active
+                    + " hóa đơn đang hiệu lực, hãy hủy các hóa đơn đó trước khi mở lại kỳ");
         }
         p.setStatus("DRAFT");
         var reading = readingPeriod(p.getProperty().getPropertyId(), YearMonth.parse(p.getMonthYear()));
@@ -523,17 +523,17 @@ public class BillingService {
         CalculatedMonthlyFee fee = fee(feeId);
         requireDraft(fee.getBillingPeriod());
         if (req == null || req.itemName() == null || req.itemName().isBlank()) {
-            throw bad("Can ten khoan");
+            throw bad("Cần tên khoản");
         }
         String name = req.itemName().trim();
         if (name.length() > 90) {
-            throw bad("Ten khoan toi da 90 ky tu");
+            throw bad("Tên khoản tối đa 90 ký tự");
         }
         if (req.quantity() == null || req.quantity().signum() <= 0) {
-            throw bad("So luong phai lon hon 0");
+            throw bad("Số lượng phải lớn hơn 0");
         }
         if (req.unitPrice() == null || req.unitPrice().signum() == 0) {
-            throw bad("Don gia phai khac 0 (so am la giam tru)");
+            throw bad("Đơn giá phải khác 0 (số âm là giảm trừ)");
         }
         FeeItemDetail i = new FeeItemDetail();
         i.setCalculatedFee(fee);
@@ -550,7 +550,7 @@ public class BillingService {
     /** Xoa 1 dong (ke ca dong tu tinh; tinh lai ky thi dong tu tinh se hien lai). */
     @Transactional
     public FeeResponse deleteItem(Integer detailId, Integer actorId, String ip) {
-        FeeItemDetail item = itemRepo.findById(detailId).orElseThrow(() -> BusinessException.notFound("Dong chi tiet " + detailId));
+        FeeItemDetail item = itemRepo.findById(detailId).orElseThrow(() -> BusinessException.notFound("Dòng chi tiết " + detailId));
         CalculatedMonthlyFee fee = item.getCalculatedFee();
         requireDraft(fee.getBillingPeriod());
         String name = item.getItemName();
@@ -566,7 +566,7 @@ public class BillingService {
     @Transactional(readOnly = true)
     public ServicePreview servicePreview(String chargeType, BigDecimal unitPrice) {
         if (chargeType == null || unitPrice == null || unitPrice.signum() < 0) {
-            throw bad("Can chargeType va unitPrice");
+            throw bad("Cần chargeType và unitPrice");
         }
         List<RentalContract> live = em.createQuery("select c from RentalContract c where c.status in ('ACTIVE', 'EXPIRING_SOON')",
                 RentalContract.class).getResultList();
@@ -578,7 +578,7 @@ public class BillingService {
             case "PER_VEHICLE" -> units = live.stream().map(c -> c.getTenant().getTenantId()).distinct().mapToLong(t ->
                     em.createQuery("select count(v) from TenantVehicle v where v.tenant.tenantId = :x and v.isActive = true", Long.class)
                             .setParameter("x", t).getSingleResult()).sum();
-            default -> throw bad("chargeType khong ho tro tinh tu dong: " + chargeType);
+            default -> throw bad("chargeType không hỗ trợ tính tự động: " + chargeType);
         }
         return new ServicePreview(rooms, units, unitPrice.multiply(BigDecimal.valueOf(units)));
     }
@@ -672,11 +672,11 @@ public class BillingService {
 
     private void addMeter(Draft d, String room, ServiceRatePlan plan, MeterReading m, List<Issue> warnings) {
         if (m == null) {
-            warnings.add(new Issue(room, "Thieu chi so dien nuoc, tien dien nuoc = 0"));
+            warnings.add(new Issue(room, "Thiếu chỉ số điện nước, tiền điện nước = 0"));
             return;
         }
         if (!Boolean.TRUE.equals(m.getIsVerified())) {
-            warnings.add(new Issue(room, "Chi so dien nuoc chua xac nhan"));
+            warnings.add(new Issue(room, "Chỉ số điện nước chưa xác nhận"));
         }
         if (plan == null) {
             return;
@@ -782,11 +782,11 @@ public class BillingService {
         for (RentalContract c : candidateContracts(p, ym)) {
             String room = c.getRoom().getRoomCode();
             if (notHandedOver(c)) {
-                warnings.add(new Issue(room, "Hop dong " + c.getContractCode() + " chua nhan phong (chua thu coc, chua co "
-                        + "bien ban nhan phong) nen chua tinh tien; hoan tat nhan phong hoac chap dut hop dong"));
+                warnings.add(new Issue(room, "Hợp đồng " + c.getContractCode() + " chưa nhận phòng (chưa thu cọc, chưa có "
+                        + "biên bản nhận phòng) nên chưa tính tiền; hoàn tất nhận phòng hoặc chấm dứt hợp đồng"));
             } else if (!"TERMINATED".equals(c.getStatus()) && c.getEndDate().isBefore(today)) {
-                warnings.add(new Issue(room, "Hop dong " + c.getContractCode() + " da het han ngay " + c.getEndDate()
-                        + " nhung chua tra phong/cham dut: van tinh tien den hom nay, hay gia han hoac lam thu tuc tra phong"));
+                warnings.add(new Issue(room, "Hợp đồng " + c.getContractCode() + " đã hết hạn ngày " + c.getEndDate()
+                        + " nhưng chưa trả phòng/chấm dứt: vẫn tính tiền đến hôm nay, hãy gia hạn hoặc làm thủ tục trả phòng"));
             }
         }
     }
@@ -864,17 +864,17 @@ public class BillingService {
     }
 
     private MonthlyBillingPeriod period(Integer id) {
-        return periodRepo.findById(id).orElseThrow(() -> BusinessException.notFound("Ky tinh tien " + id));
+        return periodRepo.findById(id).orElseThrow(() -> BusinessException.notFound("Kỳ tính tiền " + id));
     }
 
     private CalculatedMonthlyFee fee(Integer id) {
-        return feeRepo.findById(id).orElseThrow(() -> BusinessException.notFound("Bang tinh tien " + id));
+        return feeRepo.findById(id).orElseThrow(() -> BusinessException.notFound("Bảng tính tiền " + id));
     }
 
     private static void requireDraft(MonthlyBillingPeriod p) {
         if (!"DRAFT".equals(p.getStatus())) {
             throw new BusinessException(HttpStatus.CONFLICT,
-                    "Ky " + p.getMonthYear() + " o trang thai " + p.getStatus() + ", chi sua duoc khi DRAFT");
+                    "Kỳ " + p.getMonthYear() + " ở trạng thái " + p.getStatus() + ", chỉ sửa được khi DRAFT");
         }
     }
 
@@ -882,7 +882,7 @@ public class BillingService {
         try {
             return YearMonth.parse(s.trim());
         } catch (DateTimeParseException e) {
-            throw bad("monthYear phai dang YYYY-MM (vd 2026-11)");
+            throw bad("monthYear phải dạng YYYY-MM (vd 2026-11)");
         }
     }
 

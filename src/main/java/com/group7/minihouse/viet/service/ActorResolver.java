@@ -22,14 +22,14 @@ public class ActorResolver {
         if (actorId != null) {
             User user = em.find(User.class, actorId);
             if (user == null) {
-                throw BusinessException.notFound("Nguoi dung");
+                throw BusinessException.notFound("Người dùng");
             }
             return user;
         }
         List<User> any = em.createQuery("select u from User u order by u.userId", User.class)
                 .setMaxResults(1).getResultList();
         if (any.isEmpty()) {
-            throw new BusinessException("Chua co nguoi dung nao trong he thong");
+            throw new BusinessException("Chưa có người dùng nào trong hệ thống");
         }
         return any.get(0);
     }

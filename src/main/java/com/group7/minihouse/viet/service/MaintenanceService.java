@@ -79,13 +79,13 @@ public class MaintenanceService {
     @Transactional
     public MaintenanceResponse create(CreateMaintenanceRequest req, Integer tenantFromToken, byte[] photo) {
         if (req == null) {
-            throw new BusinessException("Thieu noi dung yeu cau");
+            throw new BusinessException("Thiếu nội dung yêu cầu");
         }
         String category = VietSupport.requireText(req.category(), "nhom su co (category)").toUpperCase();
         String description = VietSupport.requireText(req.description(), "mo ta su co");
         String priority = VietSupport.enumOrNull(req.priority(), PRIORITIES, "priority");
         if (categoryRepository.findActive(category, "INCIDENT").isEmpty()) {
-            throw new BusinessException("Nhom su co \"" + category + "\" khong ton tai hoac da tat");
+            throw new BusinessException("Nhóm sự cố \"" + category + "\" không tồn tại hoặc đã tắt");
         }
         Room room;
         Tenant tenant = null;
@@ -94,16 +94,16 @@ public class MaintenanceService {
             tenant = em.getReference(Tenant.class, tenantFromToken);
         } else {
             if (req.roomId() == null) {
-                throw new BusinessException("Thieu roomId");
+                throw new BusinessException("Thiếu roomId");
             }
             room = em.find(Room.class, req.roomId());
             if (room == null) {
-                throw BusinessException.notFound("Phong");
+                throw BusinessException.notFound("Phòng");
             }
             if (req.tenantId() != null) {
                 tenant = em.find(Tenant.class, req.tenantId());
                 if (tenant == null) {
-                    throw BusinessException.notFound("Khach thue");
+                    throw BusinessException.notFound("Khách thuê");
                 }
             }
         }
@@ -125,7 +125,7 @@ public class MaintenanceService {
             });
             photoUrl = PHOTO_ROUTE + "/" + name;
         } else if (photoUrl != null && photoUrl.regionMatches(true, 0, PHOTO_ROUTE + "/", 0, PHOTO_ROUTE.length() + 1)) {
-            throw new BusinessException("Hay tai tep anh len cung yeu cau");
+            throw new BusinessException("Hãy tải tệp ảnh lên cùng yêu cầu");
         }
         r.setIssuePhotoUrl(photoUrl);
         r.setPriority(priority == null ? "NORMAL" : priority);
@@ -137,11 +137,11 @@ public class MaintenanceService {
     @Transactional(readOnly = true)
     public Path photo(String name, Integer tenantId) {
         MaintenanceRequest request = requestRepository.findFirstByIssuePhotoUrl(PHOTO_ROUTE + "/" + name)
-                .orElseThrow(() -> BusinessException.notFound("Anh su co"));
+                .orElseThrow(() -> BusinessException.notFound("Ảnh sự cố"));
         if (tenantId != null && (request.getTenant() == null || !tenantId.equals(request.getTenant().getTenantId()))) {
-            throw BusinessException.notFound("Anh su co");
+            throw BusinessException.notFound("Ảnh sự cố");
         }
-        return storage.find(PHOTO_FOLDER, name).orElseThrow(() -> BusinessException.notFound("Anh su co"));
+        return storage.find(PHOTO_FOLDER, name).orElseThrow(() -> BusinessException.notFound("Ảnh sự cố"));
     }
 
     @Transactional(readOnly = true)
@@ -173,14 +173,14 @@ public class MaintenanceService {
     public MaintenanceResponse assign(Integer id, AssignRequest req) {
         MaintenanceRequest r = find(id);
         if (Set.of("RESOLVED", "CLOSED").contains(r.getStatus())) {
-            throw new BusinessException("Su co da xu ly xong, khong the phan cong");
+            throw new BusinessException("Sự cố đã xử lý xong, không thể phân công");
         }
         if (req == null || req.staffId() == null) {
-            throw new BusinessException("Thieu staffId");
+            throw new BusinessException("Thiếu staffId");
         }
         User staff = em.find(User.class, req.staffId());
         if (staff == null) {
-            throw BusinessException.notFound("Nhan vien");
+            throw BusinessException.notFound("Nhân viên");
         }
         // L12: chi phan cong cho nhan vien dang hoat dong (khong phai nguoi thue, khong phai tai khoan da khoa)
         if (!"ACTIVE".equals(staff.getStatus()) || em.createQuery("select ur.role.roleCode from UserRole ur "
@@ -205,7 +205,7 @@ public class MaintenanceService {
     public MaintenanceResponse start(Integer id) {
         MaintenanceRequest r = find(id);
         if (!"ASSIGNED".equals(r.getStatus())) {
-            throw new BusinessException("Chi bat dau xu ly duoc su co da phan cong (ASSIGNED)");
+            throw new BusinessException("Chỉ bắt đầu xử lý được sự cố đã phân công (ASSIGNED)");
         }
         r.setStatus("IN_PROGRESS");
         return MaintenanceResponse.from(requestRepository.save(r), latestLog(id));
@@ -216,14 +216,14 @@ public class MaintenanceService {
     public MaintenanceResponse resolve(Integer id, ResolveRequest req) {
         MaintenanceRequest r = find(id);
         if (!Set.of("ASSIGNED", "IN_PROGRESS").contains(r.getStatus())) {
-            throw new BusinessException("Chi hoan tat duoc su co dang ASSIGNED hoac IN_PROGRESS");
+            throw new BusinessException("Chỉ hoàn tất được sự cố đang ASSIGNED hoặc IN_PROGRESS");
         }
         BigDecimal cost = req == null || req.repairCost() == null ? BigDecimal.ZERO : req.repairCost();
         if (cost.signum() < 0) {
-            throw new BusinessException("Chi phi sua chua khong duoc am");
+            throw new BusinessException("Chi phí sửa chữa không được âm");
         }
         MaintenanceLog log = logRepository.findFirstByRequest_RequestIdOrderByMaintenanceLogIdDesc(id)
-                .orElseThrow(() -> new BusinessException("Chua phan cong nhan vien xu ly"));
+                .orElseThrow(() -> new BusinessException("Chưa phân công nhân viên xử lý"));
         log.setRepairCost(cost);
         log.setResolutionNotes(req == null ? null : VietSupport.blankToNull(req.resolutionNotes()));
         log.setCompletedAt(LocalDateTime.now());
@@ -238,7 +238,7 @@ public class MaintenanceService {
     public MaintenanceResponse close(Integer id) {
         MaintenanceRequest r = find(id);
         if (!"RESOLVED".equals(r.getStatus())) {
-            throw new BusinessException("Chi dong duoc su co da RESOLVED");
+            throw new BusinessException("Chỉ đóng được sự cố đã RESOLVED");
         }
         r.setStatus("CLOSED");
         return MaintenanceResponse.from(requestRepository.save(r), latestLog(id));
@@ -253,46 +253,46 @@ public class MaintenanceService {
     public InvoiceAdjustmentResponse adjustInvoice(Integer id, InvoiceAdjustmentRequest req) {
         MaintenanceRequest r = find(id);
         if (!Set.of("RESOLVED", "CLOSED").contains(r.getStatus())) {
-            throw new BusinessException("Chi dieu chinh hoa don sau khi su co da duoc xu ly xong (RESOLVED/CLOSED)");
+            throw new BusinessException("Chỉ điều chỉnh hóa đơn sau khi sự cố đã được xử lý xong (RESOLVED/CLOSED)");
         }
         if (req == null || req.invoiceId() == null) {
-            throw new BusinessException("Thieu invoiceId");
+            throw new BusinessException("Thiếu invoiceId");
         }
         BigDecimal reduce = req.reduceAmount();
         if (reduce == null || reduce.signum() <= 0) {
-            throw new BusinessException("So tien giam phai lon hon 0");
+            throw new BusinessException("Số tiền giảm phải lớn hơn 0");
         }
         if (reduce.stripTrailingZeros().scale() > 2) {
-            throw new BusinessException("So tien giam chi duoc co toi da 2 chu so thap phan");
+            throw new BusinessException("Số tiền giảm chỉ được có tối đa 2 chữ số thập phân");
         }
         String reason = VietSupport.requireText(req.reason(), "ly do dieu chinh");
         Invoice inv = em.find(Invoice.class, req.invoiceId(), jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
         if (inv == null) {
-            throw BusinessException.notFound("Hoa don");
+            throw BusinessException.notFound("Hóa đơn");
         }
         if (!inv.getCalculatedFee().getRoom().getRoomId().equals(r.getRoom().getRoomId())) {
-            throw new BusinessException("Hoa don khong thuoc phong cua su co nay");
+            throw new BusinessException("Hóa đơn không thuộc phòng của sự cố này");
         }
         if (r.getTenant() != null
                 && (inv.getTenant() == null || !r.getTenant().getTenantId().equals(inv.getTenant().getTenantId()))) {
-            throw new BusinessException("Hoa don khong thuoc khach thue cua su co nay");
+            throw new BusinessException("Hóa đơn không thuộc khách thuê của sự cố này");
         }
         if (Set.of("PAID", "CANCELLED").contains(inv.getPaymentStatus())) {
-            throw new BusinessException("Khong dieu chinh duoc hoa don da thanh toan hoac da huy");
+            throw new BusinessException("Không điều chỉnh được hóa đơn đã thanh toán hoặc đã hủy");
         }
         BigDecimal paid = VietSupport.nz(inv.getPaidAmount());
         BigDecimal oldTotal = VietSupport.nz(inv.getTotalAmount());
         BigDecimal remaining = oldTotal.subtract(paid);
         if (reduce.compareTo(remaining) > 0) {
-            throw new BusinessException("So tien giam vuot qua so con no cua hoa don (" + remaining + ")");
+            throw new BusinessException("Số tiền giảm vượt quá số còn nợ của hóa đơn (" + remaining + ")");
         }
         BigDecimal newTotal = oldTotal.subtract(reduce);
         // M14/M16: tong + dong chi tiet + trang thai di qua mot noi duy nhat (InvoiceBalanceCalculator)
         new com.group7.minihouse.toan.service.InvoiceBalanceCalculator()
                 .setTotalAndSync(em, inv, newTotal, reason, java.time.LocalDate.now());
         MaintenanceLog log = logRepository.findFirstByRequest_RequestIdOrderByMaintenanceLogIdDesc(id)
-                .orElseThrow(() -> new BusinessException("Su co chua co nhat ky xu ly"));
-        String note = "[Dieu chinh hoa don " + inv.getInvoiceCode() + ": giam " + reduce + ", ly do: " + reason + "]";
+                .orElseThrow(() -> new BusinessException("Sự cố chưa có nhật ký xử lý"));
+        String note = "[Điều chỉnh hóa đơn " + inv.getInvoiceCode() + ": giam " + reduce + ", ly do: " + reason + "]";
         String old = log.getResolutionNotes();
         log.setResolutionNotes(old == null || old.isBlank() ? note : old + " " + note);
         logRepository.save(log);
@@ -312,18 +312,18 @@ public class MaintenanceService {
     public MaintenanceResponse rate(Integer id, Integer tenantId, RatingRequest req) {
         MaintenanceRequest r = find(id);
         if (r.getTenant() == null || !r.getTenant().getTenantId().equals(tenantId)) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "Chi duoc danh gia su co do chinh ban gui");
+            throw new BusinessException(HttpStatus.FORBIDDEN, "Chỉ được đánh giá sự cố do chính bạn gửi");
         }
         if (!Set.of("RESOLVED", "CLOSED").contains(r.getStatus())) {
-            throw new BusinessException("Chi danh gia duoc sau khi su co da xu ly xong");
+            throw new BusinessException("Chỉ đánh giá được sau khi sự cố đã xử lý xong");
         }
         if (req == null || req.rating() == null || req.rating() < 1 || req.rating() > 5) {
-            throw new BusinessException("Diem danh gia phai tu 1 den 5");
+            throw new BusinessException("Điểm đánh giá phải từ 1 đến 5");
         }
         MaintenanceLog log = logRepository.findFirstByRequest_RequestIdOrderByMaintenanceLogIdDesc(id)
-                .orElseThrow(() -> new BusinessException("Su co chua co ket qua xu ly"));
+                .orElseThrow(() -> new BusinessException("Sự cố chưa có kết quả xử lý"));
         if (log.getTenantRating() != null) {
-            throw new BusinessException("Ban da danh gia su co nay roi");
+            throw new BusinessException("Bạn đã đánh giá sự cố này rồi");
         }
         log.setTenantRating(req.rating());
         logRepository.save(log);
@@ -335,6 +335,6 @@ public class MaintenanceService {
     }
 
     private MaintenanceRequest find(Integer id) {
-        return requestRepository.findById(id).orElseThrow(() -> BusinessException.notFound("Yeu cau sua chua"));
+        return requestRepository.findById(id).orElseThrow(() -> BusinessException.notFound("Yêu cầu sửa chữa"));
     }
 }

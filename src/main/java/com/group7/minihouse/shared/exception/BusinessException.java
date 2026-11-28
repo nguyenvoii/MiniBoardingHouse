@@ -17,7 +17,7 @@ public class BusinessException extends RuntimeException {
     }
 
     public static BusinessException notFound(String what) {
-        return new BusinessException(HttpStatus.NOT_FOUND, what + " khong ton tai");
+        return new BusinessException(HttpStatus.NOT_FOUND, what + " không tồn tại");
     }
 
     public HttpStatus getStatus() { return status; }

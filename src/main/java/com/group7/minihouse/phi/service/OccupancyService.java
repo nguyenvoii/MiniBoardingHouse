@@ -68,8 +68,8 @@ public class OccupancyService {
         } else {
             v = same.get(0);
             if (Boolean.TRUE.equals(v.getIsActive())) {
-                throw new BusinessException(HttpStatus.CONFLICT, "Bien so " + plate + " da duoc dang ky"
-                        + (v.getTenant().getTenantId().equals(tenantId) ? " cho khach nay" : " cho khach khac"));
+                throw new BusinessException(HttpStatus.CONFLICT, "Biển số " + plate + " đã được đăng ký"
+                        + (v.getTenant().getTenantId().equals(tenantId) ? " cho khách này" : " cho khách khác"));
             }
             v.setTenant(tenant); // xe cu da ngung dung: dang ky lai (co the cho khach khac)
         }
@@ -92,7 +92,7 @@ public class OccupancyService {
             long dup = em.createQuery("select count(x) from TenantVehicle x where x.licensePlate = :p and x.vehicleId <> :id",
                     Long.class).setParameter("p", plate).setParameter("id", vehicleId).getSingleResult();
             if (dup > 0) {
-                throw new BusinessException(HttpStatus.CONFLICT, "Bien so " + plate + " da ton tai");
+                throw new BusinessException(HttpStatus.CONFLICT, "Biển số " + plate + " đã tồn tại");
             }
             v.setLicensePlate(plate);
         }
@@ -128,8 +128,8 @@ public class OccupancyService {
                 + "and r.isActive = true", Long.class).setParameter("x", roomId).getSingleResult();
         // nguoi dung ten hop dong luon la 1 nguoi, nen tong so nguoi = 1 + nguoi o cung
         if (room.getMaxOccupants() != null && cohabitants + 2 > room.getMaxOccupants()) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Phong " + room.getRoomCode() + " chi cho toi da "
-                    + room.getMaxOccupants() + " nguoi (tinh ca nguoi dung ten hop dong)");
+            throw new BusinessException(HttpStatus.CONFLICT, "Phòng " + room.getRoomCode() + " chỉ cho tối đa "
+                    + room.getMaxOccupants() + " người (tính cả người đứng tên hợp đồng)");
         }
         RoomResident r = new RoomResident();
         r.setRoom(room);
@@ -165,7 +165,7 @@ public class OccupancyService {
     private Tenant tenant(Integer id) {
         Tenant t = em.find(Tenant.class, id);
         if (t == null) {
-            throw BusinessException.notFound("Khach thue " + id);
+            throw BusinessException.notFound("Khách thuê " + id);
         }
         return t;
     }
@@ -173,7 +173,7 @@ public class OccupancyService {
     private Room room(Integer id) {
         Room r = em.find(Room.class, id);
         if (r == null) {
-            throw BusinessException.notFound("Phong " + id);
+            throw BusinessException.notFound("Phòng " + id);
         }
         return r;
     }
@@ -189,18 +189,18 @@ public class OccupancyService {
     private RoomResident resident(Integer id) {
         RoomResident r = em.find(RoomResident.class, id);
         if (r == null || !Boolean.TRUE.equals(r.getIsActive())) {
-            throw BusinessException.notFound("Nguoi o cung " + id);
+            throw BusinessException.notFound("Người ở cùng " + id);
         }
         return r;
     }
 
     static String plate(VehicleRequest req) {
         if (req == null || req.licensePlate() == null || req.licensePlate().isBlank()) {
-            throw bad("Can bien so xe");
+            throw bad("Cần biển số xe");
         }
         String p = req.licensePlate().trim().toUpperCase(Locale.ROOT);
         if (p.length() > 20) {
-            throw bad("Bien so toi da 20 ky tu");
+            throw bad("Biển số tối đa 20 ký tự");
         }
         return p;
     }
@@ -208,18 +208,18 @@ public class OccupancyService {
     static String type(VehicleRequest req) {
         String t = req.vehicleType() == null ? "MOTORBIKE" : req.vehicleType().trim().toUpperCase(Locale.ROOT);
         if (!VEHICLE_TYPES.contains(t)) {
-            throw bad("Loai xe phai la " + VEHICLE_TYPES);
+            throw bad("Loại xe phải là " + VEHICLE_TYPES);
         }
         return t;
     }
 
     static String name(ResidentRequest req) {
         if (req == null || req.fullName() == null || req.fullName().isBlank()) {
-            throw bad("Can ho ten nguoi o cung");
+            throw bad("Cần họ tên người ở cùng");
         }
         String n = req.fullName().trim();
         if (n.length() > 100) {
-            throw bad("Ho ten toi da 100 ky tu");
+            throw bad("Họ tên tối đa 100 ký tự");
         }
         return n;
     }
@@ -230,7 +230,7 @@ public class OccupancyService {
         r.setIdentityNumber(blank(req.identityNumber()));
         r.setRelationshipWithPrimary(blank(req.relationship()));
         if (req.dateOfBirth() != null && req.dateOfBirth().isAfter(LocalDate.now())) {
-            throw bad("Ngay sinh khong duoc o tuong lai");
+            throw bad("Ngày sinh không được ở tương lai");
         }
         r.setDateOfBirth(req.dateOfBirth());
         r.setPermanentAddress(blank(req.permanentAddress()));

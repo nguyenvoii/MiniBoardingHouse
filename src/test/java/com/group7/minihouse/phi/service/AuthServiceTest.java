@@ -124,7 +124,7 @@ class AuthServiceTest {
                 () -> service.login(new LoginRequest("0901234567", "pw"), "127.0.0.1"));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatus());
-        assertTrue(ex.getMessage().contains("ho so khach thue"));
+        assertTrue(ex.getMessage().contains("hồ sơ khách thuê"));
     }
 
     @Test

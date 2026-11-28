@@ -58,7 +58,7 @@ public class OccupancyController {
     public ApiResponse<Void> removeVehicle(@PathVariable Integer id, @AuthenticationPrincipal AuthUser user,
                                            HttpServletRequest http) {
         service.removeVehicle(id, actor(user), http.getRemoteAddr());
-        return ApiResponse.ok("Da ngung dung xe", null);
+        return ApiResponse.ok("Đã ngừng dùng xe", null);
     }
 
     @GetMapping("/api/rooms/{roomId}/residents")
@@ -86,7 +86,7 @@ public class OccupancyController {
     public ApiResponse<Void> removeResident(@PathVariable Integer id, @AuthenticationPrincipal AuthUser user,
                                             HttpServletRequest http) {
         service.removeResident(id, actor(user), http.getRemoteAddr());
-        return ApiResponse.ok("Da bo nguoi o cung", null);
+        return ApiResponse.ok("Đã bỏ người ở cùng", null);
     }
 
     /** Tat bao mat (dev) thi khong co nguoi dung: tra null, service bo qua nhat ky. */

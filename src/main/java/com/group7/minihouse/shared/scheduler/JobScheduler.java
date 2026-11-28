@@ -66,7 +66,7 @@ public class JobScheduler {
         for (ScheduledJob job : jobs) {
             String cron = env.getProperty("app.jobs." + job.name() + ".cron", job.defaultCron());
             if (entries.put(job.name(), new Entry(job, cron)) != null) {
-                throw new IllegalStateException("Hai job trung ten: " + job.name());
+                throw new IllegalStateException("Hai job trùng tên: " + job.name());
             }
         }
     }
@@ -119,14 +119,14 @@ public class JobScheduler {
         }
         String value = cron == null ? "" : cron.trim();
         if (value.isEmpty()) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "Can cron (6 truong) hoac dau - de tat tu chay");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Cần cron (6 trường) hoặc dấu - để tắt tự chạy");
         }
         if (!OFF.equals(value) && !CronExpression.isValidExpression(value)) {
             throw new BusinessException(HttpStatus.BAD_REQUEST,
-                    "Cron khong hop le, can 6 truong: giay phut gio ngay thang thu (vi du 0 0 8 * * *)");
+                    "Cron không hợp lệ, cần 6 trường: giây phút giờ ngày tháng thứ (ví dụ 0 0 8 * * *)");
         }
         if (value.length() > 60) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "Cron toi da 60 ky tu");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Cron tối đa 60 ký tự");
         }
         boolean on = jobEnabled == null || jobEnabled;
         if (settings != null) {
@@ -155,7 +155,7 @@ public class JobScheduler {
             throw BusinessException.notFound("Job");
         }
         if (!execute(e)) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Job dang chay, vui long doi chay xong");
+            throw new BusinessException(HttpStatus.CONFLICT, "Job đang chạy, vui lòng đợi chạy xong");
         }
         return e.status(enabled);
     }

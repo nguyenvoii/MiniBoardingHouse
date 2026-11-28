@@ -108,7 +108,7 @@ public class InvoiceService {
     @Transactional
     public List<InvoiceResponse> issueBatch(IssueBatchRequest req, Integer actorUserId, String ipAddress) {
         if (req.billingPeriodId() == null) {
-            throw bad("Thieu billingPeriodId");
+            throw bad("Thiếu billingPeriodId");
         }
         List<Integer> feeIds = em.createQuery(
                 "select f.calculatedFeeId from CalculatedMonthlyFee f "
@@ -132,19 +132,19 @@ public class InvoiceService {
     private Invoice issueOne(Integer feeId, LocalDate issueDate, LocalDate dueDate, boolean reissue) {
         CalculatedMonthlyFee fee = em.find(CalculatedMonthlyFee.class, feeId);
         if (fee == null) {
-            throw notFound("Bang tinh tien " + feeId);
+            throw notFound("Bảng tính tiền " + feeId);
         }
         if ("DRAFT".equals(fee.getBillingPeriod().getStatus())) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Ky tinh tien chua duoc duyet (dang DRAFT)");
+            throw new BusinessException(HttpStatus.CONFLICT, "Kỳ tính tiền chưa được duyệt (đang Nháp)");
         }
         Invoice old = invoiceRepo.findByCalculatedFeeCalculatedFeeId(feeId).orElse(null);
         if (old != null && !(reissue && "CANCELLED".equals(old.getPaymentStatus()))) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Bang tinh tien nay da co hoa don");
+            throw new BusinessException(HttpStatus.CONFLICT, "Bảng tính tiền này đã có hóa đơn");
         }
         LocalDate issue = issueDate == null ? LocalDate.now() : issueDate;
         LocalDate due = dueDate != null ? dueDate : defaultDueDate(issue, fee.getContract().getPaymentDueDay());
         if (due.isBefore(issue)) {
-            throw bad("Han thanh toan phai sau ngay phat hanh");
+            throw bad("Hạn thanh toán phải sau ngày phát hành");
         }
         Invoice inv = old != null ? invoiceRepo.findByIdForUpdate(old.getInvoiceId()).orElse(old) : new Invoice();
         inv.setInvoiceCode(old != null ? old.getInvoiceCode() : buildCode(fee));
@@ -249,7 +249,7 @@ public class InvoiceService {
                 .append("<p>Ma hoa don: <b>").append(esc(i.invoiceCode())).append("</b><br>")
                 .append("Phong: ").append(esc(i.roomCode())).append("<br>")
                 .append("Khach thue: ").append(esc(i.tenantName())).append("<br>")
-                .append("Ngay phat hanh: ").append(i.issueDate()).append(" - Han thanh toan: ")
+                .append("Ngay phat hanh: ").append(i.issueDate()).append(" - Hạn thanh toán: ")
                 .append(i.dueDate()).append("</p>")
                 .append("<table><tr><th>Khoan muc</th><th class=\"n\">SL</th><th class=\"n\">Don gia</th>")
                 .append("<th class=\"n\">Thanh tien</th></tr>");
@@ -280,7 +280,7 @@ public class InvoiceService {
         Invoice inv = find(invoiceId);
         String email = inv.getTenant().getEmail();
         if (email == null || email.isBlank()) {
-            throw bad("Khach thue chua co email");
+            throw bad("Khách thuê chưa có email");
         }
         return toResponse(addNotification(inv, "EMAIL", dispatchEmail(inv, "INVOICE_ISSUED", "Hóa đơn " + inv.getInvoiceCode(), null)));
     }
@@ -297,9 +297,9 @@ public class InvoiceService {
 
     @Transactional
     public ShareLink shareLink(Integer invoiceId) {
-        Invoice invoice = invoiceRepo.findByIdForUpdate(invoiceId).orElseThrow(() -> notFound("Hoa don"));
+        Invoice invoice = invoiceRepo.findByIdForUpdate(invoiceId).orElseThrow(() -> notFound("Hóa đơn"));
         if ("CANCELLED".equals(invoice.getPaymentStatus())) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Khong chia se hoa don da huy");
+            throw new BusinessException(HttpStatus.CONFLICT, "Không chia sẻ hóa đơn đã hủy");
         }
         if (invoice.getShareLink() == null) {
             invoice.setShareLink(SHARE_PREFIX + UUID.randomUUID());
@@ -309,7 +309,7 @@ public class InvoiceService {
 
     @Transactional
     public void revokeShareLink(Integer invoiceId) {
-        Invoice invoice = invoiceRepo.findByIdForUpdate(invoiceId).orElseThrow(() -> notFound("Hoa don"));
+        Invoice invoice = invoiceRepo.findByIdForUpdate(invoiceId).orElseThrow(() -> notFound("Hóa đơn"));
         invoice.setShareLink(null);
     }
 
@@ -317,7 +317,7 @@ public class InvoiceService {
     public SharedInvoice detailByShareToken(String token) {
         Invoice invoice = invoiceRepo.findByShareLink(SHARE_PREFIX + token)
                 .filter(value -> !"CANCELLED".equals(value.getPaymentStatus()))
-                .orElseThrow(() -> notFound("Hoa don chia se"));
+                .orElseThrow(() -> notFound("Hóa đơn chia sẻ"));
         InvoiceResponse response = toResponse(invoice);
         return new SharedInvoice(response.invoiceCode(), response.monthYear(), response.issueDate(),
                 response.dueDate(), response.totalAmount(), response.paidAmount(), response.remainingAmount(),
@@ -377,15 +377,15 @@ public class InvoiceService {
     @Transactional
     public InvoiceResponse adjustTotal(Integer invoiceId, AdjustInvoiceRequest req, Integer actorUserId, String ipAddress) {
         Invoice inv = invoiceRepo.findByIdForUpdate(invoiceId)
-                .orElseThrow(() -> notFound("Hoa don " + invoiceId));
+                .orElseThrow(() -> notFound("Hóa đơn " + invoiceId));
         if (req.reason() == null || req.reason().isBlank()) {
-            throw bad("Phai nhap ly do dieu chinh hoa don");
+            throw bad("Phải nhập lý do điều chỉnh hóa đơn");
         }
         if (req.newTotalAmount() == null || req.newTotalAmount().signum() < 0) {
-            throw bad("newTotalAmount khong hop le");
+            throw bad("newTotalAmount không hợp lệ");
         }
         if ("CANCELLED".equals(inv.getPaymentStatus())) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Hoa don da huy");
+            throw new BusinessException(HttpStatus.CONFLICT, "Hóa đơn đã hủy");
         }
         calculator.setTotalAndSync(em, inv, req.newTotalAmount(), req.reason(), LocalDate.now());
         addNotification(inv, "SYSTEM_APP", ST_ADJUSTED);
@@ -549,7 +549,7 @@ public class InvoiceService {
     }
 
     private Invoice find(Integer id) {
-        return invoiceRepo.findById(id).orElseThrow(() -> notFound("Hoa don " + id));
+        return invoiceRepo.findById(id).orElseThrow(() -> notFound("Hóa đơn " + id));
     }
 
     InvoiceResponse toResponse(Invoice i) {
@@ -600,6 +600,6 @@ public class InvoiceService {
     }
 
     private static BusinessException notFound(String what) {
-        return new BusinessException(HttpStatus.NOT_FOUND, "Khong tim thay " + what);
+        return new BusinessException(HttpStatus.NOT_FOUND, "Không tìm thấy " + what);
     }
 }

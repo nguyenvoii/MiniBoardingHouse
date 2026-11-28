@@ -76,7 +76,7 @@ public class BankAccountController {
     public ApiResponse<Void> deactivate(@PathVariable Integer id, @AuthenticationPrincipal AuthUser user,
                                         HttpServletRequest http) {
         service.deactivate(id, actor(user), http.getRemoteAddr());
-        return ApiResponse.ok("Da ngung dung tai khoan", null);
+        return ApiResponse.ok("Đã ngừng dùng tài khoản", null);
     }
 
     /** Dat anh QR (form-data, truong "file": PNG/JPG/WebP toi da 2 MB). */

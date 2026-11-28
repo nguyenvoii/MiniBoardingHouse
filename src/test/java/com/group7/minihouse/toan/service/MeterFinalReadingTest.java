@@ -91,7 +91,7 @@ class MeterFinalReadingTest {
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> service.validateFinalReading(7, TODAY, 90, 50));
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
-        assertTrue(ex.getMessage().contains("dien"));
+        assertTrue(ex.getMessage().contains("điện"));
     }
 
     @Test

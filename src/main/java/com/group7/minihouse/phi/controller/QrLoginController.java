@@ -42,10 +42,10 @@ public class QrLoginController {
                                          jakarta.servlet.http.HttpServletRequest http) {
         String header = http.getHeader("Authorization");
         if (header == null || !header.startsWith("Bearer ") || !jwtService.isQrSession(header.substring(7).trim())) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "Chi phien dang nhap bang ma QR moi dung duoc chuc nang nay");
+            throw new BusinessException(HttpStatus.FORBIDDEN, "Chỉ phiên đăng nhập bằng mã QR mới dùng được chức năng này");
         }
         service.setFirstPassword(CurrentUser.requireUserId(user), body.get("newPassword"), http.getRemoteAddr());
-        return ApiResponse.ok("Da dat mat khau moi", null);
+        return ApiResponse.ok("Đã đặt mật khẩu mới", null);
     }
 
     /** Cong khai: khach quet QR, trang web gui token len day de lay phien dang nhap. */

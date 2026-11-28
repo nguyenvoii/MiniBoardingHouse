@@ -45,6 +45,6 @@ public class BackupController {
     @PreAuthorize("hasRole('LANDLORD')")
     public ApiResponse<Void> restore(@PathVariable String name, @RequestBody RestoreRequest req) {
         service.restore(name, req.confirm());
-        return ApiResponse.ok("Da phuc hoi du lieu. Hay dang nhap lai.", null);
+        return ApiResponse.ok("Đã phục hồi dữ liệu. Hãy đăng nhập lại.", null);
     }
 }

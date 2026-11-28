@@ -116,37 +116,37 @@ public class OperatingExpenseService {
     /** Kiem tra dau vao (tach rieng de test duoc ma khong can DB). */
     static void validate(ExpenseRequest req) {
         if (req == null) {
-            throw new BusinessException("Thieu du lieu");
+            throw new BusinessException("Thiếu dữ liệu");
         }
         String category = VietSupport.requireText(req.expenseCategory(), "nhom chi phi");
         if (category.length() > CATEGORY_MAX) {
-            throw new BusinessException("Nhom chi phi toi da " + CATEGORY_MAX + " ky tu");
+            throw new BusinessException("Nhóm chi phí tối đa " + CATEGORY_MAX + " ký tự");
         }
         if (req.amount() == null || req.amount().signum() <= 0) {
-            throw new BusinessException("So tien phai lon hon 0");
+            throw new BusinessException("Số tiền phải lớn hơn 0");
         }
         if (req.amount().compareTo(AMOUNT_MAX) > 0) {
-            throw new BusinessException("So tien qua lon");
+            throw new BusinessException("Số tiền quá lớn");
         }
         if (req.expenseDate() == null) {
-            throw new BusinessException("Thieu ngay chi");
+            throw new BusinessException("Thiếu ngày chi");
         }
         if (req.expenseDate().isAfter(LocalDate.now())) {
-            throw new BusinessException("Ngay chi khong duoc o tuong lai");
+            throw new BusinessException("Ngày chi không được ở tương lai");
         }
         String description = VietSupport.blankToNull(req.description());
         if (description != null && description.length() > DESCRIPTION_MAX) {
-            throw new BusinessException("Mo ta toi da " + DESCRIPTION_MAX + " ky tu");
+            throw new BusinessException("Mô tả tối đa " + DESCRIPTION_MAX + " ký tự");
         }
         String url = VietSupport.blankToNull(req.receiptUrl());
         if (url != null && url.length() > URL_MAX) {
-            throw new BusinessException("Duong dan chung tu toi da " + URL_MAX + " ky tu");
+            throw new BusinessException("Đường dẫn chứng từ tối đa " + URL_MAX + " ký tự");
         }
     }
 
     private static void checkRange(LocalDate from, LocalDate to) {
         if (from != null && to != null && from.isAfter(to)) {
-            throw new BusinessException("Tu ngay phai truoc hoac bang den ngay");
+            throw new BusinessException("Từ ngày phải trước hoặc bằng đến ngày");
         }
     }
 
@@ -162,12 +162,12 @@ public class OperatingExpenseService {
         List<Property> list = em.createQuery("select p from Property p order by p.propertyId", Property.class)
                 .setMaxResults(1).getResultList();
         if (list.isEmpty()) {
-            throw new BusinessException("Chua cau hinh khu tro nen chua ghi nhan duoc chi phi");
+            throw new BusinessException("Chưa cấu hình khu trọ nên chưa ghi nhận được chi phí");
         }
         return list.get(0);
     }
 
     private OperatingExpense find(Integer id) {
-        return repository.findById(id).orElseThrow(() -> BusinessException.notFound("Khoan chi phi"));
+        return repository.findById(id).orElseThrow(() -> BusinessException.notFound("Khoản chi phí"));
     }
 }

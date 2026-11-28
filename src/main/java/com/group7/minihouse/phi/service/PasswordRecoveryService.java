@@ -15,7 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class PasswordRecoveryService {
 
     private static final String TYPE = "RECOVERY";
-    private static final String BAD_CODE = "Ma xac thuc khong dung hoac da het han";
+    private static final String BAD_CODE = "Mã xác thực không đúng hoặc đã hết hạn";
 
     private final UserRepository userRepository;
     private final OtpService otpService;
@@ -75,7 +75,7 @@ public class PasswordRecoveryService {
         // Kiem tra mat khau truoc khi tra tai khoan: loi nay khong phu thuoc tai khoan nen khong lo gi
         if (!AccountService.isStrong(newPassword)) {
             throw new BusinessException(HttpStatus.BAD_REQUEST,
-                    "Mat khau moi phai co it nhat 8 ky tu, gom ca chu va so");
+                    "Mật khẩu mới phải có ít nhất 8 ký tự, gồm cả chữ và số");
         }
         String id = identifier.trim();
         User user = userRepository.findByEmailOrPhoneNumber(id, id)

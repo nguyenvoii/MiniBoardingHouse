@@ -105,7 +105,7 @@ class AccountServiceTest {
         BusinessException ex = fails(() -> service.changePassword(5, "OldPass1x", "OldPass1x", "ip"));
 
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
-        assertTrue(ex.getMessage().contains("khac"));
+        assertTrue(ex.getMessage().contains("khác"));
     }
 
     @Test
@@ -179,7 +179,7 @@ class AccountServiceTest {
         BusinessException ex = fails(() -> service.updateProfile(5, new UpdateProfileRequest("A", "0999999999"), "ip"));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatus());
-        assertTrue(ex.getMessage().contains("chu tro"));
+        assertTrue(ex.getMessage().contains("chủ trọ"));
         assertEquals("0901234567", u.getPhoneNumber());
         verify(userRepository, never()).save(any(User.class));
     }

@@ -85,18 +85,18 @@ public class CheckoutService {
     @Transactional
     public CheckoutResponse create(CreateCheckoutRequest req, Integer tenantId) {
         if (req == null || req.expectedCheckoutDate() == null) {
-            throw new BusinessException("Thieu ngay tra phong du kien");
+            throw new BusinessException("Thiếu ngày trả phòng dự kiến");
         }
         if (req.expectedCheckoutDate().isBefore(LocalDate.now())) {
-            throw new BusinessException("Ngay tra phong du kien khong duoc o qua khu");
+            throw new BusinessException("Ngày trả phòng dự kiến không được ở quá khứ");
         }
         RentalContract contract = resolveContract(req.contractId(), tenantId);
         // EXPIRED (het han nhung khach con o, chua thanh ly) van phai tra phong duoc
         if (!Set.of("ACTIVE", "EXPIRING_SOON", "EXPIRED").contains(contract.getStatus())) {
-            throw new BusinessException("Hop dong khong con hieu luc, khong the yeu cau tra phong");
+            throw new BusinessException("Hợp đồng không còn hiệu lực, không thể yêu cầu trả phòng");
         }
         if (checkoutRepository.existsByContract_ContractIdAndStatusIn(contract.getContractId(), OPEN)) {
-            throw new BusinessException("Hop dong nay dang co yeu cau tra phong chua xu ly");
+            throw new BusinessException("Hợp đồng này đang có yêu cầu trả phòng chưa xử lý");
         }
         CheckoutRequest c = new CheckoutRequest();
         c.setContract(contract);
@@ -109,21 +109,21 @@ public class CheckoutService {
     private RentalContract resolveContract(Integer contractId, Integer tenantId) {
         if (contractId == null) {
             if (tenantId == null) {
-                throw new BusinessException("Thieu contractId");
+                throw new BusinessException("Thiếu contractId");
             }
             List<RentalContract> list = tenantRoomResolver.activeContracts(tenantId);
             if (list.size() != 1) {
-                throw new BusinessException(list.isEmpty() ? "Khach thue chua co hop dong dang hieu luc"
-                        : "Khach thue co nhieu hop dong, can chon contractId");
+                throw new BusinessException(list.isEmpty() ? "Khách thuê chưa có hợp đồng đang hiệu lực"
+                        : "Khách thuê có nhiều hợp đồng, cần chọn contractId");
             }
             return list.get(0);
         }
         RentalContract contract = em.find(RentalContract.class, contractId);
         if (contract == null) {
-            throw BusinessException.notFound("Hop dong");
+            throw BusinessException.notFound("Hợp đồng");
         }
         if (tenantId != null && !contract.getTenant().getTenantId().equals(tenantId)) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "Hop dong khong thuoc ve ban");
+            throw new BusinessException(HttpStatus.FORBIDDEN, "Hợp đồng không thuộc về bạn");
         }
         return contract;
     }
@@ -154,7 +154,7 @@ public class CheckoutService {
         requireStatus(c, "PENDING");
         if (req != null && req.expectedCheckoutDate() != null) {
             if (req.expectedCheckoutDate().isBefore(LocalDate.now())) {
-                throw new BusinessException("Ngay kiem tra khong duoc o qua khu");
+                throw new BusinessException("Ngày kiểm tra không được ở quá khứ");
             }
             c.setExpectedCheckoutDate(req.expectedCheckoutDate());
         }
@@ -166,10 +166,10 @@ public class CheckoutService {
     public CheckoutResponse cancel(Integer id) {
         CheckoutRequest c = find(id);
         if (!OPEN.contains(c.getStatus())) {
-            throw new BusinessException("Chi huy duoc yeu cau dang PENDING hoac INSPECTING");
+            throw new BusinessException("Chỉ hủy được yêu cầu đang PENDING hoặc INSPECTING");
         }
         if (voucherRepository.findByCheckout_CheckoutId(id).isPresent()) {
-            throw new BusinessException("Da lap phieu hoan coc, khong the huy yeu cau");
+            throw new BusinessException("Đã lập phiếu hoàn cọc, không thể hủy yêu cầu");
         }
         c.setStatus("CANCELLED");
         return CheckoutResponse.from(checkoutRepository.save(c));
@@ -182,13 +182,13 @@ public class CheckoutService {
         CheckoutRequest c = find(id);
         requireStatus(c, "INSPECTING");
         if (voucherRepository.findByCheckout_CheckoutId(id).isPresent()) {
-            throw new BusinessException("Da lap phieu hoan coc, khong the sua hien trang phong");
+            throw new BusinessException("Đã lập phiếu hoàn cọc, không thể sửa hiện trạng phòng");
         }
         if (req == null || req.finalElectricMeter() == null || req.finalWaterMeter() == null) {
-            throw new BusinessException("Thieu chi so dien/nuoc cuoi");
+            throw new BusinessException("Thiếu chỉ số điện/nước cuối");
         }
         if (req.finalElectricMeter() < 0 || req.finalWaterMeter() < 0) {
-            throw new BusinessException("Chi so dien/nuoc khong duoc am");
+            throw new BusinessException("Chỉ số điện/nước không được âm");
         }
         // F1: so cuoi phai >= so ky truoc, bao loi ngay luc nhap (khong de den luc thanh ly moi hong)
         meterService.validateFinalReading(c.getContract().getRoom().getRoomId(), LocalDate.now(),
@@ -199,7 +199,7 @@ public class CheckoutService {
             for (DamageItem item : req.damages()) {
                 String name = VietSupport.requireText(item == null ? null : item.name(), "ten thiet bi hu hong");
                 if (item.cost() == null || item.cost().signum() < 0) {
-                    throw new BusinessException("Chi phi boi thuong cua \"" + name + "\" khong hop le");
+                    throw new BusinessException("Chi phí bồi thường của \"" + name + "\" không hợp lệ");
                 }
                 damageTotal = damageTotal.add(item.cost());
                 if (description.length() > 0) {
@@ -229,7 +229,7 @@ public class CheckoutService {
     public InspectionResponse getInspection(Integer id) {
         find(id);
         return toResponse(inspectionRepository.findByCheckout_CheckoutId(id)
-                .orElseThrow(() -> BusinessException.notFound("Bien ban kiem tra phong")));
+                .orElseThrow(() -> BusinessException.notFound("Biên bản kiểm tra phòng")));
     }
 
     private static InspectionResponse toResponse(CheckoutInspection i) {
@@ -306,10 +306,10 @@ public class CheckoutService {
         CheckoutRequest c = find(id);
         requireStatus(c, "INSPECTING");
         if (inspectionRepository.findByCheckout_CheckoutId(id).isEmpty()) {
-            throw new BusinessException("Can ghi nhan hien trang phong truoc khi lap phieu hoan coc");
+            throw new BusinessException("Cần ghi nhận hiện trạng phòng trước khi lập phiếu hoàn cọc");
         }
         if (voucherRepository.findByCheckout_CheckoutId(id).isPresent()) {
-            throw new BusinessException("Yeu cau tra phong nay da co phieu hoan coc");
+            throw new BusinessException("Yêu cầu trả phòng này đã có phiếu hoàn cọc");
         }
         SettlementResponse s = settlement(id);
         DepositRefundVoucher v = new DepositRefundVoucher();
@@ -326,7 +326,7 @@ public class CheckoutService {
     public RefundVoucherResponse getRefundVoucher(Integer checkoutId) {
         find(checkoutId);
         return RefundVoucherResponse.from(voucherRepository.findByCheckout_CheckoutId(checkoutId)
-                .orElseThrow(() -> BusinessException.notFound("Phieu hoan coc")));
+                .orElseThrow(() -> BusinessException.notFound("Phiếu hoàn cọc")));
     }
 
     /** M3: huy phieu hoan coc con PENDING de lap lai (hoac sua hien trang phong, huy yeu cau). Da hoan tien thi khong huy duoc. */
@@ -334,9 +334,9 @@ public class CheckoutService {
     public void cancelRefundVoucher(Integer checkoutId) {
         find(checkoutId);
         DepositRefundVoucher v = voucherRepository.findByCheckout_CheckoutId(checkoutId)
-                .orElseThrow(() -> BusinessException.notFound("Phieu hoan coc"));
+                .orElseThrow(() -> BusinessException.notFound("Phiếu hoàn cọc"));
         if (!"PENDING".equals(v.getStatus())) {
-            throw new BusinessException("Phieu hoan coc da duoc hoan tien, khong huy duoc");
+            throw new BusinessException("Phiếu hoàn cọc đã được hoàn tiền, không hủy được");
         }
         voucherRepository.delete(v);
     }
@@ -345,9 +345,9 @@ public class CheckoutService {
     @Transactional
     public RefundVoucherResponse payRefund(Integer refundId) {
         DepositRefundVoucher v = voucherRepository.findById(refundId)
-                .orElseThrow(() -> BusinessException.notFound("Phieu hoan coc"));
+                .orElseThrow(() -> BusinessException.notFound("Phiếu hoàn cọc"));
         if (!"PENDING".equals(v.getStatus())) {
-            throw new BusinessException("Phieu hoan coc nay da duoc hoan tien");
+            throw new BusinessException("Phiếu hoàn cọc này đã được hoàn tiền");
         }
         // M3: phieu la anh chup luc lap; khach co the da tra no / co hoa don moi phat hanh tu do. Tinh lai theo so
         // lieu hien tai ngay luc hoan (truoc khi doi trang thai) de khong tru coc cho khoan da tra hai lan.
@@ -395,9 +395,9 @@ public class CheckoutService {
         CheckoutRequest c = find(id);
         requireStatus(c, "INSPECTING");
         DepositRefundVoucher v = voucherRepository.findByCheckout_CheckoutId(id)
-                .orElseThrow(() -> new BusinessException("Chua lap phieu hoan coc"));
+                .orElseThrow(() -> new BusinessException("Chưa lập phiếu hoàn cọc"));
         if (!"REFUNDED".equals(v.getStatus())) {
-            throw new BusinessException("Can ghi nhan hoan tien dat coc truoc khi thanh ly hop dong");
+            throw new BusinessException("Cần ghi nhận hoàn tiền đặt cọc trước khi thanh lý hợp đồng");
         }
         c.setStatus("FINALIZED");
         c.setActualCheckoutDate(LocalDate.now());
@@ -411,14 +411,14 @@ public class CheckoutService {
             a.setContract(contract);
             a.setAdjustmentType("DEPOSIT_SHORTFALL");
             a.setOldValue("Coc hoan " + nz(s.refundable()).toBigInteger());
-            a.setNewValue("Khach con phai tra " + s.tenantMustPay().toBigInteger() + " dong (vuot coc)");
+            a.setNewValue("Khách còn phải trả " + s.tenantMustPay().toBigInteger() + " dong (vuot coc)");
             if (actorId != null) {
                 a.setAdjustedBy(em.getReference(User.class, actorId));
             }
             em.persist(a);
         }
         // Dung chung duong ket thuc hop dong voi Cham dut som (ContractEndService)
-        endService.end(contract, saved.getActualCheckoutDate(), "Tra phong, thanh ly hop dong",
+        endService.end(contract, saved.getActualCheckoutDate(), "Trả phòng, thanh lý hợp đồng",
                 actorId != null ? actorId
                         : ins == null || ins.getInspectedBy() == null ? null : ins.getInspectedBy().getUserId(),
                 ins == null ? null : ins.getFinalElectricMeter(), ins == null ? null : ins.getFinalWaterMeter());
@@ -449,13 +449,13 @@ public class CheckoutService {
     }
 
     private CheckoutRequest find(Integer id) {
-        return checkoutRepository.findById(id).orElseThrow(() -> BusinessException.notFound("Yeu cau tra phong"));
+        return checkoutRepository.findById(id).orElseThrow(() -> BusinessException.notFound("Yêu cầu trả phòng"));
     }
 
     private static void requireStatus(CheckoutRequest c, String expected) {
         if (!expected.equals(c.getStatus())) {
-            throw new BusinessException("Yeu cau tra phong phai o trang thai " + expected
-                    + " (hien tai: " + c.getStatus() + ")");
+            throw new BusinessException("Yêu cầu trả phòng phải ở trạng thái " + expected
+                    + " (hiện tại: " + c.getStatus() + ")");
         }
     }
 }

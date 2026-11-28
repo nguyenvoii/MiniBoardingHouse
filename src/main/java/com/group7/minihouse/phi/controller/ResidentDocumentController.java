@@ -41,7 +41,7 @@ public class ResidentDocumentController {
             throws IOException {
         var r = service.uploadIdCard(id, front == null ? null : front.getBytes(), back == null ? null : back.getBytes(),
                 user == null ? null : user.userId(), http.getRemoteAddr());
-        return ApiResponse.ok("Da luu anh can cuoc", new ResidentResponse(r.getResidentId(), r.getRoom().getRoomId(),
+        return ApiResponse.ok("Đã lưu ảnh căn cước", new ResidentResponse(r.getResidentId(), r.getRoom().getRoomId(),
                 r.getFullName(), r.getPhoneNumber(), r.getIdentityNumber(), r.getRelationshipWithPrimary(),
                 r.getStartDate(), r.getDateOfBirth(), r.getPermanentAddress(), r.getTempResidenceRegisteredOn(),
                 r.getIdFrontImageUrl(), r.getIdBackImageUrl(), null));

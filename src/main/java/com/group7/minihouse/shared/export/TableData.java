@@ -11,7 +11,7 @@ public record TableData(String title, List<String> headers, List<List<Object>> r
     public TableData {
         for (List<Object> row : rows) {
             if (row.size() != headers.size()) {
-                throw new IllegalArgumentException("Moi dong phai co dung " + headers.size() + " o");
+                throw new IllegalArgumentException("Mỗi dòng phải có đúng " + headers.size() + " ở");
             }
         }
     }
