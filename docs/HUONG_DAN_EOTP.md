@@ -1,3 +1,6 @@
+DA NGUNG DUNG (2026-11-28): chuyen sang gui ma bang SMS Twilio, xem docs/HUONG_DAN_SMS_TWILIO.md.
+Code eOTP van con trong repo nhung mac dinh TAT (app.otp.provider=local) nen khong anh huong gi; co the xoa sau.
+
 HUONG DAN NOI EOTP (MA OTP GUI QUA ZALO)
 
 CACH HOAT DONG

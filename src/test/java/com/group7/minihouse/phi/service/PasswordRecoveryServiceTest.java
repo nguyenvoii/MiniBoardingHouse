@@ -88,7 +88,10 @@ class PasswordRecoveryServiceTest {
 
         service.forgotPassword("0901234567", "1.1.1.1");
 
-        verify(sender).sendHtml(eq("0901234567"), anyString(), anyString(), anyString());
+        ArgumentCaptor<String> sms = ArgumentCaptor.forClass(String.class);
+        verify(sender).send(eq("0901234567"), anyString(), sms.capture()); // tai khoan khong co email: SMS ngan, khong gui thu HTML
+        assertTrue(sms.getValue().contains("111222"));
+        verify(sender, never()).sendHtml(anyString(), anyString(), anyString(), anyString());
     }
 
     @Test
@@ -323,6 +326,61 @@ class PasswordRecoveryServiceTest {
 
         assertTrue(encoder.matches("OldPass1x", u.getPasswordHash()));
         verify(userRepository, never()).save(any());
+    }
+
+    // ---------- SMS (Twilio) khi nhap so dien thoai ----------
+
+    @Test
+    void smsOnPhoneSendsAShortSmsWhenThePhoneWasTypedEvenIfTheAccountHasEmail() {
+        service.smsOnPhone = true;
+        User u = user("ACTIVE");
+        when(userRepository.findByEmailOrPhoneNumber("0901234567", "0901234567")).thenReturn(Optional.of(u));
+        when(otpService.issue(u, "RECOVERY")).thenReturn("654321");
+
+        service.forgotPassword("0901234567", "1.1.1.1");
+
+        ArgumentCaptor<String> text = ArgumentCaptor.forClass(String.class);
+        verify(sender).send(eq("0901234567"), anyString(), text.capture());
+        assertTrue(text.getValue().contains("654321"));
+        assertTrue(text.getValue().length() < 160 && text.getValue().chars().allMatch(c -> c < 128), "1 tin SMS, khong dau");
+        verify(sender, never()).sendHtml(anyString(), anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void smsOnPhoneStillEmailsWhenTheEmailWasTyped() {
+        service.smsOnPhone = true;
+        User u = user("ACTIVE");
+        when(userRepository.findByEmailOrPhoneNumber("a@x.vn", "a@x.vn")).thenReturn(Optional.of(u));
+        when(otpService.issue(u, "RECOVERY")).thenReturn("654321");
+
+        service.forgotPassword("a@x.vn", "1.1.1.1");
+
+        verify(sender).sendHtml(eq("a@x.vn"), anyString(), anyString(), anyString());
+        verify(sender, never()).send(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void smsFlagOffKeepsEmailEvenWhenThePhoneWasTyped() {
+        User u = user("ACTIVE"); // smsOnPhone mac dinh false
+        when(userRepository.findByEmailOrPhoneNumber("0901234567", "0901234567")).thenReturn(Optional.of(u));
+        when(otpService.issue(u, "RECOVERY")).thenReturn("654321");
+
+        service.forgotPassword("0901234567", "1.1.1.1");
+
+        verify(sender).sendHtml(eq("a@x.vn"), anyString(), anyString(), anyString());
+        verify(sender, never()).send(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void smsFailureIsSwallowedSoResponseDoesNotLeakAccountExistence() {
+        service.smsOnPhone = true;
+        User u = user("ACTIVE");
+        when(userRepository.findByEmailOrPhoneNumber("0901234567", "0901234567")).thenReturn(Optional.of(u));
+        when(otpService.issue(u, "RECOVERY")).thenReturn("654321");
+        org.mockito.Mockito.doThrow(new BusinessException(HttpStatus.SERVICE_UNAVAILABLE, "loi"))
+                .when(sender).send(anyString(), anyString(), anyString());
+
+        service.forgotPassword("0901234567", "1.1.1.1"); // khong nem loi
     }
 
 }

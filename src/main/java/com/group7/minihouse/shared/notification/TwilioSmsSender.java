@@ -20,18 +20,28 @@ public class TwilioSmsSender {
     private final RestClient client;
     private final String from;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public TwilioSmsSender(@Value("${app.sms.twilio.account-sid}") String accountSid,
                            @Value("${app.sms.twilio.auth-token}") String authToken,
-                           @Value("${app.sms.twilio.from}") String from) {
+                           @Value("${app.sms.twilio.from}") String from,
+                           @Value("${app.sms.twilio.base-url:https://api.twilio.com/2010-04-01}") String baseUrl) {
+        this(configured(accountSid, authToken, baseUrl), from);
+    }
+
+    TwilioSmsSender(RestClient client, String from) {
+        this.client = client;
+        this.from = from;
+    }
+
+    private static RestClient configured(String accountSid, String authToken, String baseUrl) {
         var requests = new JdkClientHttpRequestFactory(HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(5)).build());
-        requests.setReadTimeout(Duration.ofSeconds(5));
-        this.client = RestClient.builder()
-                .baseUrl("https://api.twilio.com/2010-04-01/Accounts/" + accountSid)
+        requests.setReadTimeout(Duration.ofSeconds(10));
+        return RestClient.builder()
+                .baseUrl(baseUrl + "/Accounts/" + accountSid)
                 .defaultHeaders(headers -> headers.setBasicAuth(accountSid, authToken))
                 .requestFactory(requests)
                 .build();
-        this.from = from;
     }
 
     public void send(String recipient, String body) {

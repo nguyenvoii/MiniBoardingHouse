@@ -23,6 +23,10 @@ public class PasswordRecoveryService {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     ExternalOtpService external;
 
+    /** true: nguoi dung nhap SO DIEN THOAI o man quen mat khau thi ma gui bang SMS (Twilio, can app.sms.enabled=true). Mac dinh gui email. */
+    @org.springframework.beans.factory.annotation.Value("${app.otp.sms-on-phone:false}")
+    boolean smsOnPhone;
+
     private final UserRepository userRepository;
     private final OtpService otpService;
     private final NotificationSender sender;
@@ -68,9 +72,21 @@ public class PasswordRecoveryService {
             }
             throw e;
         }
-        String to = user.getEmail() != null && !user.getEmail().isBlank() ? user.getEmail() : user.getPhoneNumber();
-        OtpMail mail = OtpMail.recovery(code);
-        sender.sendHtml(to, mail.subject(), mail.text(), mail.html());
+        // Nhap SDT + bat app.otp.sms-on-phone: gui SMS (Twilio) toi SDT do; con lai gui email, tai khoan khong co email thi SMS.
+        boolean viaSms = smsOnPhone && user.getPhoneNumber() != null && id.equals(user.getPhoneNumber());
+        String to = viaSms ? user.getPhoneNumber()
+                : user.getEmail() != null && !user.getEmail().isBlank() ? user.getEmail() : user.getPhoneNumber();
+        if (to.contains("@")) {
+            OtpMail mail = OtpMail.recovery(code);
+            sender.sendHtml(to, mail.subject(), mail.text(), mail.html());
+            return;
+        }
+        try {
+            sender.send(to, "Ma dat lai mat khau Stayly", OtpMail.recoverySms(code));
+        } catch (BusinessException e) {
+            // SMS loi (Twilio het tien, so khong hop le...): im lang de khong lo tai khoan ton tai, chi ghi log
+            log.warn("Khong gui duoc SMS ma dat lai mat khau cho tai khoan {}: {}", user.getUserId(), e.getMessage());
+        }
     }
 
     /** Buoc 2: kiem tra ma (chua dung het ma) de giao dien biet cho phep sang buoc nhap mat khau moi. */

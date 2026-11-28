@@ -31,6 +31,11 @@ public record OtpMail(String subject, String text, String html) {
                 "Nhập mã này vào Stayly để tiếp tục đặt lại mật khẩu.", code);
     }
 
+    /** SMS: ngan, khong dau (1 tin duoi 160 ky tu, chu co dau thanh tin Unicode 70 ky tu/tin va ton gap nhieu lan). */
+    public static String recoverySms(String code) {
+        return "Stayly: ma dat lai mat khau cua ban la " + code + " (hieu luc 10 phut). Khong chia se ma nay cho ai.";
+    }
+
     public static OtpMail emailVerification(String code) {
         return build("Mã xác thực email Stayly: " + code, "Xác thực email",
                 "Nhập mã này vào Stayly để kích hoạt tài khoản.", code);
