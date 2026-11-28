@@ -9,11 +9,11 @@ import org.springframework.stereotype.Component;
 public class RoutingNotificationSender implements NotificationSender {
 
     private final ObjectProvider<SmtpNotificationSender> smtp;
-    private final ObjectProvider<TwilioSmsSender> sms;
+    private final ObjectProvider<SmsSender> sms; // SpeedSMS hoac Twilio, cai nao dang bat
     private final LogNotificationSender fallback;
 
     public RoutingNotificationSender(ObjectProvider<SmtpNotificationSender> smtp,
-                                     ObjectProvider<TwilioSmsSender> sms, LogNotificationSender fallback) {
+                                     ObjectProvider<SmsSender> sms, LogNotificationSender fallback) {
         this.smtp = smtp;
         this.sms = sms;
         this.fallback = fallback;
@@ -28,7 +28,7 @@ public class RoutingNotificationSender implements NotificationSender {
                 return;
             }
         } else {
-            var sender = sms.getIfAvailable();
+            var sender = sms.orderedStream().findFirst().orElse(null);
             if (sender != null) {
                 sender.send(recipient, body);
                 return;

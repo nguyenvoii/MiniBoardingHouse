@@ -1,3 +1,6 @@
+KHONG DUNG (2026-11-28): tai khoan Twilio dung thu chi gui duoc mau tin co san (loi 572006), khong gui duoc noi dung OTP tu do;
+da chuyen sang SpeedSMS, xem docs/HUONG_DAN_SMS_SPEEDSMS.md. Code Twilio van con nhung tat.
+
 HUONG DAN SMS TWILIO (MA OTP GUI QUA TIN NHAN)
 
 CACH HOAT DONG

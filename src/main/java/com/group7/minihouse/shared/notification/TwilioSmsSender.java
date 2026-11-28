@@ -15,7 +15,8 @@ import org.springframework.web.client.RestClientException;
 
 @Component
 @ConditionalOnProperty(name = "app.sms.enabled", havingValue = "true")
-public class TwilioSmsSender {
+@org.springframework.core.annotation.Order(2)
+public class TwilioSmsSender implements SmsSender {
 
     private final RestClient client;
     private final String from;
@@ -44,6 +45,7 @@ public class TwilioSmsSender {
                 .build();
     }
 
+    @Override
     public void send(String recipient, String body) {
         String number = recipient.trim().replaceAll("[ .()-]", "");
         if (number.matches("0[0-9]{9}")) {
